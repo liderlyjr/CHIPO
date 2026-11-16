@@ -337,9 +337,9 @@ void ChipoFace::RecoveryAnimationReadyCallback(lv_anim_t* animation) {
 
 void ChipoFace::OnMotion(int x_mg, int y_mg, int z_mg) {
     if (!root_) return;
-    const int dx = has_previous_motion_ ? abs(x_mg - previous_ax_) : 0;
-    const int dy = has_previous_motion_ ? abs(y_mg - previous_ay_) : 0;
-    const int dz = has_previous_motion_ ? abs(z_mg - previous_az_) : 0;
+    const int dx = has_previous_motion_ ? std::abs(x_mg - previous_ax_) : 0;
+    const int dy = has_previous_motion_ ? std::abs(y_mg - previous_ay_) : 0;
+    const int dz = has_previous_motion_ ? std::abs(z_mg - previous_az_) : 0;
     previous_ax_ = x_mg; previous_ay_ = y_mg; previous_az_ = z_mg;
     const bool first = !has_previous_motion_;
     has_previous_motion_ = true;
