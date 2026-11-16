@@ -2,6 +2,7 @@
 
 #include "esp_log.h"
 #include <cstdlib>
+#include <cstdio>
 
 namespace {
 constexpr char TAG[] = "ChipoFace";
@@ -64,7 +65,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     left_pupil_ = lv_obj_create(root_);
     right_pupil_ = lv_obj_create(root_);
     mouth_ = lv_obj_create(root_);
-    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_) {
+    battery_label_ = lv_label_create(root_);
+    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_ || !battery_label_) {
         Stop();
         ESP_LOGE(TAG, "Could not create face objects");
         return false;
@@ -85,6 +87,13 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     PositionEyes(0, 0);
     lv_obj_set_size(mouth_, 42, 8);
     lv_obj_set_pos(mouth_, (kCanvasWidth - 42) / 2, kMouthY);
+
+    lv_label_set_text(battery_label_, "BAT --%");
+    lv_obj_set_width(battery_label_, 76);
+    lv_obj_set_style_text_color(battery_label_, lv_color_hex(kGlowBlue), LV_PART_MAIN);
+    lv_obj_set_style_text_opa(battery_label_, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_text_align(battery_label_, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+    lv_obj_set_pos(battery_label_, 216, 8);
 
     // Touch is deliberately attached only to facial features, not the full screen,
     // so XiaoZhi's normal menus and dialogs remain usable outside CHIPO's face.
@@ -120,9 +129,10 @@ void ChipoFace::Stop() {
     if (motion_timer_) { lv_timer_delete(motion_timer_); motion_timer_ = nullptr; }
     if (interaction_timer_) { lv_timer_delete(interaction_timer_); interaction_timer_ = nullptr; }
     if (fall_timer_) { lv_timer_delete(fall_timer_); fall_timer_ = nullptr; }
+    if (battery_timer_) { lv_timer_delete(battery_timer_); battery_timer_ = nullptr; }
     lv_anim_delete(this, nullptr);
     if (root_) lv_obj_delete(root_);
-    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
+    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = battery_label_ = nullptr;
     blinking_ = false;
 }
 
@@ -130,6 +140,37 @@ void ChipoFace::SetState(State state) {
     if (state_ == state) return;
     state_ = state;
     ApplyExpression();
+}
+
+void ChipoFace::SetBatteryStatus(int level, bool charging, bool discharging) {
+    if (!battery_label_) return;
+    if (level < 0) level = 0;
+    if (level > 100) level = 100;
+
+    char text[20];
+    if (charging) {
+        std::snprintf(text, sizeof(text), "CHG %d%%", level);
+    } else if (discharging) {
+        std::snprintf(text, sizeof(text), "BAT %d%%", level);
+    } else {
+        std::snprintf(text, sizeof(text), "%d%%", level);
+    }
+    lv_label_set_text(battery_label_, text);
+
+    const bool low_battery = level <= 15 && !charging;
+    lv_obj_set_style_text_color(battery_label_,
+        lv_color_hex(low_battery ? 0xFF7185 : kGlowBlue), LV_PART_MAIN);
+
+    if (charging && !battery_timer_) {
+        battery_pulse_visible_ = true;
+        lv_obj_set_style_text_opa(battery_label_, LV_OPA_COVER, LV_PART_MAIN);
+        battery_timer_ = lv_timer_create(BatteryPulseTimerCallback, 550, this);
+    } else if (!charging && battery_timer_) {
+        lv_timer_delete(battery_timer_);
+        battery_timer_ = nullptr;
+        battery_pulse_visible_ = true;
+        lv_obj_set_style_text_opa(battery_label_, LV_OPA_COVER, LV_PART_MAIN);
+    }
 }
 
 void ChipoFace::PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y) {
@@ -396,6 +437,14 @@ void ChipoFace::MotionTimerCallback(lv_timer_t* timer) {
     if (self->state_ == State::Thinking) self->PositionEyes(8, -9);
     else if (self->state_ == State::Listening) self->PositionEyes(0, 2);
     else self->PositionEyes(self->touch_pupil_x_, self->touch_pupil_y_);
+}
+
+void ChipoFace::BatteryPulseTimerCallback(lv_timer_t* timer) {
+    auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
+    if (!self || !self->battery_label_) return;
+    self->battery_pulse_visible_ = !self->battery_pulse_visible_;
+    lv_obj_set_style_text_opa(self->battery_label_,
+        self->battery_pulse_visible_ ? LV_OPA_COVER : LV_OPA_50, LV_PART_MAIN);
 }
 void ChipoFace::Blink() {
     if (!left_eye_ || !right_eye_ || blinking_) return;
