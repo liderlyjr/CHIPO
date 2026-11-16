@@ -69,8 +69,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     right_pupil_ = lv_obj_create(root_);
     mouth_ = lv_obj_create(root_);
     battery_label_ = lv_label_create(root_);
-    timer_label_ = lv_label_create(root_);
-    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_ || !battery_label_ || !timer_label_) {
+    timer_label_ = lv_label_create(root_);\n    weather_label_ = lv_label_create(root_);
+    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_ || !battery_label_ || !timer_label_ || !weather_label_) {
         Stop();
         ESP_LOGE(TAG, "Could not create face objects");
         return false;
@@ -98,6 +98,13 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_obj_set_style_text_opa(battery_label_, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_text_align(battery_label_, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
     lv_obj_set_pos(battery_label_, 216, 8);
+
+    lv_label_set_text(weather_label_, "SBD WEATHER --");
+    lv_obj_set_width(weather_label_, 202);
+    lv_obj_set_style_text_color(weather_label_, lv_color_hex(kGlowBlue), LV_PART_MAIN);
+    lv_obj_set_style_text_opa(weather_label_, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_text_align(weather_label_, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+    lv_obj_set_pos(weather_label_, 8, 8);
 
     lv_label_set_text(timer_label_, "");
     lv_obj_set_width(timer_label_, 150);
@@ -149,7 +156,7 @@ void ChipoFace::Stop() {
     if (idle_pixel_) { lv_obj_delete(idle_pixel_); idle_pixel_ = nullptr; }
     lv_anim_delete(this, nullptr);
     if (root_) lv_obj_delete(root_);
-    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = battery_label_ = timer_label_ = nullptr;
+    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = battery_label_ = timer_label_ = weather_label_ = nullptr;
     blinking_ = false;
 }
 
@@ -280,6 +287,11 @@ void ChipoFace::SetTimerStatus(const char* text) {
     }
     lv_label_set_text(timer_label_, text);
     lv_obj_remove_flag(timer_label_, LV_OBJ_FLAG_HIDDEN);
+}
+
+void ChipoFace::SetWeatherStatus(const char* text) {
+    if (!weather_label_) return;
+    lv_label_set_text(weather_label_, (text == nullptr || text[0] == '\\0') ? "SBD WEATHER --" : text);
 }
 
 void ChipoFace::PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y) {
