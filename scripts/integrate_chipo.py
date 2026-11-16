@@ -143,3 +143,5 @@ subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_ota.py"), str
 print("[done] CHIPO GitHub Releases OTA integration applied.")
 subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_timer.py"), str(xiaozhi)], check=True)
 print("[done] CHIPO native multi-timer tools and display countdown integrated.")
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_weather.py"), str(xiaozhi)], check=True)
+print("[done] CHIPO live weather display integrated.")
