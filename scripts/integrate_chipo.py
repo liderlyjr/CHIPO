@@ -141,3 +141,5 @@ subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_battery.py"),
 print("[done] AXP2101 battery status integrated into CHIPO Face.")
 subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_ota.py"), str(chipo), str(xiaozhi)], check=True)
 print("[done] CHIPO GitHub Releases OTA integration applied.")
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_timer.py"), str(xiaozhi)], check=True)
+print("[done] CHIPO native multi-timer tools and display countdown integrated.")
