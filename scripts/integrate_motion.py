@@ -92,7 +92,8 @@ patch(board, "    // 初始化工具\n    void InitializeTools() {",
 
     void InitializeMotion() {
         esp_err_t result = ESP_ERR_NOT_FOUND;
-        for (uint8_t address : {uint8_t{0x6A}, uint8_t{0x6B}}) {
+        const uint8_t addresses[] = {0x6A, 0x6B};
+        for (uint8_t address : addresses) {
             if (i2c_master_probe(codec_i2c_bus_, address, 50) != ESP_OK) continue;
             i2c_device_config_t config = {};
             config.device_address = address;
