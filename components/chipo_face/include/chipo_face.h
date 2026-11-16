@@ -28,13 +28,15 @@ public:
     void SetBatteryStatus(int level, bool charging, bool discharging);
 
 private:
-    enum class Interaction : uint8_t { None, Curious, Annoyed, Dizzy, Tilted };
+    enum class Interaction : uint8_t { None, Curious, Annoyed, Dizzy, Bored, Tilted };
 
     static void BlinkTimerCallback(lv_timer_t* timer);
     static void RestoreEyesTimerCallback(lv_timer_t* timer);
     static void MotionTimerCallback(lv_timer_t* timer);
     static void GazeAnimationCallback(void* var, int32_t value);
     static void BatteryPulseTimerCallback(lv_timer_t* timer);
+    static void IdleTimerCallback(lv_timer_t* timer);
+    static void PixelTimerCallback(lv_timer_t* timer);
     static void TouchEventCallback(lv_event_t* event);
     static void InteractionTimerCallback(lv_timer_t* timer);
     static void FallAnimationCallback(void* var, int32_t value);
@@ -51,6 +53,8 @@ private:
     void ClearInteraction();
     void StartFall(int direction);
     void StartRecovery();
+    void StartIdlePlay();
+    void StopIdlePlay();
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* left_eye_ = nullptr;
@@ -59,12 +63,15 @@ private:
     lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
     lv_obj_t* battery_label_ = nullptr;
+    lv_obj_t* idle_pixel_ = nullptr;
     lv_timer_t* blink_timer_ = nullptr;
     lv_timer_t* restore_timer_ = nullptr;
     lv_timer_t* motion_timer_ = nullptr;
     lv_timer_t* interaction_timer_ = nullptr;
     lv_timer_t* fall_timer_ = nullptr;
     lv_timer_t* battery_timer_ = nullptr;
+    lv_timer_t* idle_timer_ = nullptr;
+    lv_timer_t* pixel_timer_ = nullptr;
 
     State state_ = State::Idle;
     Interaction interaction_ = Interaction::None;
@@ -87,4 +94,9 @@ private:
     int gaze_direction_ = 1;
     int fall_direction_ = 1;
     uint32_t last_fall_tick_ = 0;
+    uint32_t last_activity_tick_ = 0;
+    lv_coord_t pixel_x_ = 12;
+    lv_coord_t pixel_y_ = 18;
+    int pixel_vx_ = 3;
+    int pixel_vy_ = 2;
 };
