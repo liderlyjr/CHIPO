@@ -69,7 +69,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     right_pupil_ = lv_obj_create(root_);
     mouth_ = lv_obj_create(root_);
     battery_label_ = lv_label_create(root_);
-    timer_label_ = lv_label_create(root_);\n    weather_label_ = lv_label_create(root_);
+    timer_label_ = lv_label_create(root_);
+    weather_label_ = lv_label_create(root_);
     if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_ || !battery_label_ || !timer_label_ || !weather_label_) {
         Stop();
         ESP_LOGE(TAG, "Could not create face objects");
