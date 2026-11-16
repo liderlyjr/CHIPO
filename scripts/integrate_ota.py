@@ -18,7 +18,7 @@ match = re.search(r"^CHIPO_OS_VERSION=(\d+\.\d+\.\d+)\s*$", version_text, re.MUL
 if not match:
     raise SystemExit("VERSION must contain CHIPO_OS_VERSION=MAJOR.MINOR.PATCH")
 chipo_version = match.group(1)
-repo_match = re.search(r"^OTA_RELEASE_REPOSITORY=([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?\\s*$", version_text, re.MULTILINE)
+repo_match = re.search(r"^OTA_RELEASE_REPOSITORY=([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?\s*$", version_text, re.MULTILINE)
 ota_repo = repo_match.group(1) if repo_match else ""
 if not repo_match:
     raise SystemExit("VERSION must define OTA_RELEASE_REPOSITORY=owner/repo (leave empty to disable device OTA)")
@@ -52,14 +52,14 @@ app_cc = xiaozhi / "main" / "application.cc"
 if ota_repo:
     patch(
         app_h,
-        "    void CheckNewVersion();\\n",
-        "    void CheckNewVersion();\\n    void CheckChipoOta();\\n",
+        "    void CheckNewVersion();\n",
+        "    void CheckNewVersion();\n    void CheckChipoOta();\n",
         "Application CHIPO OTA declaration",
     )
     patch(
         app_cc,
-        "#include <esp_log.h>\\n",
-        "#include <esp_log.h>\\n#include <esp_app_format.h>\\n#include <cstdio>\\n#include <cstdlib>\\n",
+        "#include <esp_log.h>\n",
+        "#include <esp_log.h>\n#include <esp_app_format.h>\n#include <cstdio>\n#include <cstdlib>\n",
         "CHIPO OTA includes",
     )
 else:
