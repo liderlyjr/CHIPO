@@ -13,6 +13,8 @@ constexpr lv_coord_t kMouthY = 158;
 constexpr uint32_t kBlinkPeriodMs = 4200;
 constexpr uint32_t kBlinkClosedMs = 115;
 constexpr uint32_t kMotionPeriodMs = 1800;
+constexpr uint32_t kFallCooldownMs = 2800;
+constexpr int kFallTiltThresholdMg = 720;
 constexpr uint32_t kGlowBlue = 0x75DFFF;
 constexpr uint32_t kEyeCore = 0xDDF8FF;
 constexpr uint32_t kPupil = 0x06121B;
@@ -54,6 +56,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_obj_center(root_);
     lv_obj_clear_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(root_, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_transform_pivot_x(root_, kCanvasWidth / 2, LV_PART_MAIN);
+    lv_obj_set_style_transform_pivot_y(root_, kCanvasHeight / 2, LV_PART_MAIN);
 
     left_eye_ = lv_obj_create(root_);
     right_eye_ = lv_obj_create(root_);
@@ -115,6 +119,8 @@ void ChipoFace::Stop() {
     if (restore_timer_) { lv_timer_delete(restore_timer_); restore_timer_ = nullptr; }
     if (motion_timer_) { lv_timer_delete(motion_timer_); motion_timer_ = nullptr; }
     if (interaction_timer_) { lv_timer_delete(interaction_timer_); interaction_timer_ = nullptr; }
+    if (fall_timer_) { lv_timer_delete(fall_timer_); fall_timer_ = nullptr; }
+    lv_anim_delete(this, nullptr);
     if (root_) lv_obj_delete(root_);
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
     blinking_ = false;
@@ -251,6 +257,84 @@ void ChipoFace::HandleTouch(lv_event_t* event) {
     }
 }
 
+void ChipoFace::StartFall(int direction) {
+    if (!root_ || falling_) return;
+    falling_ = true;
+    fall_direction_ = direction < 0 ? -1 : 1;
+    SetInteraction(Interaction::Dizzy, 0);
+    lv_anim_t animation;
+    lv_anim_init(&animation);
+    lv_anim_set_var(&animation, this);
+    lv_anim_set_values(&animation, 0, 1000);
+    lv_anim_set_duration(&animation, 620);
+    lv_anim_set_path_cb(&animation, lv_anim_path_ease_in);
+    lv_anim_set_exec_cb(&animation, FallAnimationCallback);
+    lv_anim_set_completed_cb(&animation, FallAnimationReadyCallback);
+    lv_anim_start(&animation);
+}
+
+void ChipoFace::FallAnimationCallback(void* var, int32_t value) {
+    auto* self = static_cast<ChipoFace*>(var);
+    if (!self || !self->root_) return;
+    const int32_t eased = value;
+    const int32_t rotation = self->fall_direction_ * 780 * eased / 1000;
+    const int32_t shift_x = self->fall_direction_ * 34 * eased / 1000;
+    const int32_t shift_y = 48 * eased / 1000;
+    lv_obj_set_style_transform_rotation(self->root_, rotation, LV_PART_MAIN);
+    lv_obj_set_style_translate_x(self->root_, shift_x, LV_PART_MAIN);
+    lv_obj_set_style_translate_y(self->root_, shift_y, LV_PART_MAIN);
+}
+
+void ChipoFace::FallAnimationReadyCallback(lv_anim_t* animation) {
+    auto* self = static_cast<ChipoFace*>(lv_anim_get_var(animation));
+    if (!self || !self->root_) return;
+    self->fall_timer_ = lv_timer_create(RecoverFallTimerCallback, 850, self);
+    if (self->fall_timer_) lv_timer_set_repeat_count(self->fall_timer_, 1);
+    else self->StartRecovery();
+}
+
+void ChipoFace::RecoverFallTimerCallback(lv_timer_t* timer) {
+    auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
+    if (self) {
+        self->fall_timer_ = nullptr;
+        self->StartRecovery();
+    }
+    lv_timer_delete(timer);
+}
+
+void ChipoFace::StartRecovery() {
+    if (!root_) return;
+    lv_anim_t animation;
+    lv_anim_init(&animation);
+    lv_anim_set_var(&animation, this);
+    lv_anim_set_values(&animation, 1000, 0);
+    lv_anim_set_duration(&animation, 720);
+    lv_anim_set_path_cb(&animation, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&animation, RecoveryAnimationCallback);
+    lv_anim_set_completed_cb(&animation, RecoveryAnimationReadyCallback);
+    lv_anim_start(&animation);
+}
+
+void ChipoFace::RecoveryAnimationCallback(void* var, int32_t value) {
+    auto* self = static_cast<ChipoFace*>(var);
+    if (!self || !self->root_) return;
+    const int32_t remaining = value;
+    lv_obj_set_style_transform_rotation(self->root_, self->fall_direction_ * 780 * remaining / 1000, LV_PART_MAIN);
+    lv_obj_set_style_translate_x(self->root_, self->fall_direction_ * 34 * remaining / 1000, LV_PART_MAIN);
+    lv_obj_set_style_translate_y(self->root_, 48 * remaining / 1000, LV_PART_MAIN);
+}
+
+void ChipoFace::RecoveryAnimationReadyCallback(lv_anim_t* animation) {
+    auto* self = static_cast<ChipoFace*>(lv_anim_get_var(animation));
+    if (!self || !self->root_) return;
+    lv_obj_set_style_transform_rotation(self->root_, 0, LV_PART_MAIN);
+    lv_obj_set_style_translate_x(self->root_, 0, LV_PART_MAIN);
+    lv_obj_set_style_translate_y(self->root_, 0, LV_PART_MAIN);
+    self->falling_ = false;
+    self->interaction_ = Interaction::Annoyed;
+    self->SetInteraction(Interaction::Annoyed, 1700);
+}
+
 void ChipoFace::OnMotion(int x_mg, int y_mg, int z_mg) {
     if (!root_) return;
     const int dx = has_previous_motion_ ? abs(x_mg - previous_ax_) : 0;
@@ -262,6 +346,15 @@ void ChipoFace::OnMotion(int x_mg, int y_mg, int z_mg) {
     if (first) return;
 
     const uint32_t now = lv_tick_get();
+    const int tilt_x = abs(x_mg);
+    const int tilt_y = abs(y_mg);
+    if (!falling_ && (tilt_x > kFallTiltThresholdMg || tilt_y > kFallTiltThresholdMg) &&
+        now - last_fall_tick_ > kFallCooldownMs) {
+        last_fall_tick_ = now;
+        StartFall(tilt_x >= tilt_y ? (x_mg < 0 ? -1 : 1) : (y_mg < 0 ? -1 : 1));
+        return;
+    }
+    if (falling_) return;
     const int shake_score = dx + dy + dz;
     if (shake_score > 2200 && now - last_shake_tick_ > 1800) {
         last_shake_tick_ = now;
