@@ -42,7 +42,7 @@ añade:
 
 ```cpp
 {
-    DisplayLockGuard lock(display.get());
+    DisplayLockGuard lock(display);
     if (lock) {
         chipo_face_ = std::make_unique<ChipoFace>();
         if (!chipo_face_->Start(lv_screen_active())) {
@@ -67,7 +67,7 @@ En `main/application.cc`, incluye `chipo_state_map.h`. Dentro de
 auto display = board.GetDisplay();
 
 if (chipo_face_) {
-    DisplayLockGuard lock(display.get());
+    DisplayLockGuard lock(display);
     if (lock) {
         chipo_face_->SetState(ChipoStateFromXiaoZhi(new_state));
     }
