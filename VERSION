@@ -3,5 +3,5 @@ TARGET=esp32s3
 BOARD=esp32-s3-touch-amoled-1.8-v2
 SDK_MIN=6.0.1
 SDK_RECOMMENDED=release/v6.1
-OTA_RELEASE_REPOSITORY=
+OTA_RELEASE_REPOSITORY=liderlyjr/CHIPO
 STATUS=windows-build-script-added-not-compiled-here
