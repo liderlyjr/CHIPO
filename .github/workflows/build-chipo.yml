@@ -16,10 +16,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: chipo-firmware-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
     name: Compile CHIPO for Waveshare
