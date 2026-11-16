@@ -4,7 +4,7 @@
 #include "lvgl.h"
 
 /**
- * CHIPO Face: visual layer for the XiaoZhi LVGL interface.
+ * CHIPO Face: a floating expressive face made only of luminous eyes and mouth.
  *
  * Start it from the UI/LVGL task after the display is initialized.
  * All public methods must be called from that same UI task.
@@ -36,16 +36,22 @@ public:
 private:
     static void BlinkTimerCallback(lv_timer_t* timer);
     static void RestoreEyesTimerCallback(lv_timer_t* timer);
+    static void MotionTimerCallback(lv_timer_t* timer);
     void ApplyExpression();
+    void PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y);
     void Blink();
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* left_eye_ = nullptr;
     lv_obj_t* right_eye_ = nullptr;
+    lv_obj_t* left_pupil_ = nullptr;
+    lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
     lv_timer_t* blink_timer_ = nullptr;
     lv_timer_t* restore_timer_ = nullptr;
+    lv_timer_t* motion_timer_ = nullptr;
     State state_ = State::Idle;
-    lv_coord_t expression_eye_height_ = 28;
+    lv_coord_t expression_eye_width_ = 62;
+    lv_coord_t expression_eye_height_ = 70;
     bool blinking_ = false;
 };
