@@ -8,12 +8,23 @@ on:
       - "components/**"
       - "integration/**"
       - "scripts/**"
-      - ".github/workflows/build-chipo.yml"
+      - "docs/**"
+      - "README.md"
       - "VERSION"
+      - ".github/workflows/build-chipo.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chipo-firmware-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    name: Compile CHIPO for Waveshare
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     container:
       image: espressif/idf:v6.1
     steps:
@@ -26,6 +37,9 @@ jobs:
       - name: Apply CHIPO integration
         run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32"
 
+      - name: Show ESP-IDF version
+        run: idf.py --version
+
       - name: Compile for Waveshare ESP32-S3 AMOLED 1.8 V2
         working-directory: build/xiaozhi-esp32
         run: |
@@ -33,13 +47,15 @@ jobs:
           idf.py set-target esp32s3
           idf.py build
 
-      - name: Upload firmware artifacts
+      - name: Upload firmware files
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2
           path: |
-            build/xiaozhi-esp32/build/*.bin
+            build/xiaozhi-esp32/build/**/*.bin
             build/xiaozhi-esp32/build/flash_args
             build/xiaozhi-esp32/build/flasher_args.json
+            build/xiaozhi-esp32/build/flash_project_args
           if-no-files-found: error
+          compression-level: 6
