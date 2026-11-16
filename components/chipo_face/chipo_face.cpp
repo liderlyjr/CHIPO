@@ -346,15 +346,8 @@ void ChipoFace::OnMotion(int x_mg, int y_mg, int z_mg) {
     if (first) return;
 
     const uint32_t now = lv_tick_get();
-    const int tilt_x = abs(x_mg);
-    const int tilt_y = abs(y_mg);
-    if (!falling_ && (tilt_x > kFallTiltThresholdMg || tilt_y > kFallTiltThresholdMg) &&
-        now - last_fall_tick_ > kFallCooldownMs) {
-        last_fall_tick_ = now;
-        StartFall(tilt_x >= tilt_y ? (x_mg < 0 ? -1 : 1) : (y_mg < 0 ? -1 : 1));
-        return;
-    }
-    if (falling_) return;
+    // Detect a shake before evaluating static tilt so a vigorous shake is not
+    // mistaken for CHIPO tipping over.
     const int shake_score = dx + dy + dz;
     if (shake_score > 2200 && now - last_shake_tick_ > 1800) {
         last_shake_tick_ = now;
@@ -362,6 +355,16 @@ void ChipoFace::OnMotion(int x_mg, int y_mg, int z_mg) {
         Blink();
         return;
     }
+
+    const int tilt_x = std::abs(x_mg);
+    const int tilt_y = std::abs(y_mg);
+    if (!falling_ && (tilt_x > kFallTiltThresholdMg || tilt_y > kFallTiltThresholdMg) &&
+        now - last_fall_tick_ > kFallCooldownMs) {
+        last_fall_tick_ = now;
+        StartFall(tilt_x >= tilt_y ? (x_mg < 0 ? -1 : 1) : (y_mg < 0 ? -1 : 1));
+        return;
+    }
+    if (falling_) return;
 
     // Gravity vector gives a simple tilt estimate. Clamp eye travel so pupils
     // remain inside their luminous eye shapes.
