@@ -25,6 +25,7 @@ public:
 
     // Called by the board IMU adapter from the LVGL/UI task.
     void OnMotion(int x_mg, int y_mg, int z_mg);
+    void SetBatteryStatus(int level, bool charging, bool discharging);
 
 private:
     enum class Interaction : uint8_t { None, Curious, Annoyed, Dizzy, Tilted };
@@ -32,6 +33,7 @@ private:
     static void BlinkTimerCallback(lv_timer_t* timer);
     static void RestoreEyesTimerCallback(lv_timer_t* timer);
     static void MotionTimerCallback(lv_timer_t* timer);
+    static void BatteryPulseTimerCallback(lv_timer_t* timer);
     static void TouchEventCallback(lv_event_t* event);
     static void InteractionTimerCallback(lv_timer_t* timer);
     static void FallAnimationCallback(void* var, int32_t value);
@@ -55,11 +57,13 @@ private:
     lv_obj_t* left_pupil_ = nullptr;
     lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
+    lv_obj_t* battery_label_ = nullptr;
     lv_timer_t* blink_timer_ = nullptr;
     lv_timer_t* restore_timer_ = nullptr;
     lv_timer_t* motion_timer_ = nullptr;
     lv_timer_t* interaction_timer_ = nullptr;
     lv_timer_t* fall_timer_ = nullptr;
+    lv_timer_t* battery_timer_ = nullptr;
 
     State state_ = State::Idle;
     Interaction interaction_ = Interaction::None;
@@ -77,6 +81,7 @@ private:
     bool long_press_active_ = false;
     bool blinking_ = false;
     bool falling_ = false;
+    bool battery_pulse_visible_ = true;
     int fall_direction_ = 1;
     uint32_t last_fall_tick_ = 0;
 };
