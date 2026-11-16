@@ -85,21 +85,33 @@ patch(
 )
 
 if ota_repo:
-    patch(
-        app_cc,
-        """    // Check for new firmware version
-    CheckNewVersion();
-
-    // Initialize the protocol
-""",
-        """    // Check upstream service configuration, then check CHIPO's own release channel.
-    CheckNewVersion();
+    activation_new = """    // Check CHIPO's own public release channel before the upstream configuration service.
     CheckChipoOta();
+    // Confirm the booted image after hardware/network startup so rollback remains available
+    // until the device has reached the activation stage.
+    ota_->MarkCurrentVersionValid();
+    CheckNewVersion();
+
+    // Initialize the protocol
+"""
+else:
+    activation_new = """    // No public CHIPO OTA channel is configured; keep the current image and block
+    // upstream XiaoZhi firmware replacement.
+    ota_->MarkCurrentVersionValid();
+    CheckNewVersion();
+
+    // Initialize the protocol
+"""
+patch(
+    app_cc,
+    """    // Check for new firmware version
+    CheckNewVersion();
 
     // Initialize the protocol
 """,
-        "Run CHIPO OTA check during activation",
-    )
+    activation_new,
+    "Check CHIPO OTA before upstream activation and confirm rollback",
+)
 
 
 ota_method = r'''
