@@ -12,7 +12,6 @@ constexpr lv_coord_t kMouthY = 158;
 constexpr uint32_t kBlinkPeriodMs = 4200;
 constexpr uint32_t kBlinkClosedMs = 115;
 constexpr uint32_t kMotionPeriodMs = 1800;
-
 constexpr uint32_t kGlowBlue = 0x75DFFF;
 constexpr uint32_t kEyeCore = 0xDDF8FF;
 constexpr uint32_t kPupil = 0x06121B;
@@ -28,7 +27,6 @@ void StyleGlow(lv_obj_t* object, lv_color_t color, lv_coord_t radius) {
     lv_obj_set_style_shadow_width(object, 20, LV_PART_MAIN);
     lv_obj_set_style_shadow_opa(object, LV_OPA_60, LV_PART_MAIN);
 }
-
 void StylePupil(lv_obj_t* object) {
     lv_obj_remove_style_all(object);
     lv_obj_set_style_bg_color(object, lv_color_hex(kPupil), LV_PART_MAIN);
@@ -39,20 +37,17 @@ void StylePupil(lv_obj_t* object) {
 }
 }
 
-ChipoFace::~ChipoFace() {
-    Stop();
-}
+ChipoFace::~ChipoFace() { Stop(); }
 
 bool ChipoFace::Start(lv_obj_t* parent) {
-    if (parent == nullptr) {
+    if (!parent) {
         ESP_LOGE(TAG, "Start called with null parent");
         return false;
     }
-    if (root_ != nullptr) return true;
+    if (root_) return true;
 
     root_ = lv_obj_create(parent);
-    if (root_ == nullptr) return false;
-
+    if (!root_) return false;
     lv_obj_remove_style_all(root_);
     lv_obj_set_size(root_, kCanvasWidth, kCanvasHeight);
     lv_obj_center(root_);
@@ -64,7 +59,6 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     left_pupil_ = lv_obj_create(root_);
     right_pupil_ = lv_obj_create(root_);
     mouth_ = lv_obj_create(root_);
-
     if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_) {
         Stop();
         ESP_LOGE(TAG, "Could not create face objects");
@@ -84,36 +78,36 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_obj_set_size(left_pupil_, 22, 30);
     lv_obj_set_size(right_pupil_, 22, 30);
     PositionEyes(0, 0);
-
     lv_obj_set_size(mouth_, 42, 8);
     lv_obj_set_pos(mouth_, (kCanvasWidth - 42) / 2, kMouthY);
 
+    // Touch is deliberately attached only to facial features, not the full screen,
+    // so XiaoZhi's normal menus and dialogs remain usable outside CHIPO's face.
+    for (lv_obj_t* feature : {left_eye_, right_eye_, left_pupil_, right_pupil_, mouth_}) {
+        lv_obj_add_flag(feature, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_PRESSED, this);
+        lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_LONG_PRESSED, this);
+        lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_RELEASED, this);
+        lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_CLICKED, this);
+    }
+
     blink_timer_ = lv_timer_create(BlinkTimerCallback, kBlinkPeriodMs, this);
-    if (blink_timer_ == nullptr) {
+    if (!blink_timer_) {
         Stop();
         ESP_LOGE(TAG, "Could not create blink timer");
         return false;
     }
-
     motion_timer_ = lv_timer_create(MotionTimerCallback, kMotionPeriodMs, this);
     ApplyExpression();
-    ESP_LOGI(TAG, "CHIPO Face initialized with smooth luminous eyes");
+    ESP_LOGI(TAG, "CHIPO Face initialized with touch interactions");
     return true;
 }
 
 void ChipoFace::Stop() {
-    if (blink_timer_) {
-        lv_timer_delete(blink_timer_);
-        blink_timer_ = nullptr;
-    }
-    if (restore_timer_) {
-        lv_timer_delete(restore_timer_);
-        restore_timer_ = nullptr;
-    }
-    if (motion_timer_) {
-        lv_timer_delete(motion_timer_);
-        motion_timer_ = nullptr;
-    }
+    if (blink_timer_) { lv_timer_delete(blink_timer_); blink_timer_ = nullptr; }
+    if (restore_timer_) { lv_timer_delete(restore_timer_); restore_timer_ = nullptr; }
+    if (motion_timer_) { lv_timer_delete(motion_timer_); motion_timer_ = nullptr; }
+    if (interaction_timer_) { lv_timer_delete(interaction_timer_); interaction_timer_ = nullptr; }
     if (root_) lv_obj_delete(root_);
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
     blinking_ = false;
@@ -127,14 +121,12 @@ void ChipoFace::SetState(State state) {
 
 void ChipoFace::PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y) {
     if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_) return;
-
     const lv_coord_t left_x = kCanvasWidth / 2 - kEyeGap / 2 - expression_eye_width_;
     const lv_coord_t right_x = kCanvasWidth / 2 + kEyeGap / 2;
     lv_obj_set_pos(left_eye_, left_x, kEyeY);
     lv_obj_set_pos(right_eye_, right_x, kEyeY);
-
-    const lv_coord_t pupil_w = 22;
-    const lv_coord_t pupil_h = 30;
+    constexpr lv_coord_t pupil_w = 22;
+    constexpr lv_coord_t pupil_h = 30;
     lv_obj_set_size(left_pupil_, pupil_w, pupil_h);
     lv_obj_set_size(right_pupil_, pupil_w, pupil_h);
     lv_obj_set_pos(left_pupil_, left_x + (expression_eye_width_ - pupil_w) / 2 + pupil_x,
@@ -145,39 +137,26 @@ void ChipoFace::PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y) {
 
 void ChipoFace::ApplyExpression() {
     if (!root_ || !left_eye_ || !right_eye_ || !mouth_) return;
+    lv_coord_t eye_w = 62, eye_h = 70, pupil_x = touch_pupil_x_, pupil_y = touch_pupil_y_;
+    lv_coord_t mouth_w = 42, mouth_h = 8, mouth_y = kMouthY;
 
-    lv_coord_t eye_w = 62;
-    lv_coord_t eye_h = 70;
-    lv_coord_t pupil_x = 0;
-    lv_coord_t pupil_y = 0;
-    lv_coord_t mouth_w = 42;
-    lv_coord_t mouth_h = 8;
-    lv_coord_t mouth_y = kMouthY;
-    lv_coord_t mouth_radius = LV_RADIUS_CIRCLE;
-
-    switch (state_) {
-    case State::Idle:
-        break;
-    case State::Listening:
-        eye_w = 66; eye_h = 78;
-        mouth_w = 13; mouth_h = 13; mouth_y -= 3;
-        break;
-    case State::Thinking:
-        pupil_x = 8; pupil_y = -9;
-        mouth_w = 28; mouth_h = 7;
-        break;
-    case State::Speaking:
-        mouth_w = 34; mouth_h = 28; mouth_y -= 9;
-        break;
-    case State::Connecting:
-        eye_w = 58; eye_h = 64;
-        mouth_w = 24; mouth_h = 7;
-        break;
-    case State::Error:
-        eye_w = 62; eye_h = 48;
-        mouth_w = 36; mouth_h = 7; mouth_y += 5;
-        pupil_y = 4;
-        break;
+    if (interaction_ == Interaction::Dizzy) {
+        eye_w = 66; eye_h = 66; mouth_w = 38; mouth_h = 20; mouth_y -= 5;
+    } else if (interaction_ == Interaction::Annoyed) {
+        eye_w = 62; eye_h = 48; pupil_y = 10; mouth_w = 36; mouth_h = 6; mouth_y += 8;
+    } else if (interaction_ == Interaction::Curious) {
+        eye_w = 70; eye_h = 78; mouth_w = 13; mouth_h = 13; mouth_y -= 4;
+    } else if (interaction_ == Interaction::Tilted) {
+        pupil_x = touch_pupil_x_; pupil_y = touch_pupil_y_;
+    } else {
+        switch (state_) {
+        case State::Idle: break;
+        case State::Listening: eye_w = 66; eye_h = 78; mouth_w = 13; mouth_h = 13; mouth_y -= 3; break;
+        case State::Thinking: pupil_x = 8; pupil_y = -9; mouth_w = 28; mouth_h = 7; break;
+        case State::Speaking: mouth_w = 34; mouth_h = 28; mouth_y -= 9; break;
+        case State::Connecting: eye_w = 58; eye_h = 64; mouth_w = 24; mouth_h = 7; break;
+        case State::Error: eye_w = 62; eye_h = 48; mouth_w = 36; mouth_h = 7; mouth_y += 5; pupil_y = 4; break;
+        }
     }
 
     expression_eye_width_ = eye_w;
@@ -185,21 +164,106 @@ void ChipoFace::ApplyExpression() {
     if (!blinking_) {
         lv_obj_set_size(left_eye_, eye_w, eye_h);
         lv_obj_set_size(right_eye_, eye_w, eye_h);
-        lv_obj_set_style_radius(left_eye_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_radius(right_eye_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
         PositionEyes(pupil_x, pupil_y);
     }
-
     lv_obj_set_size(mouth_, mouth_w, mouth_h);
-    lv_obj_set_style_radius(mouth_, mouth_radius, LV_PART_MAIN);
     lv_obj_set_pos(mouth_, (kCanvasWidth - mouth_w) / 2, mouth_y);
+}
+
+void ChipoFace::SetInteraction(Interaction interaction, uint32_t duration_ms) {
+    interaction_ = interaction;
+    ApplyExpression();
+    if (interaction_timer_) {
+        lv_timer_delete(interaction_timer_);
+        interaction_timer_ = nullptr;
+    }
+    if (duration_ms > 0) {
+        interaction_timer_ = lv_timer_create(InteractionTimerCallback, duration_ms, this);
+        if (interaction_timer_) lv_timer_set_repeat_count(interaction_timer_, 1);
+    }
+}
+void ChipoFace::ClearInteraction() {
+    interaction_timer_ = nullptr;
+    interaction_ = Interaction::None;
+    ApplyExpression();
+}
+void ChipoFace::InteractionTimerCallback(lv_timer_t* timer) {
+    auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
+    if (self) self->ClearInteraction();
+    lv_timer_delete(timer);
+}
+
+void ChipoFace::TouchEventCallback(lv_event_t* event) {
+    auto* self = static_cast<ChipoFace*>(lv_event_get_user_data(event));
+    if (self) self->HandleTouch(event);
+}
+void ChipoFace::HandleTouch(lv_event_t* event) {
+    const auto code = lv_event_get_code(event);
+    const uint32_t now = lv_tick_get();
+    if (code == LV_EVENT_PRESSED) {
+        long_press_active_ = false;
+        return;
+    }
+    if (code == LV_EVENT_LONG_PRESSED) {
+        long_press_active_ = true;
+        SetInteraction(Interaction::Annoyed, 1500);
+        return;
+    }
+    if (code == LV_EVENT_RELEASED) {
+        if (long_press_active_) {
+            long_press_active_ = false;
+            SetInteraction(Interaction::Curious, 900);
+        }
+        return;
+    }
+    if (code == LV_EVENT_CLICKED) {
+        if (now - last_tap_tick_ < 900) ++tap_count_; else tap_count_ = 1;
+        last_tap_tick_ = now;
+        if (tap_count_ >= 4) {
+            tap_count_ = 0;
+            SetInteraction(Interaction::Annoyed, 2200);
+        } else {
+            SetInteraction(Interaction::Curious, 1000);
+        }
+        Blink();
+    }
+}
+
+void ChipoFace::OnMotion(int x_mg, int y_mg, int z_mg) {
+    if (!root_) return;
+    const int dx = has_previous_motion_ ? abs(x_mg - previous_ax_) : 0;
+    const int dy = has_previous_motion_ ? abs(y_mg - previous_ay_) : 0;
+    const int dz = has_previous_motion_ ? abs(z_mg - previous_az_) : 0;
+    previous_ax_ = x_mg; previous_ay_ = y_mg; previous_az_ = z_mg;
+    const bool first = !has_previous_motion_;
+    has_previous_motion_ = true;
+    if (first) return;
+
+    const uint32_t now = lv_tick_get();
+    const int shake_score = dx + dy + dz;
+    if (shake_score > 2200 && now - last_shake_tick_ > 1800) {
+        last_shake_tick_ = now;
+        SetInteraction(Interaction::Dizzy, 2600);
+        Blink();
+        return;
+    }
+
+    // Gravity vector gives a simple tilt estimate. Clamp eye travel so pupils
+    // remain inside their luminous eye shapes.
+    const int px = (x_mg > 250 ? 8 : (x_mg < -250 ? -8 : 0));
+    const int py = (y_mg > 250 ? 7 : (y_mg < -250 ? -7 : 0));
+    touch_pupil_x_ = px;
+    touch_pupil_y_ = py;
+    if (interaction_ == Interaction::None || interaction_ == Interaction::Tilted) {
+        interaction_ = (px || py) ? Interaction::Tilted : Interaction::None;
+        ApplyExpression();
+    }
 }
 
 void ChipoFace::BlinkTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
     if (self) self->Blink();
 }
-
 void ChipoFace::RestoreEyesTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
     if (!self) return;
@@ -208,19 +272,13 @@ void ChipoFace::RestoreEyesTimerCallback(lv_timer_t* timer) {
     self->ApplyExpression();
     lv_timer_delete(timer);
 }
-
 void ChipoFace::MotionTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
-    if (!self || self->blinking_) return;
-    if (self->state_ == State::Thinking) {
-        self->PositionEyes(8, -9);
-    } else if (self->state_ == State::Listening) {
-        self->PositionEyes(0, 2);
-    } else {
-        self->PositionEyes(0, 0);
-    }
+    if (!self || self->blinking_ || self->interaction_ != Interaction::None) return;
+    if (self->state_ == State::Thinking) self->PositionEyes(8, -9);
+    else if (self->state_ == State::Listening) self->PositionEyes(0, 2);
+    else self->PositionEyes(self->touch_pupil_x_, self->touch_pupil_y_);
 }
-
 void ChipoFace::Blink() {
     if (!left_eye_ || !right_eye_ || blinking_) return;
     blinking_ = true;
@@ -229,10 +287,6 @@ void ChipoFace::Blink() {
     lv_obj_set_height(left_pupil_, 1);
     lv_obj_set_height(right_pupil_, 1);
     restore_timer_ = lv_timer_create(RestoreEyesTimerCallback, kBlinkClosedMs, this);
-    if (!restore_timer_) {
-        blinking_ = false;
-        ApplyExpression();
-    } else {
-        lv_timer_set_repeat_count(restore_timer_, 1);
-    }
+    if (!restore_timer_) { blinking_ = false; ApplyExpression(); }
+    else lv_timer_set_repeat_count(restore_timer_, 1);
 }
