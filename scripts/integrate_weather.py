@@ -62,12 +62,13 @@ face_init = """            if (!chipo_face_->Start(lv_screen_active())) {
 patch(app, face_init, face_init + """            ChipoWeather::GetInstance().Start();
 """, "Start background weather service after CHIPO Face")
 
-timer_display = "if (lock) chipo_face_->SetTimerStatus(timer_text.c_str());"
+timer_display = """if (lock) chipo_face_->SetTimerStatus(timer_text.c_str());"""
 patch(app, timer_display,
-      timer_display + """
-                const std::string weather_text = ChipoWeather::GetInstance().GetDisplayText();
-                chipo_face_->SetWeatherStatus(weather_text.c_str());
-""",
+      """if (lock) {
+                    chipo_face_->SetTimerStatus(timer_text.c_str());
+                    const std::string weather_text = ChipoWeather::GetInstance().GetDisplayText();
+                    chipo_face_->SetWeatherStatus(weather_text.c_str());
+                }""",
       "Refresh weather label on the LVGL task")
 
 print("[done] CHIPO weather integrated: live Sabadell conditions, HTTPS, 15-minute refresh and offline retry.")
