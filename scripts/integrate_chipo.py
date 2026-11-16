@@ -112,3 +112,7 @@ print("[done] CHIPO face integrated. Applying touch and motion support...")
 import subprocess
 subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_motion.py"), str(xiaozhi)], check=True)
 print("[done] CHIPO Face touch and QMI8658 motion reactions integrated.")
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_battery.py"), str(xiaozhi)], check=True)
+print("[done] AXP2101 battery status integrated into CHIPO Face.")
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_ota.py"), str(chipo), str(xiaozhi)], check=True)
+print("[done] CHIPO GitHub Releases OTA integration applied.")
