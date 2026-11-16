@@ -15,6 +15,8 @@ constexpr uint32_t kBlinkPeriodMs = 4200;
 constexpr uint32_t kBlinkClosedMs = 115;
 constexpr uint32_t kMotionPeriodMs = 1800;
 constexpr uint32_t kFallCooldownMs = 2800;
+constexpr uint32_t kIdlePlayDelayMs = 14000;
+constexpr uint32_t kPixelStepMs = 40;
 constexpr int kFallTiltThresholdMg = 720;
 constexpr uint32_t kGlowBlue = 0x75DFFF;
 constexpr uint32_t kEyeCore = 0xDDF8FF;
@@ -119,6 +121,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         return false;
     }
     motion_timer_ = lv_timer_create(MotionTimerCallback, kMotionPeriodMs, this);
+    last_activity_tick_ = lv_tick_get();
+    idle_timer_ = lv_timer_create(IdleTimerCallback, 1000, this);
     ApplyExpression();
     ESP_LOGI(TAG, "CHIPO Face initialized with touch interactions");
     return true;
@@ -131,6 +135,9 @@ void ChipoFace::Stop() {
     if (interaction_timer_) { lv_timer_delete(interaction_timer_); interaction_timer_ = nullptr; }
     if (fall_timer_) { lv_timer_delete(fall_timer_); fall_timer_ = nullptr; }
     if (battery_timer_) { lv_timer_delete(battery_timer_); battery_timer_ = nullptr; }
+    if (idle_timer_) { lv_timer_delete(idle_timer_); idle_timer_ = nullptr; }
+    if (pixel_timer_) { lv_timer_delete(pixel_timer_); pixel_timer_ = nullptr; }
+    if (idle_pixel_) { lv_obj_delete(idle_pixel_); idle_pixel_ = nullptr; }
     lv_anim_delete(this, nullptr);
     if (root_) lv_obj_delete(root_);
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = battery_label_ = nullptr;
@@ -139,10 +146,89 @@ void ChipoFace::Stop() {
 
 void ChipoFace::SetState(State state) {
     if (state_ == state) return;
+    last_activity_tick_ = lv_tick_get();
+    StopIdlePlay();
     lv_anim_delete(this, GazeAnimationCallback);
     gaze_offset_x_ = 0;
     state_ = state;
     ApplyExpression();
+}
+
+void ChipoFace::StartIdlePlay() {
+    if (!root_ || idle_pixel_ || state_ != State::Idle ||
+        interaction_ != Interaction::None || falling_) return;
+
+    interaction_ = Interaction::Bored;
+    ApplyExpression();
+
+    idle_pixel_ = lv_obj_create(root_);
+    if (!idle_pixel_) {
+        interaction_ = Interaction::None;
+        ApplyExpression();
+        return;
+    }
+    StyleGlow(idle_pixel_, lv_color_hex(kGlowBlue), 1);
+    lv_obj_set_size(idle_pixel_, 5, 5);
+    pixel_x_ = 12;
+    pixel_y_ = 18;
+    pixel_vx_ = 3;
+    pixel_vy_ = 2;
+    lv_obj_set_pos(idle_pixel_, pixel_x_, pixel_y_);
+    pixel_timer_ = lv_timer_create(PixelTimerCallback, kPixelStepMs, this);
+    if (!pixel_timer_) StopIdlePlay();
+    ESP_LOGI(TAG, "CHIPO is bored: starting its little pixel game");
+}
+
+void ChipoFace::StopIdlePlay() {
+    if (pixel_timer_) {
+        lv_timer_delete(pixel_timer_);
+        pixel_timer_ = nullptr;
+    }
+    if (idle_pixel_) {
+        lv_obj_delete(idle_pixel_);
+        idle_pixel_ = nullptr;
+    }
+    if (interaction_ == Interaction::Bored) {
+        interaction_ = Interaction::None;
+        gaze_offset_x_ = 0;
+        if (root_ && !blinking_) ApplyExpression();
+    }
+}
+
+void ChipoFace::IdleTimerCallback(lv_timer_t* timer) {
+    auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
+    if (!self || self->idle_pixel_ || self->state_ != State::Idle ||
+        self->interaction_ != Interaction::None || self->falling_) return;
+    if (lv_tick_get() - self->last_activity_tick_ >= kIdlePlayDelayMs) {
+        self->StartIdlePlay();
+    }
+}
+
+void ChipoFace::PixelTimerCallback(lv_timer_t* timer) {
+    auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
+    if (!self || !self->root_ || !self->idle_pixel_) return;
+
+    int next_x = self->pixel_x_ + self->pixel_vx_;
+    int next_y = self->pixel_y_ + self->pixel_vy_;
+    if (next_x < 3 || next_x > kCanvasWidth - 8) {
+        self->pixel_vx_ = -self->pixel_vx_;
+        next_x = self->pixel_x_ + self->pixel_vx_;
+    }
+    if (next_y < 3 || next_y > kCanvasHeight - 8) {
+        self->pixel_vy_ = -self->pixel_vy_;
+        next_y = self->pixel_y_ + self->pixel_vy_;
+    }
+    self->pixel_x_ = static_cast<lv_coord_t>(next_x);
+    self->pixel_y_ = static_cast<lv_coord_t>(next_y);
+    lv_obj_set_pos(self->idle_pixel_, self->pixel_x_, self->pixel_y_);
+
+    // CHIPO watches its tiny toy as it bounces around the display.
+    if (!self->blinking_) {
+        const int gaze_x = (self->pixel_x_ - kCanvasWidth / 2) / 10;
+        const int gaze_y = (self->pixel_y_ - kCanvasHeight / 2) / 12;
+        self->PositionEyes(static_cast<lv_coord_t>(gaze_x < -8 ? -8 : (gaze_x > 8 ? 8 : gaze_x)),
+                           static_cast<lv_coord_t>(gaze_y < -7 ? -7 : (gaze_y > 7 ? 7 : gaze_y)));
+    }
 }
 
 void ChipoFace::SetBatteryStatus(int level, bool charging, bool discharging) {
@@ -203,6 +289,8 @@ void ChipoFace::ApplyExpression() {
         eye_w = 62; eye_h = 48; pupil_y = 10; mouth_w = 36; mouth_h = 6; mouth_y += 8;
     } else if (interaction_ == Interaction::Curious) {
         eye_w = 70; eye_h = 78; mouth_w = 13; mouth_h = 13; mouth_y -= 4;
+    } else if (interaction_ == Interaction::Bored) {
+        eye_w = 62; eye_h = 48; pupil_y = 8; mouth_w = 32; mouth_h = 5; mouth_y += 9;
     } else if (interaction_ == Interaction::Tilted) {
         pupil_x = touch_pupil_x_; pupil_y = touch_pupil_y_;
     } else {
@@ -228,6 +316,8 @@ void ChipoFace::ApplyExpression() {
 }
 
 void ChipoFace::SetInteraction(Interaction interaction, uint32_t duration_ms) {
+    last_activity_tick_ = lv_tick_get();
+    StopIdlePlay();
     lv_anim_delete(this, GazeAnimationCallback);
     gaze_offset_x_ = 0;
     interaction_ = interaction;
@@ -244,6 +334,7 @@ void ChipoFace::SetInteraction(Interaction interaction, uint32_t duration_ms) {
 void ChipoFace::ClearInteraction() {
     interaction_timer_ = nullptr;
     interaction_ = Interaction::None;
+    last_activity_tick_ = lv_tick_get();
     ApplyExpression();
 }
 void ChipoFace::InteractionTimerCallback(lv_timer_t* timer) {
@@ -259,6 +350,8 @@ void ChipoFace::HandleTouch(lv_event_t* event) {
     const auto code = lv_event_get_code(event);
     const uint32_t now = lv_tick_get();
     if (code == LV_EVENT_PRESSED) {
+        last_activity_tick_ = now;
+        StopIdlePlay();
         long_press_active_ = false;
         return;
     }
@@ -390,6 +483,10 @@ void ChipoFace::OnMotion(int x_mg, int y_mg, int z_mg) {
     if (first) return;
 
     const uint32_t now = lv_tick_get();
+    if (dx + dy + dz > 220) {
+        last_activity_tick_ = now;
+        StopIdlePlay();
+    }
     // Detect a shake before evaluating static tilt so a vigorous shake is not
     // mistaken for CHIPO tipping over.
     const int shake_score = dx + dy + dz;
