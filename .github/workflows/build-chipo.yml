@@ -1,0 +1,45 @@
+name: Build CHIPO firmware
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "components/**"
+      - "integration/**"
+      - "scripts/**"
+      - ".github/workflows/build-chipo.yml"
+      - "VERSION"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - name: Checkout CHIPO
+        uses: actions/checkout@v4
+
+      - name: Get XiaoZhi firmware base
+        run: git clone --depth 1 https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
+
+      - name: Apply CHIPO integration
+        run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32"
+
+      - name: Compile for Waveshare ESP32-S3 AMOLED 1.8 V2
+        working-directory: build/xiaozhi-esp32
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Upload firmware artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2
+          path: |
+            build/xiaozhi-esp32/build/*.bin
+            build/xiaozhi-esp32/build/flash_args
+            build/xiaozhi-esp32/build/flasher_args.json
+          if-no-files-found: error
