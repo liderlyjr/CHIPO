@@ -26,6 +26,7 @@ public:
     // Called by the board IMU adapter from the LVGL/UI task.
     void OnMotion(int x_mg, int y_mg, int z_mg);
     void SetBatteryStatus(int level, bool charging, bool discharging);
+    void SetTimerStatus(const char* text);
 
 private:
     enum class Interaction : uint8_t { None, Curious, Annoyed, Dizzy, Bored, Tilted };
@@ -63,6 +64,7 @@ private:
     lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
     lv_obj_t* battery_label_ = nullptr;
+    lv_obj_t* timer_label_ = nullptr;
     lv_obj_t* idle_pixel_ = nullptr;
     lv_timer_t* blink_timer_ = nullptr;
     lv_timer_t* restore_timer_ = nullptr;
