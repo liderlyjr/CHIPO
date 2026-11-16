@@ -55,7 +55,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_obj_remove_style_all(root_);
     lv_obj_set_size(root_, kCanvasWidth, kCanvasHeight);
     lv_obj_center(root_);
-    lv_obj_clear_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(root_, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(root_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_transform_pivot_x(root_, kCanvasWidth / 2, LV_PART_MAIN);
     lv_obj_set_style_transform_pivot_y(root_, kCanvasHeight / 2, LV_PART_MAIN);
@@ -138,6 +138,8 @@ void ChipoFace::Stop() {
 
 void ChipoFace::SetState(State state) {
     if (state_ == state) return;
+    lv_anim_delete(this, GazeAnimationCallback);
+    gaze_offset_x_ = 0;
     state_ = state;
     ApplyExpression();
 }
@@ -225,6 +227,8 @@ void ChipoFace::ApplyExpression() {
 }
 
 void ChipoFace::SetInteraction(Interaction interaction, uint32_t duration_ms) {
+    lv_anim_delete(this, GazeAnimationCallback);
+    gaze_offset_x_ = 0;
     interaction_ = interaction;
     ApplyExpression();
     if (interaction_timer_) {
@@ -244,7 +248,6 @@ void ChipoFace::ClearInteraction() {
 void ChipoFace::InteractionTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
     if (self) self->ClearInteraction();
-    lv_timer_delete(timer);
 }
 
 void ChipoFace::TouchEventCallback(lv_event_t* event) {
@@ -340,7 +343,6 @@ void ChipoFace::RecoverFallTimerCallback(lv_timer_t* timer) {
         self->fall_timer_ = nullptr;
         self->StartRecovery();
     }
-    lv_timer_delete(timer);
 }
 
 void ChipoFace::StartRecovery() {
@@ -429,14 +431,29 @@ void ChipoFace::RestoreEyesTimerCallback(lv_timer_t* timer) {
     self->blinking_ = false;
     self->restore_timer_ = nullptr;
     self->ApplyExpression();
-    lv_timer_delete(timer);
 }
+void ChipoFace::GazeAnimationCallback(void* var, int32_t value) {
+    auto* self = static_cast<ChipoFace*>(var);
+    if (!self || !self->root_ || self->blinking_) return;
+    self->gaze_offset_x_ = static_cast<lv_coord_t>(value);
+    self->PositionEyes(self->gaze_offset_x_, 0);
+}
+
 void ChipoFace::MotionTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
-    if (!self || self->blinking_ || self->interaction_ != Interaction::None) return;
-    if (self->state_ == State::Thinking) self->PositionEyes(8, -9);
-    else if (self->state_ == State::Listening) self->PositionEyes(0, 2);
-    else self->PositionEyes(self->touch_pupil_x_, self->touch_pupil_y_);
+    if (!self || self->blinking_ || self->interaction_ != Interaction::None ||
+        self->state_ != State::Idle || self->touch_pupil_x_ != 0 || self->touch_pupil_y_ != 0) return;
+
+    lv_anim_delete(self, GazeAnimationCallback);
+    lv_anim_t animation;
+    lv_anim_init(&animation);
+    lv_anim_set_var(&animation, self);
+    lv_anim_set_values(&animation, self->gaze_offset_x_, self->gaze_direction_ * 8);
+    lv_anim_set_duration(&animation, 520);
+    lv_anim_set_path_cb(&animation, lv_anim_path_ease_in_out);
+    lv_anim_set_exec_cb(&animation, GazeAnimationCallback);
+    lv_anim_start(&animation);
+    self->gaze_direction_ *= -1;
 }
 
 void ChipoFace::BatteryPulseTimerCallback(lv_timer_t* timer) {
@@ -448,11 +465,18 @@ void ChipoFace::BatteryPulseTimerCallback(lv_timer_t* timer) {
 }
 void ChipoFace::Blink() {
     if (!left_eye_ || !right_eye_ || blinking_) return;
+    lv_anim_delete(this, GazeAnimationCallback);
+    gaze_offset_x_ = 0;
     blinking_ = true;
+    const lv_coord_t blink_y = kEyeY + (expression_eye_height_ - 4) / 2;
+    lv_obj_set_y(left_eye_, blink_y);
+    lv_obj_set_y(right_eye_, blink_y);
     lv_obj_set_height(left_eye_, 4);
     lv_obj_set_height(right_eye_, 4);
     lv_obj_set_height(left_pupil_, 1);
     lv_obj_set_height(right_pupil_, 1);
+    lv_obj_set_y(left_pupil_, blink_y + 1);
+    lv_obj_set_y(right_pupil_, blink_y + 1);
     restore_timer_ = lv_timer_create(RestoreEyesTimerCallback, kBlinkClosedMs, this);
     if (!restore_timer_) { blinking_ = false; ApplyExpression(); }
     else lv_timer_set_repeat_count(restore_timer_, 1);
