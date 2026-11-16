@@ -108,4 +108,7 @@ if missing:
             f.write("\n")
         f.write("\n".join(missing) + "\n")
 print("[configured] Waveshare ESP32-S3 Touch AMOLED 1.8 V2")
-print("[done] CHIPO overlay integrated. Build with: idf.py set-target esp32s3 && idf.py build")
+print("[done] CHIPO face integrated. Applying touch and motion support...")
+import subprocess
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_motion.py"), str(xiaozhi)], check=True)
+print("[done] CHIPO Face touch and QMI8658 motion reactions integrated.")
