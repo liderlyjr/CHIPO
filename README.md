@@ -27,9 +27,13 @@ El soporte de placa se debe tomar del perfil oficial existente en XiaoZhi. No se
 
 ## Estado
 
-**V0.2.1 — módulo visual y guía de integración publicados.**
+**V0.3.0 — módulo visual, integración automática y script de compilación Windows publicados.**
 
 Incluye el componente LVGL `chipo_face` con ojos, boca, parpadeo y estados visuales. Todavía no es un firmware completo ni un binario listo para flashear. La integración en la pantalla principal y la compilación física son los siguientes pasos.
+
+## Compilar en Windows
+
+Consulta [la guía de compilación](docs/BUILD_WINDOWS.md). Con ESP-IDF 6.1 activado, ejecuta `powershell -ExecutionPolicy Bypass -File .\\scripts\\build_chipo.ps1`.
 
 ## Integración con XiaoZhi
 
