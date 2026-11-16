@@ -33,6 +33,7 @@ private:
     static void BlinkTimerCallback(lv_timer_t* timer);
     static void RestoreEyesTimerCallback(lv_timer_t* timer);
     static void MotionTimerCallback(lv_timer_t* timer);
+    static void GazeAnimationCallback(void* var, int32_t value);
     static void BatteryPulseTimerCallback(lv_timer_t* timer);
     static void TouchEventCallback(lv_event_t* event);
     static void InteractionTimerCallback(lv_timer_t* timer);
@@ -82,6 +83,8 @@ private:
     bool blinking_ = false;
     bool falling_ = false;
     bool battery_pulse_visible_ = true;
+    lv_coord_t gaze_offset_x_ = 0;
+    int gaze_direction_ = 1;
     int fall_direction_ = 1;
     uint32_t last_fall_tick_ = 0;
 };
