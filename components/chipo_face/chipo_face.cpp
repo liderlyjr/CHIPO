@@ -286,7 +286,7 @@ void ChipoFace::FallAnimationCallback(void* var, int32_t value) {
 }
 
 void ChipoFace::FallAnimationReadyCallback(lv_anim_t* animation) {
-    auto* self = static_cast<ChipoFace*>(lv_anim_get_var(animation));
+    auto* self = static_cast<ChipoFace*>(animation->var);
     if (!self || !self->root_) return;
     self->fall_timer_ = lv_timer_create(RecoverFallTimerCallback, 850, self);
     if (self->fall_timer_) lv_timer_set_repeat_count(self->fall_timer_, 1);
@@ -325,7 +325,7 @@ void ChipoFace::RecoveryAnimationCallback(void* var, int32_t value) {
 }
 
 void ChipoFace::RecoveryAnimationReadyCallback(lv_anim_t* animation) {
-    auto* self = static_cast<ChipoFace*>(lv_anim_get_var(animation));
+    auto* self = static_cast<ChipoFace*>(animation->var);
     if (!self || !self->root_) return;
     lv_obj_set_style_transform_rotation(self->root_, 0, LV_PART_MAIN);
     lv_obj_set_style_translate_x(self->root_, 0, LV_PART_MAIN);
