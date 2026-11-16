@@ -84,13 +84,19 @@ bool ChipoFace::Start(lv_obj_t* parent) {
 
     // Touch is deliberately attached only to facial features, not the full screen,
     // so XiaoZhi's normal menus and dialogs remain usable outside CHIPO's face.
-    for (lv_obj_t* feature : {left_eye_, right_eye_, left_pupil_, right_pupil_, mouth_}) {
+    auto add_touch_events = [this](lv_obj_t* feature) {
         lv_obj_add_flag(feature, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_PRESSED, this);
+        lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_PRESSING, this);
         lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_LONG_PRESSED, this);
         lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_RELEASED, this);
         lv_obj_add_event_cb(feature, TouchEventCallback, LV_EVENT_CLICKED, this);
-    }
+    };
+    add_touch_events(left_eye_);
+    add_touch_events(right_eye_);
+    add_touch_events(left_pupil_);
+    add_touch_events(right_pupil_);
+    add_touch_events(mouth_);
 
     blink_timer_ = lv_timer_create(BlinkTimerCallback, kBlinkPeriodMs, this);
     if (!blink_timer_) {
@@ -203,6 +209,21 @@ void ChipoFace::HandleTouch(lv_event_t* event) {
     const uint32_t now = lv_tick_get();
     if (code == LV_EVENT_PRESSED) {
         long_press_active_ = false;
+        return;
+    }
+    if (code == LV_EVENT_PRESSING) {
+        lv_indev_t* indev = lv_event_get_indev(event);
+        if (indev) {
+            lv_point_t point;
+            lv_area_t area;
+            lv_indev_get_point(indev, &point);
+            lv_obj_get_coords(root_, &area);
+            const int local_x = point.x - area.x1;
+            const int local_y = point.y - area.y1;
+            touch_pupil_x_ = local_x < kCanvasWidth / 2 ? -7 : 7;
+            touch_pupil_y_ = local_y < kCanvasHeight / 2 ? -5 : 5;
+            ApplyExpression();
+        }
         return;
     }
     if (code == LV_EVENT_LONG_PRESSED) {
