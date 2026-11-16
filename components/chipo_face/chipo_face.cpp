@@ -55,7 +55,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_obj_remove_style_all(root_);
     lv_obj_set_size(root_, kCanvasWidth, kCanvasHeight);
     lv_obj_center(root_);
-    lv_obj_remove_flag(root_, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(root_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_opa(root_, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_transform_pivot_x(root_, kCanvasWidth / 2, LV_PART_MAIN);
     lv_obj_set_style_transform_pivot_y(root_, kCanvasHeight / 2, LV_PART_MAIN);
