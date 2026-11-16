@@ -17,7 +17,7 @@ on:
       - ".github/workflows/build-chipo.yml"
 
 concurrency:
-  group: chipo-${{ github.event.pull_request.number || github.ref }}
+  group: chipo-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
