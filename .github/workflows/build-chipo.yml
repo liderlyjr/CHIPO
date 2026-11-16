@@ -51,7 +51,11 @@ jobs:
         with:
           name: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2
           path: |
-            build/xiaozhi-esp32/build/**/*.bin
+            build/xiaozhi-esp32/build/bootloader/bootloader.bin
+            build/xiaozhi-esp32/build/partition_table/partition-table.bin
+            build/xiaozhi-esp32/build/ota_data_initial.bin
+            build/xiaozhi-esp32/build/xiaozhi.bin
+            build/xiaozhi-esp32/build/generated_assets.bin
             build/xiaozhi-esp32/build/flash_args
             build/xiaozhi-esp32/build/flasher_args.json
             build/xiaozhi-esp32/build/flash_project_args
