@@ -69,7 +69,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     right_pupil_ = lv_obj_create(root_);
     mouth_ = lv_obj_create(root_);
     battery_label_ = lv_label_create(root_);
-    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_ || !battery_label_) {
+    timer_label_ = lv_label_create(root_);
+    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_ || !battery_label_ || !timer_label_) {
         Stop();
         ESP_LOGE(TAG, "Could not create face objects");
         return false;
@@ -97,6 +98,14 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_obj_set_style_text_opa(battery_label_, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_text_align(battery_label_, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
     lv_obj_set_pos(battery_label_, 216, 8);
+
+    lv_label_set_text(timer_label_, "");
+    lv_obj_set_width(timer_label_, 150);
+    lv_obj_set_style_text_color(timer_label_, lv_color_hex(kGlowBlue), LV_PART_MAIN);
+    lv_obj_set_style_text_opa(timer_label_, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_text_align(timer_label_, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_align(timer_label_, LV_ALIGN_BOTTOM_MID, 0, -2);
+    lv_obj_add_flag(timer_label_, LV_OBJ_FLAG_HIDDEN);
 
     // Touch is deliberately attached only to facial features, not the full screen,
     // so XiaoZhi's normal menus and dialogs remain usable outside CHIPO's face.
@@ -140,7 +149,7 @@ void ChipoFace::Stop() {
     if (idle_pixel_) { lv_obj_delete(idle_pixel_); idle_pixel_ = nullptr; }
     lv_anim_delete(this, nullptr);
     if (root_) lv_obj_delete(root_);
-    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = battery_label_ = nullptr;
+    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = battery_label_ = timer_label_ = nullptr;
     blinking_ = false;
 }
 
@@ -260,6 +269,17 @@ void ChipoFace::SetBatteryStatus(int level, bool charging, bool discharging) {
         battery_pulse_visible_ = true;
         lv_obj_set_style_text_opa(battery_label_, LV_OPA_COVER, LV_PART_MAIN);
     }
+}
+
+void ChipoFace::SetTimerStatus(const char* text) {
+    if (!timer_label_) return;
+    if (text == nullptr || text[0] == '\0') {
+        lv_label_set_text(timer_label_, "");
+        lv_obj_add_flag(timer_label_, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_label_set_text(timer_label_, text);
+    lv_obj_remove_flag(timer_label_, LV_OBJ_FLAG_HIDDEN);
 }
 
 void ChipoFace::PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y) {
