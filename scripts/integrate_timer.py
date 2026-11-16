@@ -76,12 +76,9 @@ patch(app, '#include "chipo_state_map.h"\n',
       '#include "chipo_state_map.h"\n#include "chipo_timer_manager.h"\n',
       "Application timer manager include")
 patch(app,
-'''            display->UpdateStatusBar();
-
-            // Print debug info every 10 seconds
+'''            // Print debug info every 10 seconds
 ''',
-'''            display->UpdateStatusBar();
-            if (chipo_face_) {
+'''            if (chipo_face_) {
                 const std::string timer_text = ChipoTimerManager::GetInstance().DisplayText();
                 DisplayLockGuard lock(display);
                 if (lock) chipo_face_->SetTimerStatus(timer_text.c_str());
