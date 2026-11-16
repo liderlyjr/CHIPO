@@ -27,9 +27,13 @@ El soporte de placa se debe tomar del perfil oficial existente en XiaoZhi. No se
 
 ## Estado
 
-**V0.2.0 — módulo visual inicial publicado.**
+**V0.2.1 — módulo visual y guía de integración publicados.**
 
 Incluye el componente LVGL `chipo_face` con ojos, boca, parpadeo y estados visuales. Todavía no es un firmware completo ni un binario listo para flashear. La integración en la pantalla principal y la compilación física son los siguientes pasos.
+
+## Integración con XiaoZhi
+
+Consulta [la guía de integración](docs/XIAOZHI_INTEGRATION.md) y el adaptador de estados en `integration/xiaozhi/chipo_state_map.h`.
 
 ## Altavoz
 
