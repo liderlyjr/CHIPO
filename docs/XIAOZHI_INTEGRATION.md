@@ -31,3 +31,13 @@ Sigue [BUILD_WINDOWS.md](BUILD_WINDOWS.md). El script comprueba que los archivos
 CHIPO Face es una capa visual inicial superpuesta a la pantalla de XiaoZhi. No reemplaza todavía el diseño completo de la interfaz, los diálogos, el menú de configuración ni el sistema de conversación. Los controladores CO5300, táctil, ES8311 y AXP2101 siguen siendo responsabilidad del perfil oficial de Waveshare en XiaoZhi.
 
 La compilación automatizada debe terminar correctamente y después debe validarse el arranque en la placa física antes de considerar el firmware listo para uso diario.
+
+
+## Clima en pantalla
+
+CHIPO consulta las condiciones actuales de Sabadell mediante Open-Meteo, sin clave API.
+La consulta se ejecuta en una tarea FreeRTOS independiente, usa HTTPS con el almacén
+de certificados de ESP-IDF y actualiza la etiqueta superior de la cara cada vez que
+hay datos nuevos. La actualización normal es cada 15 minutos; si no hay conexión,
+conserva el último dato y reintenta cada 2 minutos. La ubicación inicial está fijada
+a Sabadell (41.5486, 2.1074) y puede cambiarse en `components/chipo_weather/chipo_weather.cpp`.

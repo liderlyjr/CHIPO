@@ -87,6 +87,31 @@ replace_once(
     "Map XiaoZhi state to CHIPO face",
 )
 
+replace_once(
+    app_cc,
+    """        } else if (strcmp(type->valuestring, "llm") == 0) {
+            auto emotion = cJSON_GetObjectItem(root, "emotion");
+            if (cJSON_IsString(emotion)) {
+                Schedule([display, emotion_str = std::string(emotion->valuestring)]() {
+                    display->SetEmotion(emotion_str.c_str());
+                });
+            }
+""",
+    """        } else if (strcmp(type->valuestring, "llm") == 0) {
+            auto emotion = cJSON_GetObjectItem(root, "emotion");
+            if (cJSON_IsString(emotion)) {
+                Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
+                    if (chipo_face_ && GetDeviceState() != kDeviceStateSpeaking) {
+                        DisplayLockGuard lock(display);
+                        if (lock) chipo_face_->SetState(ChipoFace::State::Thinking);
+                    }
+                    display->SetEmotion(emotion_str.c_str());
+                });
+            }
+""",
+    "Map XiaoZhi LLM response to CHIPO Thinking state",
+)
+
 cmake = main / "CMakeLists.txt"
 replace_once(
     cmake,
@@ -108,4 +133,15 @@ if missing:
             f.write("\n")
         f.write("\n".join(missing) + "\n")
 print("[configured] Waveshare ESP32-S3 Touch AMOLED 1.8 V2")
-print("[done] CHIPO overlay integrated. Build with: idf.py set-target esp32s3 && idf.py build")
+print("[done] CHIPO face integrated. Applying touch and motion support...")
+import subprocess
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_motion.py"), str(xiaozhi)], check=True)
+print("[done] CHIPO Face touch and QMI8658 motion reactions integrated.")
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_battery.py"), str(xiaozhi)], check=True)
+print("[done] AXP2101 battery status integrated into CHIPO Face.")
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_ota.py"), str(chipo), str(xiaozhi)], check=True)
+print("[done] CHIPO GitHub Releases OTA integration applied.")
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_timer.py"), str(xiaozhi)], check=True)
+print("[done] CHIPO native multi-timer tools and display countdown integrated.")
+subprocess.run([sys.executable, str(chipo / "scripts" / "integrate_weather.py"), str(xiaozhi)], check=True)
+print("[done] CHIPO live weather display integrated.")

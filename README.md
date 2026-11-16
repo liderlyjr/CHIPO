@@ -39,6 +39,6 @@ Sigue la [guía paso a paso para compilar con GitHub](docs/BUILD_GITHUB.md). No 
 
 Consulta la [guía de integración](docs/XIAOZHI_INTEGRATION.md) y el adaptador de estados en integration/xiaozhi/chipo_state_map.h.
 
-## Altavoz
+## Clima en pantalla\n\nCHIPO muestra la temperatura y el estado del cielo de Sabadell, con actualización automática cada 15 minutos cuando hay Internet.\n\n## Altavoz
 
 No conectes un altavoz externo hasta verificar en el esquema y en la revisión física de la placa si existe un transductor integrado y qué salida de audio está disponible. ES8311 es el códec; por sí solo no demuestra que haya un altavoz instalado.

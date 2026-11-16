@@ -2,8 +2,11 @@ name: Build CHIPO firmware
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches: [main]
+  push:
+    branches: [main, "feature/**"]
+    tags: ["v*"]
     paths:
       - "components/**"
       - "integration/**"
@@ -13,8 +16,12 @@ on:
       - "VERSION"
       - ".github/workflows/build-chipo.yml"
 
+concurrency:
+  group: chipo-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -22,16 +29,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:
-      image: espressif/idf:v6.1
+      image: espressif/idf:release-v6.1
     steps:
       - name: Checkout CHIPO
         uses: actions/checkout@v4
 
-      - name: Get XiaoZhi firmware base
-        run: git clone --depth 1 https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
+      - name: Validate CHIPO integration scripts
+        run: python -m py_compile scripts/integrate_chipo.py scripts/integrate_motion.py scripts/integrate_battery.py scripts/integrate_ota.py scripts/integrate_timer.py scripts/integrate_weather.py
+
+      - name: Get pinned XiaoZhi firmware base
+        env:
+          XIAOZHI_COMMIT: aaf1eb7798cabee87a0c6a0649aabf4d17e9e383
+        run: |
+          mkdir -p build/xiaozhi-esp32
+          git -C build/xiaozhi-esp32 init
+          git -C build/xiaozhi-esp32 remote add origin https://github.com/78/xiaozhi-esp32.git
+          git -C build/xiaozhi-esp32 fetch --depth 1 origin "$XIAOZHI_COMMIT"
+          git -C build/xiaozhi-esp32 checkout --detach FETCH_HEAD
 
       - name: Apply CHIPO integration
         run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32"
+
+      - name: Verify integration patch cleanliness
+        run: git -C build/xiaozhi-esp32 diff --check
 
       - name: Show ESP-IDF version
         run: |
@@ -44,6 +64,7 @@ jobs:
           . "$IDF_PATH/export.sh"
           idf.py set-target esp32s3
           idf.py build
+          idf.py merge-bin
 
       - name: Upload firmware files
         if: success()
@@ -55,9 +76,22 @@ jobs:
             build/xiaozhi-esp32/build/partition_table/partition-table.bin
             build/xiaozhi-esp32/build/ota_data_initial.bin
             build/xiaozhi-esp32/build/xiaozhi.bin
+            build/xiaozhi-esp32/build/merged-binary.bin
             build/xiaozhi-esp32/build/generated_assets.bin
             build/xiaozhi-esp32/build/flash_args
             build/xiaozhi-esp32/build/flasher_args.json
             build/xiaozhi-esp32/build/flash_project_args
           if-no-files-found: error
           compression-level: 6
+
+      - name: Prepare CHIPO OTA release binary
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cp build/xiaozhi-esp32/build/xiaozhi.bin CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2.bin
+
+      - name: Publish CHIPO OTA release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2.bin
