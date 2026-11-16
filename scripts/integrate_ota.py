@@ -59,7 +59,7 @@ if ota_repo:
     patch(
         app_cc,
         "#include <esp_log.h>\n",
-        "#include <esp_log.h>\n#include <esp_app_format.h>\n#include <cstdio>\n#include <cstdlib>\n",
+        "#include <esp_log.h>\n#include <esp_app_desc.h>\n#include <cstdio>\n#include <cstdlib>\n",
         "CHIPO OTA includes",
     )
 else:
