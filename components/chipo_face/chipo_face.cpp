@@ -1,6 +1,7 @@
 #include "chipo_face.h"
 
 #include "esp_log.h"
+#include <cstdlib>
 
 namespace {
 constexpr char TAG[] = "ChipoFace";
