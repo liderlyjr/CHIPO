@@ -292,7 +292,7 @@ void ChipoFace::SetTimerStatus(const char* text) {
 
 void ChipoFace::SetWeatherStatus(const char* text) {
     if (!weather_label_) return;
-    lv_label_set_text(weather_label_, (text == nullptr || text[0] == '\\0') ? "SBD WEATHER --" : text);
+    lv_label_set_text(weather_label_, (text == nullptr || text[0] == 0) ? "SBD WEATHER --" : text);
 }
 
 void ChipoFace::PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y) {
