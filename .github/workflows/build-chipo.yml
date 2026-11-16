@@ -4,8 +4,12 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [main]
+
+concurrency:
+  group: chipo-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
     tags: ["v*"]
     paths:
       - "components/**"
@@ -25,13 +29,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:
-      image: espressif/idf:v6.1
+      image: espressif/idf:release-v6.1
     steps:
       - name: Checkout CHIPO
         uses: actions/checkout@v4
 
-      - name: Get XiaoZhi firmware base
-        run: git clone --depth 1 https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
+      - name: Get pinned XiaoZhi firmware base
+        env:
+          XIAOZHI_COMMIT: aaf1eb7798cabee87a0c6a0649aabf4d17e9e383
+        run: |
+          mkdir -p build/xiaozhi-esp32
+          git -C build/xiaozhi-esp32 init
+          git -C build/xiaozhi-esp32 remote add origin https://github.com/78/xiaozhi-esp32.git
+          git -C build/xiaozhi-esp32 fetch --depth 1 origin "$XIAOZHI_COMMIT"
+          git -C build/xiaozhi-esp32 checkout --detach FETCH_HEAD
 
       - name: Apply CHIPO integration
         run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32"
@@ -47,6 +58,7 @@ jobs:
           . "$IDF_PATH/export.sh"
           idf.py set-target esp32s3
           idf.py build
+          idf.py merge-bin
 
       - name: Upload firmware files
         if: success()
@@ -58,6 +70,7 @@ jobs:
             build/xiaozhi-esp32/build/partition_table/partition-table.bin
             build/xiaozhi-esp32/build/ota_data_initial.bin
             build/xiaozhi-esp32/build/xiaozhi.bin
+            build/xiaozhi-esp32/build/merged-binary.bin
             build/xiaozhi-esp32/build/generated_assets.bin
             build/xiaozhi-esp32/build/flash_args
             build/xiaozhi-esp32/build/flasher_args.json
