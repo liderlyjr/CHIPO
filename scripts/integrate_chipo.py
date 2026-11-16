@@ -87,6 +87,31 @@ replace_once(
     "Map XiaoZhi state to CHIPO face",
 )
 
+replace_once(
+    app_cc,
+    """        } else if (strcmp(type->valuestring, "llm") == 0) {
+            auto emotion = cJSON_GetObjectItem(root, "emotion");
+            if (cJSON_IsString(emotion)) {
+                Schedule([display, emotion_str = std::string(emotion->valuestring)]() {
+                    display->SetEmotion(emotion_str.c_str());
+                });
+            }
+""",
+    """        } else if (strcmp(type->valuestring, "llm") == 0) {
+            auto emotion = cJSON_GetObjectItem(root, "emotion");
+            if (cJSON_IsString(emotion)) {
+                Schedule([this, display, emotion_str = std::string(emotion->valuestring)]() {
+                    if (chipo_face_ && GetDeviceState() != kDeviceStateSpeaking) {
+                        DisplayLockGuard lock(display);
+                        if (lock) chipo_face_->SetState(ChipoFace::State::Thinking);
+                    }
+                    display->SetEmotion(emotion_str.c_str());
+                });
+            }
+""",
+    "Map XiaoZhi LLM response to CHIPO Thinking state",
+)
+
 cmake = main / "CMakeLists.txt"
 replace_once(
     cmake,
