@@ -34,6 +34,9 @@ jobs:
       - name: Checkout CHIPO
         uses: actions/checkout@v4
 
+      - name: Validate CHIPO integration scripts
+        run: python -m py_compile scripts/integrate_chipo.py scripts/integrate_motion.py scripts/integrate_battery.py scripts/integrate_ota.py
+
       - name: Get pinned XiaoZhi firmware base
         env:
           XIAOZHI_COMMIT: aaf1eb7798cabee87a0c6a0649aabf4d17e9e383
@@ -46,6 +49,9 @@ jobs:
 
       - name: Apply CHIPO integration
         run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32"
+
+      - name: Verify integration patch cleanliness
+        run: git -C build/xiaozhi-esp32 diff --check
 
       - name: Show ESP-IDF version
         run: |
