@@ -413,11 +413,19 @@ void ChipoFace::OnMotion(int x_mg, int y_mg, int z_mg) {
     // remain inside their luminous eye shapes.
     const int px = (x_mg > 250 ? 8 : (x_mg < -250 ? -8 : 0));
     const int py = (y_mg > 250 ? 7 : (y_mg < -250 ? -7 : 0));
+    const bool pupil_position_changed = px != touch_pupil_x_ || py != touch_pupil_y_;
     touch_pupil_x_ = px;
     touch_pupil_y_ = py;
     if (interaction_ == Interaction::None || interaction_ == Interaction::Tilted) {
-        interaction_ = (px || py) ? Interaction::Tilted : Interaction::None;
-        ApplyExpression();
+        const Interaction next_interaction = (px || py) ? Interaction::Tilted : Interaction::None;
+        if (pupil_position_changed || next_interaction != interaction_) {
+            if (px || py) {
+                lv_anim_delete(this, GazeAnimationCallback);
+                gaze_offset_x_ = 0;
+            }
+            interaction_ = next_interaction;
+            ApplyExpression();
+        }
     }
 }
 
