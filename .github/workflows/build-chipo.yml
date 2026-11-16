@@ -35,7 +35,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate CHIPO integration scripts
-        run: python -m py_compile scripts/integrate_chipo.py scripts/integrate_motion.py scripts/integrate_battery.py scripts/integrate_ota.py
+        run: python -m py_compile scripts/integrate_chipo.py scripts/integrate_motion.py scripts/integrate_battery.py scripts/integrate_ota.py scripts/integrate_timer.py
 
       - name: Get pinned XiaoZhi firmware base
         env:
