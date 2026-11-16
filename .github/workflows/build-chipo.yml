@@ -34,7 +34,9 @@ jobs:
         run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32"
 
       - name: Show ESP-IDF version
-        run: idf.py --version
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py --version
 
       - name: Compile for Waveshare ESP32-S3 AMOLED 1.8 V2
         working-directory: build/xiaozhi-esp32
