@@ -34,6 +34,11 @@ private:
     static void MotionTimerCallback(lv_timer_t* timer);
     static void TouchEventCallback(lv_event_t* event);
     static void InteractionTimerCallback(lv_timer_t* timer);
+    static void FallAnimationCallback(void* var, int32_t value);
+    static void FallAnimationReadyCallback(lv_anim_t* animation);
+    static void RecoverFallTimerCallback(lv_timer_t* timer);
+    static void RecoveryAnimationCallback(void* var, int32_t value);
+    static void RecoveryAnimationReadyCallback(lv_anim_t* animation);
 
     void ApplyExpression();
     void PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y);
@@ -41,6 +46,8 @@ private:
     void HandleTouch(lv_event_t* event);
     void SetInteraction(Interaction interaction, uint32_t duration_ms);
     void ClearInteraction();
+    void StartFall(int direction);
+    void StartRecovery();
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* left_eye_ = nullptr;
@@ -52,6 +59,7 @@ private:
     lv_timer_t* restore_timer_ = nullptr;
     lv_timer_t* motion_timer_ = nullptr;
     lv_timer_t* interaction_timer_ = nullptr;
+    lv_timer_t* fall_timer_ = nullptr;
 
     State state_ = State::Idle;
     Interaction interaction_ = Interaction::None;
@@ -68,4 +76,7 @@ private:
     bool has_previous_motion_ = false;
     bool long_press_active_ = false;
     bool blinking_ = false;
+    bool falling_ = false;
+    int fall_direction_ = 1;
+    uint32_t last_fall_tick_ = 0;
 };
