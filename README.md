@@ -27,9 +27,21 @@ No se deben inventar pines ni sustituir controladores de la placa.
 
 ## Estado
 
-**V0.3.0 — módulo visual e integración automática publicados.**
+**V0.3.1 — cara más viva y flujo de compilación reproducible.**
 
-El repositorio incluye un componente LVGL chipo_face, integración con XiaoZhi y un flujo de GitHub Actions para compilar el firmware. La compilación y el funcionamiento en la placa deben confirmarse con una ejecución real de Actions y una prueba física.
+El repositorio incluye un componente LVGL `chipo_face`, la integración con XiaoZhi y un flujo de GitHub Actions para compilar el firmware.
+
+Qué se ha comprobado (17/11/2026):
+
+- `scripts/integrate_chipo.py` se aplica sin errores sobre XiaoZhi (commit `aaf1eb7`) y el perfil de placa `..._1_8_v2` existe en su Kconfig.
+- `chipo_face` compila sin avisos contra LVGL 9.5.0 (la versión que usa XiaoZhi) y se ha ejecutado en un LVGL de prueba en PC, con AddressSanitizer y UBSan, recorriendo todos los estados, parpadeos y `Stop()`: sin errores ni fugas.
+
+Qué falta por confirmar:
+
+- Una ejecución completa de Actions (compilación del firmware con ESP-IDF 6.1).
+- Una prueba física en la placa.
+
+Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de CHIPO y de XiaoZhi usados.
 
 ## Compilar sin instalar nada en Windows
 

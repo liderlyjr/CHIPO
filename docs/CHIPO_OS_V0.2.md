@@ -2,7 +2,9 @@
 
 ## Incluido
 - Componente ESP-IDF `chipo_face`.
-- Cara LVGL con ojos, boca y parpadeo periódico.
+- Cara LVGL con ojos, boca y parpadeo (centrado e irregular).
+- Boca animada mientras el estado es Speaking y mirada que se mueve sola en Idle/Connecting.
+- La cara no captura toques: la interfaz de XiaoZhi que queda debajo sigue respondiendo.
 - Estados: Idle, Listening, Thinking, Speaking, Connecting y Error.
 - Código separado de los controladores de pantalla/audio de XiaoZhi.
 

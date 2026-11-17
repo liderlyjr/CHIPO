@@ -1,23 +1,35 @@
 #include "chipo_face.h"
 
+#include <initializer_list>
+
 #include "esp_log.h"
 
 namespace {
 constexpr char TAG[] = "ChipoFace";
-constexpr lv_coord_t kCanvasWidth = 300;
-constexpr lv_coord_t kCanvasHeight = 220;
-constexpr lv_coord_t kEyeY = 54;
-constexpr lv_coord_t kEyeGap = 34;
-constexpr lv_coord_t kMouthY = 158;
-constexpr uint32_t kBlinkPeriodMs = 4200;
+constexpr int32_t kCanvasWidth = 300;
+constexpr int32_t kCanvasHeight = 220;
+constexpr int32_t kEyeY = 54;
+constexpr int32_t kEyeGap = 34;
+constexpr int32_t kMouthY = 158;
+constexpr uint32_t kBlinkMinMs = 2800;       // blinks are irregular: min + random(0..jitter)
+constexpr uint32_t kBlinkJitterMs = 3400;
 constexpr uint32_t kBlinkClosedMs = 115;
-constexpr uint32_t kMotionPeriodMs = 1800;
+constexpr int32_t kBlinkClosedHeight = 4;
+constexpr uint32_t kMotionPeriodMs = 140;    // mouth animation / gaze wander tick
+constexpr uint32_t kLookChangeTicks = 18;    // new gaze target roughly every 2.5 s
+constexpr int32_t kPupilW = 22;
+constexpr int32_t kPupilH = 30;
+// Mouth heights while speaking (centre stays fixed so it opens and closes in place).
+constexpr int32_t kSpeakMouth[] = {28, 12, 22, 8, 26, 14, 20, 10};
+constexpr uint32_t kSpeakMouthCount = sizeof(kSpeakMouth) / sizeof(kSpeakMouth[0]);
+constexpr int32_t kSpeakMouthWidth = 34;
+constexpr int32_t kSpeakMouthCenterY = kMouthY - 9 + 14;
 
 constexpr uint32_t kGlowBlue = 0x75DFFF;
 constexpr uint32_t kEyeCore = 0xDDF8FF;
 constexpr uint32_t kPupil = 0x06121B;
 
-void StyleGlow(lv_obj_t* object, lv_color_t color, lv_coord_t radius) {
+void StyleGlow(lv_obj_t* object, lv_color_t color, int32_t radius) {
     lv_obj_remove_style_all(object);
     lv_obj_set_style_bg_color(object, color, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(object, LV_OPA_COVER, LV_PART_MAIN);
@@ -27,6 +39,12 @@ void StyleGlow(lv_obj_t* object, lv_color_t color, lv_coord_t radius) {
     lv_obj_set_style_shadow_color(object, lv_color_hex(kGlowBlue), LV_PART_MAIN);
     lv_obj_set_style_shadow_width(object, 20, LV_PART_MAIN);
     lv_obj_set_style_shadow_opa(object, LV_OPA_60, LV_PART_MAIN);
+}
+
+// The face overlays XiaoZhi's own UI: it must never swallow touches or scroll events.
+void MakeInert(lv_obj_t* object) {
+    lv_obj_remove_flag(object, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 void StylePupil(lv_obj_t* object) {
@@ -56,7 +74,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_obj_remove_style_all(root_);
     lv_obj_set_size(root_, kCanvasWidth, kCanvasHeight);
     lv_obj_center(root_);
-    lv_obj_clear_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
+    MakeInert(root_);
     lv_obj_set_style_bg_opa(root_, LV_OPA_TRANSP, LV_PART_MAIN);
 
     left_eye_ = lv_obj_create(root_);
@@ -76,19 +94,16 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     StylePupil(left_pupil_);
     StylePupil(right_pupil_);
     StyleGlow(mouth_, lv_color_hex(kGlowBlue), LV_RADIUS_CIRCLE);
+    for (lv_obj_t* part : {left_eye_, right_eye_, left_pupil_, right_pupil_, mouth_}) {
+        MakeInert(part);
+    }
 
     expression_eye_width_ = 62;
     expression_eye_height_ = 70;
     lv_obj_set_size(left_eye_, expression_eye_width_, expression_eye_height_);
     lv_obj_set_size(right_eye_, expression_eye_width_, expression_eye_height_);
-    lv_obj_set_size(left_pupil_, 22, 30);
-    lv_obj_set_size(right_pupil_, 22, 30);
-    PositionEyes(0, 0);
 
-    lv_obj_set_size(mouth_, 42, 8);
-    lv_obj_set_pos(mouth_, (kCanvasWidth - 42) / 2, kMouthY);
-
-    blink_timer_ = lv_timer_create(BlinkTimerCallback, kBlinkPeriodMs, this);
+    blink_timer_ = lv_timer_create(BlinkTimerCallback, kBlinkMinMs, this);
     if (blink_timer_ == nullptr) {
         Stop();
         ESP_LOGE(TAG, "Could not create blink timer");
@@ -96,8 +111,14 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     }
 
     motion_timer_ = lv_timer_create(MotionTimerCallback, kMotionPeriodMs, this);
+    if (motion_timer_ == nullptr) {
+        Stop();
+        ESP_LOGE(TAG, "Could not create motion timer");
+        return false;
+    }
+
     ApplyExpression();
-    ESP_LOGI(TAG, "CHIPO Face initialized with smooth luminous eyes");
+    ESP_LOGI(TAG, "CHIPO Face initialized");
     return true;
 }
 
@@ -117,6 +138,8 @@ void ChipoFace::Stop() {
     if (root_) lv_obj_delete(root_);
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
     blinking_ = false;
+    look_x_ = look_y_ = 0;
+    tick_ = 0;
 }
 
 void ChipoFace::SetState(State state) {
@@ -125,35 +148,35 @@ void ChipoFace::SetState(State state) {
     ApplyExpression();
 }
 
-void ChipoFace::PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y) {
+void ChipoFace::PositionEyes() {
     if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_) return;
 
-    const lv_coord_t left_x = kCanvasWidth / 2 - kEyeGap / 2 - expression_eye_width_;
-    const lv_coord_t right_x = kCanvasWidth / 2 + kEyeGap / 2;
+    const int32_t left_x = kCanvasWidth / 2 - kEyeGap / 2 - expression_eye_width_;
+    const int32_t right_x = kCanvasWidth / 2 + kEyeGap / 2;
     lv_obj_set_pos(left_eye_, left_x, kEyeY);
     lv_obj_set_pos(right_eye_, right_x, kEyeY);
 
-    const lv_coord_t pupil_w = 22;
-    const lv_coord_t pupil_h = 30;
-    lv_obj_set_size(left_pupil_, pupil_w, pupil_h);
-    lv_obj_set_size(right_pupil_, pupil_w, pupil_h);
-    lv_obj_set_pos(left_pupil_, left_x + (expression_eye_width_ - pupil_w) / 2 + pupil_x,
-                   kEyeY + (expression_eye_height_ - pupil_h) / 2 + pupil_y);
-    lv_obj_set_pos(right_pupil_, right_x + (expression_eye_width_ - pupil_w) / 2 + pupil_x,
-                   kEyeY + (expression_eye_height_ - pupil_h) / 2 + pupil_y);
+    const int32_t dx = pupil_x_ + look_x_;
+    const int32_t dy = pupil_y_ + look_y_;
+    lv_obj_set_size(left_pupil_, kPupilW, kPupilH);
+    lv_obj_set_size(right_pupil_, kPupilW, kPupilH);
+    lv_obj_set_pos(left_pupil_, left_x + (expression_eye_width_ - kPupilW) / 2 + dx,
+                   kEyeY + (expression_eye_height_ - kPupilH) / 2 + dy);
+    lv_obj_set_pos(right_pupil_, right_x + (expression_eye_width_ - kPupilW) / 2 + dx,
+                   kEyeY + (expression_eye_height_ - kPupilH) / 2 + dy);
 }
 
 void ChipoFace::ApplyExpression() {
     if (!root_ || !left_eye_ || !right_eye_ || !mouth_) return;
 
-    lv_coord_t eye_w = 62;
-    lv_coord_t eye_h = 70;
-    lv_coord_t pupil_x = 0;
-    lv_coord_t pupil_y = 0;
-    lv_coord_t mouth_w = 42;
-    lv_coord_t mouth_h = 8;
-    lv_coord_t mouth_y = kMouthY;
-    lv_coord_t mouth_radius = LV_RADIUS_CIRCLE;
+    int32_t eye_w = 62;
+    int32_t eye_h = 70;
+    int32_t pupil_x = 0;
+    int32_t pupil_y = 0;
+    int32_t mouth_w = 42;
+    int32_t mouth_h = 8;
+    int32_t mouth_y = kMouthY;
+    int32_t mouth_radius = LV_RADIUS_CIRCLE;
 
     switch (state_) {
     case State::Idle:
@@ -182,12 +205,16 @@ void ChipoFace::ApplyExpression() {
 
     expression_eye_width_ = eye_w;
     expression_eye_height_ = eye_h;
+    pupil_x_ = pupil_x;
+    pupil_y_ = pupil_y;
+    look_x_ = 0;
+    look_y_ = 0;
     if (!blinking_) {
         lv_obj_set_size(left_eye_, eye_w, eye_h);
         lv_obj_set_size(right_eye_, eye_w, eye_h);
         lv_obj_set_style_radius(left_eye_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
         lv_obj_set_style_radius(right_eye_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        PositionEyes(pupil_x, pupil_y);
+        PositionEyes();
     }
 
     lv_obj_set_size(mouth_, mouth_w, mouth_h);
@@ -211,23 +238,56 @@ void ChipoFace::RestoreEyesTimerCallback(lv_timer_t* timer) {
 
 void ChipoFace::MotionTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
-    if (!self || self->blinking_) return;
-    if (self->state_ == State::Thinking) {
-        self->PositionEyes(8, -9);
-    } else if (self->state_ == State::Listening) {
-        self->PositionEyes(0, 2);
-    } else {
-        self->PositionEyes(0, 0);
+    if (self) self->Tick();
+}
+
+void ChipoFace::Tick() {
+    if (!root_ || !mouth_) return;
+    ++tick_;
+
+    switch (state_) {
+    case State::Speaking: {
+        // No audio level is available here, so the mouth just "talks" while the
+        // device is in the Speaking state. It stops as soon as the state changes.
+        const int32_t h = kSpeakMouth[tick_ % kSpeakMouthCount];
+        lv_obj_set_size(mouth_, kSpeakMouthWidth, h);
+        lv_obj_set_pos(mouth_, (kCanvasWidth - kSpeakMouthWidth) / 2, kSpeakMouthCenterY - h / 2);
+        break;
+    }
+    case State::Idle:
+    case State::Connecting:
+        if (!blinking_ && tick_ % kLookChangeTicks == 0) {
+            // Small glance around, kept well inside the eye (pupil margin is 20 px).
+            look_x_ = static_cast<int32_t>(lv_rand(0, 12)) - 6;
+            look_y_ = static_cast<int32_t>(lv_rand(0, 8)) - 4;
+            PositionEyes();
+        }
+        break;
+    default:
+        break;
     }
 }
 
 void ChipoFace::Blink() {
-    if (!left_eye_ || !right_eye_ || blinking_) return;
+    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || blinking_) return;
+
+    // Next blink at an irregular interval so it does not look mechanical.
+    if (blink_timer_) {
+        lv_timer_set_period(blink_timer_, kBlinkMinMs + lv_rand(0, kBlinkJitterMs));
+    }
+
     blinking_ = true;
-    lv_obj_set_height(left_eye_, 4);
-    lv_obj_set_height(right_eye_, 4);
+    // Close towards the vertical centre of the eye instead of collapsing to its top edge.
+    const int32_t closed_y = kEyeY + (expression_eye_height_ - kBlinkClosedHeight) / 2;
+    lv_obj_set_height(left_eye_, kBlinkClosedHeight);
+    lv_obj_set_height(right_eye_, kBlinkClosedHeight);
+    lv_obj_set_y(left_eye_, closed_y);
+    lv_obj_set_y(right_eye_, closed_y);
     lv_obj_set_height(left_pupil_, 1);
     lv_obj_set_height(right_pupil_, 1);
+    lv_obj_set_y(left_pupil_, kEyeY + expression_eye_height_ / 2);
+    lv_obj_set_y(right_pupil_, kEyeY + expression_eye_height_ / 2);
+
     restore_timer_ = lv_timer_create(RestoreEyesTimerCallback, kBlinkClosedMs, this);
     if (!restore_timer_) {
         blinking_ = false;
