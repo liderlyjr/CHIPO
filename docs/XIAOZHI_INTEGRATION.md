@@ -4,7 +4,7 @@ La integración está automatizada por `scripts/integrate_chipo.py`. No hace fal
 
 ## Qué modifica el script
 
-1. Copia `components/chipo_face` y `components/chipo_weather` al directorio `components` de XiaoZhi.
+1. Copia `components/chipo_face`, `components/chipo_weather` y `components/chipo_update` al directorio `components` de XiaoZhi.
 2. Copia el adaptador `chipo_state_map.h` a `main`.
 3. Añade la instancia persistente `ChipoFace` a `Application`.
 4. Inicializa la cara después de `display->SetupUI()`, bajo `DisplayLockGuard`.
@@ -13,6 +13,7 @@ La integración está automatizada por `scripts/integrate_chipo.py`. No hace fal
 7. Crea `ChipoWeather` después de la cara y le pasa cada frase reconocida por voz (`stt`) para abrir el clima; ver [CHIPO_WEATHER.md](CHIPO_WEATHER.md).
 8. Activa las fuentes Montserrat 20 y 24 de LVGL (para la pantalla del clima).
 9. Activa el perfil `CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2` y el estilo de mensajes esperado por el perfil de la placa.
+10. Actualizador por GitHub Releases y bloqueo del OTA de XiaoZhi (`ota.cc`, `UpgradeFirmware`, `PROJECT_VER`); ver [CHIPO_UPDATE.md](CHIPO_UPDATE.md).
 
 ## Estados
 

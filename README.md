@@ -27,10 +27,12 @@ No se deben inventar pines ni sustituir controladores de la placa.
 
 ## Estado
 
-**V0.5.1 — pantalla del clima (voz o toque) y la cara resbala y se cae de la pantalla al inclinarlo 45° o más.**
+**V0.6.0 — CHIPO se actualiza solo desde las Releases de GitHub y el OTA de XiaoZhi ya no puede cambiarle el firmware. (V0.5.1: pantalla del clima y caída de la cara al inclinar 45°.)**
 
 Consulta [docs/CHIPO_FACE.md](docs/CHIPO_FACE.md) para ver todas las animaciones, cómo reacciona CHIPO cuando
 lo inclinas o se cae, y cómo ajustar el sentido de la caída.
+
+Consulta [docs/CHIPO_UPDATE.md](docs/CHIPO_UPDATE.md) para actualizar CHIPO subiendo `VERSION` a GitHub.
 
 Consulta [docs/CHIPO_WEATHER.md](docs/CHIPO_WEATHER.md) para la pantalla del clima (se abre al preguntar por el
 clima o con un toque; datos de Open-Meteo, ubicación por IP o fija).
