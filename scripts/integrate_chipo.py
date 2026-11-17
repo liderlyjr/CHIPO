@@ -124,6 +124,14 @@ defaults_text = defaults.read_text(encoding="utf-8") if defaults.exists() else "
 settings = [
     "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2=y",
     "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
+    # Wake word "Chipo": custom wake word through ESP-SR MultiNet (English model, written
+    # phonetically). Needs tuning on the real board; see docs/WAKE_WORD.md.
+    "CONFIG_USE_CUSTOM_WAKE_WORD=y",
+    "CONFIG_SR_MN_CN_NONE=y",
+    "CONFIG_SR_MN_EN_MULTINET7_QUANT=y",
+    'CONFIG_CUSTOM_WAKE_WORD="chee po"',
+    'CONFIG_CUSTOM_WAKE_WORD_DISPLAY="Chipo"',
+    "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20",
 ]
 missing = [line for line in settings if line not in defaults_text]
 if missing:
