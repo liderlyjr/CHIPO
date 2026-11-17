@@ -13,6 +13,10 @@ echo "== weather data (parsers, voice intent)"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_weather/include tests/host/test_weather.cpp components/chipo_weather/chipo_weather_data.cpp -o "$OUT/test_weather"
 "$OUT/test_weather"
 
+echo "== update logic (versions, release parsing, URL trust)"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_update/include tests/host/test_update.cpp components/chipo_update/chipo_update_logic.cpp -o "$OUT/test_update"
+"$OUT/test_update"
+
 echo "== tilt maths"
 g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_tilt.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_tilt"
 "$OUT/test_tilt"
