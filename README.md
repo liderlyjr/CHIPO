@@ -27,19 +27,22 @@ No se deben inventar pines ni sustituir controladores de la placa.
 
 ## Estado
 
-**V0.3.1 — cara más viva y flujo de compilación reproducible.**
+**V0.4.0 — cara viva: transiciones suaves, "Pensando" real, sueño y reacción a la inclinación.**
 
-El repositorio incluye un componente LVGL `chipo_face`, la integración con XiaoZhi y un flujo de GitHub Actions para compilar el firmware.
+Consulta [docs/CHIPO_FACE.md](docs/CHIPO_FACE.md) para ver todas las animaciones, cómo reacciona CHIPO cuando
+lo inclinas o se cae, y cómo ajustar el sentido de la caída.
 
-Qué se ha comprobado (17/11/2026):
+Qué se ha comprobado:
 
-- `scripts/integrate_chipo.py` se aplica sin errores sobre XiaoZhi (commit `aaf1eb7`) y el perfil de placa `..._1_8_v2` existe en su Kconfig.
-- `chipo_face` compila sin avisos contra LVGL 9.5.0 (la versión que usa XiaoZhi) y se ha ejecutado en un LVGL de prueba en PC, con AddressSanitizer y UBSan, recorriendo todos los estados, parpadeos y `Stop()`: sin errores ni fugas.
+- `scripts/integrate_chipo.py` se aplica sin errores (y repetido, sin cambios) sobre XiaoZhi `aaf1eb7`.
+- La lógica de inclinación y la cara completa pasan sus pruebas en PC con AddressSanitizer y UBSan
+  (`tests/host/run.sh`, también en GitHub Actions antes de cada compilación).
+- El firmware completo se compila con ESP-IDF 6.1 en GitHub Actions.
 
-Qué falta por confirmar:
+Qué falta por confirmar, solo posible con la placa:
 
-- Una ejecución completa de Actions (compilación del firmware con ESP-IDF 6.1).
-- Una prueba física en la placa.
+- Que el firmware arranca y la cara se ve fluida en la pantalla.
+- Que el acelerómetro responde y que la caída va hacia el lado correcto (ver `CHIPO_TILT_MIRROR_X`).
 
 Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de CHIPO y de XiaoZhi usados.
 
