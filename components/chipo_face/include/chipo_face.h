@@ -38,8 +38,9 @@ private:
     static void RestoreEyesTimerCallback(lv_timer_t* timer);
     static void MotionTimerCallback(lv_timer_t* timer);
     void ApplyExpression();
-    void PositionEyes(lv_coord_t pupil_x, lv_coord_t pupil_y);
+    void PositionEyes();
     void Blink();
+    void Tick();
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* left_eye_ = nullptr;
@@ -51,7 +52,12 @@ private:
     lv_timer_t* restore_timer_ = nullptr;
     lv_timer_t* motion_timer_ = nullptr;
     State state_ = State::Idle;
-    lv_coord_t expression_eye_width_ = 62;
-    lv_coord_t expression_eye_height_ = 70;
+    int32_t expression_eye_width_ = 62;
+    int32_t expression_eye_height_ = 70;
+    int32_t pupil_x_ = 0;   // fixed gaze offset of the current expression
+    int32_t pupil_y_ = 0;
+    int32_t look_x_ = 0;    // small random wander on top of the gaze (Idle/Connecting)
+    int32_t look_y_ = 0;
+    uint32_t tick_ = 0;
     bool blinking_ = false;
 };

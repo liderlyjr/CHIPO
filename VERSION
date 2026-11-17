@@ -1,6 +1,6 @@
-CHIPO_OS_VERSION=0.3.0
+CHIPO_OS_VERSION=0.3.1
 TARGET=esp32s3
 BOARD=esp32-s3-touch-amoled-1.8-v2
 SDK_MIN=6.0.1
 SDK_RECOMMENDED=release/v6.1
-STATUS=windows-build-script-added-not-compiled-here
+STATUS=face-tested-on-host-firmware-not-built-yet
