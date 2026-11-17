@@ -100,7 +100,7 @@ int main() {
         bool grew = false;
         Advance(*face, 800, [&] {
             const int h = face->Debug().eye_h;
-            if (h < 30) { prev = h; return; }  // ignore blinks
+            if (h < 68 || prev < 68) { prev = h; return; }  // ignore blinks (closing, and the step that reopens); open eyes are 70+
             biggest_jump = std::max(biggest_jump, std::abs(h - prev));
             prev = h;
         });
@@ -175,6 +175,60 @@ int main() {
         CHECK(face->Debug().mood == Mood::Relieved, "no relief after standing up");
         Advance(*face, 1500);
         CHECK(face->Debug().mood == Mood::Normal, "relief did not end");
+
+        // ---- past 45 degrees the face slips off the screen towards the side it leans to -------------
+        const int side = lean_dx > 0 ? 1 : -1;  // the side a +roll lean pushes the face to
+        SetPose(38, 0);
+        Advance(*face, 2000);
+        CHECK(!face->Debug().fell && std::abs(face->Debug().face_dx) < 100 && face->Debug().fall_dir == 0,
+              "38 deg must still be on screen (dx %d)", face->Debug().face_dx);
+        SetPose(0, 0);
+        Advance(*face, 2000);
+        SetPose(50, 0);
+        Advance(*face, 320);  // the sensor reading is smoothed over ~80 ms, so give it a moment to pass 45 degrees
+        CHECK(face->Debug().fell && face->Debug().fall_dir == side, "should start slipping towards the lean side");
+        CHECK(face->Debug().face_dx * side > 50 && face->Debug().face_dx * side < 330, "not mid-slide (dx %d)",
+              face->Debug().face_dx);
+        Advance(*face, 1200);
+        CHECK(face->Debug().face_dx * side >= 320, "face did not leave the screen (dx %d)", face->Debug().face_dx);
+        CHECK(face->Debug().face_dy > 20, "it should drop while it falls (dy %d)", face->Debug().face_dy);
+        Advance(*face, 3000);
+        CHECK(face->Debug().face_dx * side >= 320, "face came back while still tilted");
+        SetPose(0, 0);
+        Advance(*face, 250);
+        CHECK(!face->Debug().fell && face->Debug().face_dx * side < 320, "face did not start coming back");
+        Advance(*face, 2500);
+        CHECK(std::abs(face->Debug().face_dx) <= 1 && std::abs(face->Debug().face_dy) <= 1, "face did not settle back (%d,%d)",
+              face->Debug().face_dx, face->Debug().face_dy);
+        CHECK(face->Debug().mood == Mood::Normal, "relief did not end after coming back");
+
+        // The other way.
+        SetPose(-50, 0);
+        Advance(*face, 1500);
+        CHECK(face->Debug().fall_dir == -side && face->Debug().face_dx * side <= -320, "did not fall the other way (dx %d)",
+              face->Debug().face_dx);
+        SetPose(0, 0);
+        Advance(*face, 3000);
+
+        // Tipped towards or away from the viewer: no side to slip to, so it only panics.
+        SetPose(0, 60);
+        Advance(*face, 1500);
+        CHECK(face->Debug().fell && face->Debug().fall_dir == 0 && std::abs(face->Debug().face_dx) < 100 &&
+              face->Debug().mood == Mood::Startled, "forward tip should panic without sliding (dx %d)",
+              face->Debug().face_dx);
+        SetPose(0, 0);
+        Advance(*face, 3000);
+
+        // Falls off, then ends up lying flat: it comes back, dizzy.
+        SetPose(80, 0);
+        Advance(*face, 900);
+        CHECK(face->Debug().face_dx * side >= 320, "should have fallen before lying down");
+        Advance(*face, 3500);
+        CHECK(face->Debug().mood == Mood::Dizzy && std::abs(face->Debug().face_dx) < 100,
+              "lying flat should bring it back dizzy (dx %d)", face->Debug().face_dx);
+        SetPose(0, 0);
+        Advance(*face, 3500);
+        CHECK(face->Debug().mood == Mood::Normal && std::abs(face->Debug().face_dx) <= 1, "did not recover from lying");
 
         // Lying down for a while: dizzy, face re-centred.
         SetPose(90, 0);

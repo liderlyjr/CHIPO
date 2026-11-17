@@ -33,6 +33,14 @@ constexpr float kBlinkOpenMs = 90.0f;
 constexpr uint32_t kSpeakStepMs = 140;
 constexpr uint32_t kStartleMs = 800;
 constexpr uint32_t kReliefMs = 900;
+// Falling off the screen (tilted past CHIPO_FALL_ANGLE_DEG): px/s^2 sideways and downwards, and how far
+// the face centre must travel for the whole face (glow included) to be out of the 368 px wide screen.
+constexpr float kFallAccelX = 1600.0f;
+constexpr float kFallAccelY = 500.0f;
+constexpr float kFallMaxDropY = 110.0f;
+constexpr float kGoneX = 330.0f;
+constexpr float kFallMinPush = 0.15f;  // less sideways pull than this: nothing to slide towards
+constexpr float kNormalRangeX = 90.0f; // beyond this the face is flying in from the edge
 
 // Mouth heights while speaking; the centre stays put so it opens and closes in place.
 constexpr float kSpeakMouth[] = {28, 12, 22, 8, 26, 14, 20, 10};
@@ -146,6 +154,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     blink_phase_ = 0;
     face_x_ = face_y_ = vel_x_ = vel_y_ = 0;
     fell_ = false;
+    fall_dir_ = 0;
     mood_ = Mood::Normal;
     startle_until_ms_ = relief_until_ms_ = 0;
     calibrated_logged_ = false;
@@ -412,6 +421,9 @@ void ChipoFace::Step(uint32_t now_ms) {
     } else {
         fell_ = false;
     }
+    // Which side does it slip towards? The side gravity pulls (latched once there is a clear pull).
+    if (!fell_) fall_dir_ = 0;
+    else if (fall_dir_ == 0 && std::fabs(tilt.push_x) >= kFallMinPush) fall_dir_ = tilt.push_x > 0 ? 1 : -1;
     if (fell_) idle_since_ms_ = now_ms;
 
     // ---- state and mood --------------------------------------------------------------------
@@ -466,25 +478,48 @@ void ChipoFace::Step(uint32_t now_ms) {
     Ease(cur_.glow_opa, target.glow_opa, dt, 0.15f);
 
     // ---- spring that carries the whole face ------------------------------------------------
+    // Tilted past the fall angle: the face slips, speeds up and drops off the screen on the side it
+    // leans to. It stays gone while CHIPO is held that far over (unless it ends up lying flat: then
+    // it comes back dizzy) and slides back in from that edge when CHIPO is stood up again.
+    const bool falling = fell_ && fall_dir_ != 0 && !tilt.lying;
     float tx = 0, ty = 0;
     if (tilt.calibrated && !tilt.lying) {
         tx = Clamp(tilt.push_x * 170.0f, -64.0f, 64.0f);
         ty = Clamp(tilt.lean_z * 46.0f, 0.0f, 46.0f);
         if (mood == Mood::Startled) tx = Clamp(tx * 1.2f, -72.0f, 72.0f);
     }
-    constexpr float kSpring = 120.0f, kDamping = 8.8f;
-    const int substeps = std::max(1, static_cast<int>(std::ceil(dt / 0.02f)));
-    const float h = dt / static_cast<float>(substeps);
-    for (int i = 0; i < substeps; ++i) {
-        vel_x_ += (kSpring * (tx - face_x_) - kDamping * vel_x_) * h;
-        vel_y_ += (kSpring * (ty - face_y_) - kDamping * vel_y_) * h;
-        face_x_ += vel_x_ * h;
-        face_y_ += vel_y_ * h;
+    const bool flying_in = !falling && std::fabs(face_x_) > kNormalRangeX;
+    if (falling) {
+        vel_x_ += static_cast<float>(fall_dir_) * kFallAccelX * dt;
+        vel_y_ += kFallAccelY * dt;
+        face_x_ += vel_x_ * dt;
+        face_y_ += vel_y_ * dt;
+        if (std::fabs(face_x_) >= kGoneX) {  // gone: park it out of sight
+            face_x_ = static_cast<float>(fall_dir_) * kGoneX;
+            vel_x_ = 0;
+        }
+        if (face_y_ >= kFallMaxDropY) {
+            face_y_ = kFallMaxDropY;
+            vel_y_ = 0;
+        }
+    } else {
+        constexpr float kSpring = 120.0f;
+        const float damping = flying_in ? 20.0f : 8.8f;
+        const int substeps = std::max(1, static_cast<int>(std::ceil(dt / 0.02f)));
+        const float h = dt / static_cast<float>(substeps);
+        for (int i = 0; i < substeps; ++i) {
+            vel_x_ += (kSpring * (tx - face_x_) - damping * vel_x_) * h;
+            vel_y_ += (kSpring * (ty - face_y_) - damping * vel_y_) * h;
+            face_x_ += vel_x_ * h;
+            face_y_ += vel_y_ * h;
+        }
+        if (!flying_in && std::fabs(face_x_) <= kNormalRangeX) {
+            face_x_ = Clamp(face_x_, -84.0f, 84.0f);
+            face_y_ = Clamp(face_y_, -48.0f, 64.0f);
+        }
+        if (std::fabs(vel_x_) < 0.05f && std::fabs(tx - face_x_) < 0.2f) { face_x_ = tx; vel_x_ = 0; }
+        if (std::fabs(vel_y_) < 0.05f && std::fabs(ty - face_y_) < 0.2f) { face_y_ = ty; vel_y_ = 0; }
     }
-    face_x_ = Clamp(face_x_, -84.0f, 84.0f);
-    face_y_ = Clamp(face_y_, -48.0f, 64.0f);
-    if (std::fabs(vel_x_) < 0.05f && std::fabs(tx - face_x_) < 0.2f) { face_x_ = tx; vel_x_ = 0; }
-    if (std::fabs(vel_y_) < 0.05f && std::fabs(ty - face_y_) < 0.2f) { face_y_ = ty; vel_y_ = 0; }
 
     // ---- blink on top of the pose ----------------------------------------------------------
     float blink = BlinkAmount(now_ms);
@@ -590,6 +625,8 @@ ChipoFace::DebugInfo ChipoFace::Debug() const {
     d.mood = mood_;
     d.face_dx = applied_.face_dx;
     d.face_dy = applied_.face_dy;
+    d.fall_dir = fall_dir_;
+    d.fell = fell_;
     d.eye_w = applied_.eye_w;
     d.eye_h = applied_.eye_h;
     d.mouth_w = applied_.mouth_w;

@@ -27,14 +27,18 @@ No se deben inventar pines ni sustituir controladores de la placa.
 
 ## Estado
 
-**V0.4.0 — cara viva: transiciones suaves, "Pensando" real, sueño y reacción a la inclinación.**
+**V0.5.1 — pantalla del clima (voz o toque) y la cara resbala y se cae de la pantalla al inclinarlo 45° o más.**
 
 Consulta [docs/CHIPO_FACE.md](docs/CHIPO_FACE.md) para ver todas las animaciones, cómo reacciona CHIPO cuando
 lo inclinas o se cae, y cómo ajustar el sentido de la caída.
 
+Consulta [docs/CHIPO_WEATHER.md](docs/CHIPO_WEATHER.md) para la pantalla del clima (se abre al preguntar por el
+clima o con un toque; datos de Open-Meteo, ubicación por IP o fija).
+
 Qué se ha comprobado:
 
 - `scripts/integrate_chipo.py` se aplica sin errores (y repetido, sin cambios) sobre XiaoZhi `aaf1eb7`.
+- La pantalla del clima (lectura de datos, voz, toque, caché, errores) pasa sus pruebas en PC.
 - La lógica de inclinación y la cara completa pasan sus pruebas en PC con AddressSanitizer y UBSan
   (`tests/host/run.sh`, también en GitHub Actions antes de cada compilación).
 - El firmware completo se compila con ESP-IDF 6.1 en GitHub Actions.
@@ -43,6 +47,7 @@ Qué falta por confirmar, solo posible con la placa:
 
 - Que el firmware arranca y la cara se ve fluida en la pantalla.
 - Que el acelerómetro responde y que la caída va hacia el lado correcto (ver `CHIPO_TILT_MIRROR_X`).
+- Que el toque abre la pantalla del clima y que la descarga funciona desde tu red.
 
 Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de CHIPO y de XiaoZhi usados.
 

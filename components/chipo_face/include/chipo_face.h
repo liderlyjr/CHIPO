@@ -43,6 +43,8 @@ public:
         State shown_state;
         Mood mood;
         int face_dx, face_dy;
+        int fall_dir;  // -1 / +1: slipping off the left / right side, 0: not falling
+        bool fell;     // tilted past the fall angle
         int eye_w, eye_h, mouth_w, mouth_h;
         bool thinking_dots_visible;
         bool tilt_calibrated;
@@ -137,6 +139,7 @@ private:
     ChipoTilt tilt_;
     TiltSource tilt_source_;
     bool fell_ = false;
+    int fall_dir_ = 0;
     uint32_t startle_until_ms_ = 0;
     uint32_t relief_until_ms_ = 0;
     Mood mood_ = Mood::Normal;

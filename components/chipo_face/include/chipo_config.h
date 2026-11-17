@@ -30,9 +30,10 @@
 #define CHIPO_TILT_MIRROR_X 0
 #endif
 
-// Tilt (degrees from the calibrated upright pose) at which CHIPO panics.
+// Tilt (degrees from the calibrated upright pose) at which CHIPO panics and slips off the screen
+// towards the side it is leaning to. Below it the face only slides a little.
 #ifndef CHIPO_FALL_ANGLE_DEG
-#define CHIPO_FALL_ANGLE_DEG 40
+#define CHIPO_FALL_ANGLE_DEG 45
 #endif
 
 // Idle (no voice, no touch) for this long and CHIPO falls asleep. 0 disables sleeping.
