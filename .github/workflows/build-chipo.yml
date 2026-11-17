@@ -13,6 +13,7 @@ on:
       - "components/**"
       - "integration/**"
       - "scripts/**"
+      - "tests/**"
       - "docs/**"
       - "README.md"
       - "VERSION"
@@ -26,8 +27,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  host-tests:
+    name: Face and tilt tests (on a PC)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout CHIPO
+        uses: actions/checkout@v4
+
+      - name: Get LVGL (same 9.5 series XiaoZhi uses)
+        run: git clone --depth 1 --branch v9.5.0 https://github.com/lvgl/lvgl.git "$RUNNER_TEMP/lvgl"
+
+      - name: Run tests (AddressSanitizer + UBSan)
+        run: LVGL_DIR="$RUNNER_TEMP/lvgl" tests/host/run.sh
+
   build:
     name: Compile CHIPO for Waveshare
+    needs: host-tests
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:

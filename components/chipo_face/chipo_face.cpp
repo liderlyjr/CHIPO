@@ -1,50 +1,72 @@
 #include "chipo_face.h"
 
+#include <algorithm>
+#include <cmath>
 #include <initializer_list>
+#include <utility>
 
+#include "chipo_config.h"
 #include "esp_log.h"
+
+#ifdef ESP_PLATFORM
+#include "chipo_imu.h"
+#include "esp_random.h"
+#endif
 
 namespace {
 constexpr char TAG[] = "ChipoFace";
+
 constexpr int32_t kCanvasWidth = 300;
 constexpr int32_t kCanvasHeight = 220;
-constexpr int32_t kEyeY = 54;
-constexpr int32_t kEyeGap = 34;
-constexpr int32_t kMouthY = 158;
-constexpr uint32_t kBlinkMinMs = 2800;       // blinks are irregular: min + random(0..jitter)
+constexpr float kCenterX = kCanvasWidth / 2.0f;
+constexpr float kEyeCenterY = 89.0f;
+constexpr float kEyeGap = 34.0f;
+constexpr float kMouthCenterY = 162.0f;
+constexpr int32_t kDotsY = 196;
+
+constexpr uint32_t kStepPeriodMs = 40;  // 25 animation steps per second
+constexpr uint32_t kBlinkMinMs = 2800;
 constexpr uint32_t kBlinkJitterMs = 3400;
-constexpr uint32_t kBlinkClosedMs = 115;
-constexpr int32_t kBlinkClosedHeight = 4;
-constexpr uint32_t kMotionPeriodMs = 140;    // mouth animation / gaze wander tick
-constexpr uint32_t kLookChangeTicks = 18;    // new gaze target roughly every 2.5 s
-constexpr int32_t kPupilW = 22;
-constexpr int32_t kPupilH = 30;
-// Mouth heights while speaking (centre stays fixed so it opens and closes in place).
-constexpr int32_t kSpeakMouth[] = {28, 12, 22, 8, 26, 14, 20, 10};
+constexpr float kBlinkCloseMs = 70.0f;
+constexpr float kBlinkHoldMs = 45.0f;
+constexpr float kBlinkOpenMs = 90.0f;
+constexpr uint32_t kSpeakStepMs = 140;
+constexpr uint32_t kStartleMs = 800;
+constexpr uint32_t kReliefMs = 900;
+
+// Mouth heights while speaking; the centre stays put so it opens and closes in place.
+constexpr float kSpeakMouth[] = {28, 12, 22, 8, 26, 14, 20, 10};
 constexpr uint32_t kSpeakMouthCount = sizeof(kSpeakMouth) / sizeof(kSpeakMouth[0]);
-constexpr int32_t kSpeakMouthWidth = 34;
-constexpr int32_t kSpeakMouthCenterY = kMouthY - 9 + 14;
 
 constexpr uint32_t kGlowBlue = 0x75DFFF;
 constexpr uint32_t kEyeCore = 0xDDF8FF;
 constexpr uint32_t kPupil = 0x06121B;
 
-void StyleGlow(lv_obj_t* object, lv_color_t color, int32_t radius) {
-    lv_obj_remove_style_all(object);
-    lv_obj_set_style_bg_color(object, color, LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(object, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(object, 0, LV_PART_MAIN);
-    lv_obj_set_style_radius(object, radius, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(object, 0, LV_PART_MAIN);
-    lv_obj_set_style_shadow_color(object, lv_color_hex(kGlowBlue), LV_PART_MAIN);
-    lv_obj_set_style_shadow_width(object, 20, LV_PART_MAIN);
-    lv_obj_set_style_shadow_opa(object, LV_OPA_60, LV_PART_MAIN);
+constexpr float kTwoPi = 6.2831853f;
+
+float Clamp(float v, float lo, float hi) { return std::min(hi, std::max(lo, v)); }
+
+void Ease(float& current, float target, float dt, float tau) {
+    current += (target - current) * (1.0f - std::exp(-dt / tau));
 }
 
 // The face overlays XiaoZhi's own UI: it must never swallow touches or scroll events.
 void MakeInert(lv_obj_t* object) {
     lv_obj_remove_flag(object, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
+}
+
+void StyleGlow(lv_obj_t* object, uint32_t color, int32_t glow_width) {
+    lv_obj_remove_style_all(object);
+    lv_obj_set_style_bg_color(object, lv_color_hex(color), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(object, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(object, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(object, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(object, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_color(object, lv_color_hex(kGlowBlue), LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(object, glow_width, LV_PART_MAIN);
+    lv_obj_set_style_shadow_opa(object, LV_OPA_60, LV_PART_MAIN);
+    MakeInert(object);
 }
 
 void StylePupil(lv_obj_t* object) {
@@ -54,8 +76,13 @@ void StylePupil(lv_obj_t* object) {
     lv_obj_set_style_border_width(object, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(object, LV_RADIUS_CIRCLE, LV_PART_MAIN);
     lv_obj_set_style_pad_all(object, 0, LV_PART_MAIN);
+    MakeInert(object);
 }
-}
+
+int16_t Round16(float v) { return static_cast<int16_t>(std::lround(v)); }
+}  // namespace
+
+ChipoFace::ChipoFace() : tilt_(CHIPO_TILT_MIRROR_X != 0) {}
 
 ChipoFace::~ChipoFace() {
     Stop();
@@ -68,231 +95,507 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     }
     if (root_ != nullptr) return true;
 
+#ifdef ESP_PLATFORM
+    lv_rand_set_seed(esp_random());
+#endif
+
     root_ = lv_obj_create(parent);
     if (root_ == nullptr) return false;
 
     lv_obj_remove_style_all(root_);
     lv_obj_set_size(root_, kCanvasWidth, kCanvasHeight);
-    lv_obj_center(root_);
-    MakeInert(root_);
+    lv_obj_align(root_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_bg_opa(root_, LV_OPA_TRANSP, LV_PART_MAIN);
+    MakeInert(root_);
 
     left_eye_ = lv_obj_create(root_);
     right_eye_ = lv_obj_create(root_);
     left_pupil_ = lv_obj_create(root_);
     right_pupil_ = lv_obj_create(root_);
     mouth_ = lv_obj_create(root_);
+    for (auto& dot : dots_) dot = lv_obj_create(root_);
 
-    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || !mouth_) {
+    bool ok = left_eye_ && right_eye_ && left_pupil_ && right_pupil_ && mouth_;
+    for (auto* dot : dots_) ok = ok && dot != nullptr;
+    if (!ok) {
         Stop();
         ESP_LOGE(TAG, "Could not create face objects");
         return false;
     }
 
-    StyleGlow(left_eye_, lv_color_hex(kEyeCore), LV_RADIUS_CIRCLE);
-    StyleGlow(right_eye_, lv_color_hex(kEyeCore), LV_RADIUS_CIRCLE);
+    StyleGlow(left_eye_, kEyeCore, 20);
+    StyleGlow(right_eye_, kEyeCore, 20);
     StylePupil(left_pupil_);
     StylePupil(right_pupil_);
-    StyleGlow(mouth_, lv_color_hex(kGlowBlue), LV_RADIUS_CIRCLE);
-    for (lv_obj_t* part : {left_eye_, right_eye_, left_pupil_, right_pupil_, mouth_}) {
-        MakeInert(part);
+    StyleGlow(mouth_, kGlowBlue, 20);
+    for (int i = 0; i < 3; ++i) {
+        StyleGlow(dots_[i], kGlowBlue, 8);
+        lv_obj_set_size(dots_[i], 8, 8);
+        lv_obj_set_pos(dots_[i], static_cast<int32_t>(kCenterX) + (i - 1) * 22 - 4, kDotsY);
+        lv_obj_add_flag(dots_[i], LV_OBJ_FLAG_HIDDEN);
     }
 
-    expression_eye_width_ = 62;
-    expression_eye_height_ = 70;
-    lv_obj_set_size(left_eye_, expression_eye_width_, expression_eye_height_);
-    lv_obj_set_size(right_eye_, expression_eye_width_, expression_eye_height_);
+    const uint32_t now = lv_tick_get();
+    cur_ = Pose{62, 70, 22, 30, 0, 0, 42, 8, kMouthCenterY, 20, 60};
+    pose_initialised_ = true;
+    layout_applied_ = false;
+    stepped_ = false;
+    idle_since_ms_ = now;
+    next_blink_ms_ = now + 1800;
+    next_look_ms_ = now + 1500;
+    blink_phase_ = 0;
+    face_x_ = face_y_ = vel_x_ = vel_y_ = 0;
+    fell_ = false;
+    mood_ = Mood::Normal;
+    startle_until_ms_ = relief_until_ms_ = 0;
+    calibrated_logged_ = false;
+    next_debug_log_ms_ = now + 3000;
+    tilt_.Reset();
 
-    blink_timer_ = lv_timer_create(BlinkTimerCallback, kBlinkMinMs, this);
-    if (blink_timer_ == nullptr) {
-        Stop();
-        ESP_LOGE(TAG, "Could not create blink timer");
-        return false;
+#if defined(ESP_PLATFORM) && CHIPO_ENABLE_IMU
+    if (!tilt_source_) {
+        auto imu = std::make_unique<ChipoImu>();
+        if (imu->Start()) {
+            ChipoImu* raw = imu.get();
+            tilt_source_ = [raw](ImuSample* sample) { return raw->Poll(sample); };
+            imu_ = std::move(imu);
+        }
     }
+#endif
 
-    motion_timer_ = lv_timer_create(MotionTimerCallback, kMotionPeriodMs, this);
+    motion_timer_ = lv_timer_create(MotionTimerCallback, kStepPeriodMs, this);
     if (motion_timer_ == nullptr) {
         Stop();
-        ESP_LOGE(TAG, "Could not create motion timer");
+        ESP_LOGE(TAG, "Could not create animation timer");
         return false;
     }
 
-    ApplyExpression();
-    ESP_LOGI(TAG, "CHIPO Face initialized");
+    Step(now);
+    ESP_LOGI(TAG, "CHIPO Face initialized (tilt reactions %s)", tilt_source_ ? "on" : "off");
     return true;
 }
 
 void ChipoFace::Stop() {
-    if (blink_timer_) {
-        lv_timer_delete(blink_timer_);
-        blink_timer_ = nullptr;
-    }
-    if (restore_timer_) {
-        lv_timer_delete(restore_timer_);
-        restore_timer_ = nullptr;
-    }
     if (motion_timer_) {
         lv_timer_delete(motion_timer_);
         motion_timer_ = nullptr;
     }
+#ifdef ESP_PLATFORM
+    tilt_source_ = nullptr;
+    imu_.reset();
+#endif
     if (root_) lv_obj_delete(root_);
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
-    blinking_ = false;
-    look_x_ = look_y_ = 0;
-    tick_ = 0;
+    for (auto& dot : dots_) dot = nullptr;
+    dots_visible_ = false;
+    for (int& o : dots_opa_) o = -1;
+}
+
+void ChipoFace::SetTiltSource(TiltSource source) {
+#ifdef ESP_PLATFORM
+    imu_.reset();
+#endif
+    tilt_source_ = std::move(source);
 }
 
 void ChipoFace::SetState(State state) {
     if (state_ == state) return;
     state_ = state;
-    ApplyExpression();
+    const uint32_t now = lv_tick_get();
+    if (state == State::Idle) {
+        idle_since_ms_ = now;
+    } else if (state != State::Listening) {
+        thinking_ = false;  // Speaking, Error, Connecting... the wait is over
+    }
 }
 
-void ChipoFace::PositionEyes() {
-    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_) return;
-
-    const int32_t left_x = kCanvasWidth / 2 - kEyeGap / 2 - expression_eye_width_;
-    const int32_t right_x = kCanvasWidth / 2 + kEyeGap / 2;
-    lv_obj_set_pos(left_eye_, left_x, kEyeY);
-    lv_obj_set_pos(right_eye_, right_x, kEyeY);
-
-    const int32_t dx = pupil_x_ + look_x_;
-    const int32_t dy = pupil_y_ + look_y_;
-    lv_obj_set_size(left_pupil_, kPupilW, kPupilH);
-    lv_obj_set_size(right_pupil_, kPupilW, kPupilH);
-    lv_obj_set_pos(left_pupil_, left_x + (expression_eye_width_ - kPupilW) / 2 + dx,
-                   kEyeY + (expression_eye_height_ - kPupilH) / 2 + dy);
-    lv_obj_set_pos(right_pupil_, right_x + (expression_eye_width_ - kPupilW) / 2 + dx,
-                   kEyeY + (expression_eye_height_ - kPupilH) / 2 + dy);
+void ChipoFace::SetThinking(bool thinking) {
+    if (!thinking) {
+        thinking_ = false;
+        return;
+    }
+    if (state_ == State::Idle || state_ == State::Listening) {
+        thinking_ = true;
+        thinking_since_ms_ = lv_tick_get();
+    }
 }
 
-void ChipoFace::ApplyExpression() {
-    if (!root_ || !left_eye_ || !right_eye_ || !mouth_) return;
+ChipoFace::State ChipoFace::ShownState(uint32_t now_ms) const {
+    if (state_ == State::Error) return State::Error;
+    if (thinking_ && (state_ == State::Idle || state_ == State::Listening)) return State::Thinking;
+#if CHIPO_SLEEP_AFTER_MS > 0
+    if (state_ == State::Idle) {
+        const uint32_t quiet = now_ms - idle_since_ms_;
+        const uint32_t untouched =
+            lv_display_get_default() ? lv_display_get_inactive_time(nullptr) : quiet;
+        if (quiet >= CHIPO_SLEEP_AFTER_MS && untouched >= CHIPO_SLEEP_AFTER_MS) return State::Sleep;
+    }
+#else
+    (void)now_ms;
+#endif
+    return state_;
+}
 
-    int32_t eye_w = 62;
-    int32_t eye_h = 70;
-    int32_t pupil_x = 0;
-    int32_t pupil_y = 0;
-    int32_t mouth_w = 42;
-    int32_t mouth_h = 8;
-    int32_t mouth_y = kMouthY;
-    int32_t mouth_radius = LV_RADIUS_CIRCLE;
+float ChipoFace::BlinkAmount(uint32_t now_ms) {
+    if (blink_phase_ == 0) {
+        if (now_ms < next_blink_ms_) return 0.0f;
+        blink_phase_ = 1;
+        blink_t0_ = now_ms;
+    }
+    const float elapsed = static_cast<float>(now_ms - blink_t0_);
+    if (blink_phase_ == 1) {
+        if (elapsed < kBlinkCloseMs) return elapsed / kBlinkCloseMs;
+        blink_phase_ = 2;
+        blink_t0_ = now_ms;
+        return 1.0f;
+    }
+    if (blink_phase_ == 2) {
+        if (elapsed < kBlinkHoldMs) return 1.0f;
+        blink_phase_ = 3;
+        blink_t0_ = now_ms;
+        return 1.0f;
+    }
+    if (elapsed < kBlinkOpenMs) return 1.0f - elapsed / kBlinkOpenMs;
+    blink_phase_ = 0;
+    // Now and then blink twice in a row, otherwise wait a random while.
+    if (!blink_was_double_ && lv_rand(0, 4) == 0) {
+        blink_was_double_ = true;
+        next_blink_ms_ = now_ms + 170;
+    } else {
+        blink_was_double_ = false;
+        next_blink_ms_ = now_ms + kBlinkMinMs + lv_rand(0, kBlinkJitterMs);
+    }
+    return 0.0f;
+}
 
-    switch (state_) {
+ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, uint32_t now_ms,
+                                      const TiltOutput& tilt) {
+    Pose p{62, 70, 22, 30, 0, 0, 42, 8, kMouthCenterY, 20, 60};
+    const float t = static_cast<float>(now_ms);
+
+    switch (shown) {
     case State::Idle:
+        p.pupil_x = look_x_;
+        p.pupil_y = look_y_;
         break;
     case State::Listening:
-        eye_w = 66; eye_h = 78;
-        mouth_w = 13; mouth_h = 13; mouth_y -= 3;
+        p.eye_w = 66; p.eye_h = 78;
+        p.mouth_w = 13; p.mouth_h = 13; p.mouth_cy = 161;
+        // Soft pulsing glow: "I'm all ears".
+        p.glow_w = 22 + 10 * (0.5f + 0.5f * std::sin(kTwoPi * t / 1200.0f));
+        p.glow_opa = 72;
         break;
-    case State::Thinking:
-        pupil_x = 8; pupil_y = -9;
-        mouth_w = 28; mouth_h = 7;
+    case State::Thinking: {
+        const float angle = kTwoPi * static_cast<float>(now_ms % 1800) / 1800.0f;
+        p.eye_h = 66;
+        p.pupil_x = 8 * std::cos(angle);
+        p.pupil_y = -7 + 5 * std::sin(angle);
+        p.mouth_w = 28; p.mouth_h = 7;
         break;
+    }
     case State::Speaking:
-        mouth_w = 34; mouth_h = 28; mouth_y -= 9;
+        p.mouth_w = 34;
+        p.mouth_h = kSpeakMouth[speak_index_ % kSpeakMouthCount];
+        p.mouth_cy = 163;
         break;
     case State::Connecting:
-        eye_w = 58; eye_h = 64;
-        mouth_w = 24; mouth_h = 7;
+        p.eye_w = 58; p.eye_h = 64;
+        p.mouth_w = 24; p.mouth_h = 7;
+        p.pupil_x = look_x_;
+        p.pupil_y = look_y_;
         break;
     case State::Error:
-        eye_w = 62; eye_h = 48;
-        mouth_w = 36; mouth_h = 7; mouth_y += 5;
-        pupil_y = 4;
+        p.eye_h = 48;
+        p.pupil_y = 4;
+        p.mouth_w = 36; p.mouth_h = 7; p.mouth_cy = 167;
+        break;
+    case State::Sleep:
+        p.eye_h = 4; p.pupil_h = 2;
+        p.mouth_w = 16; p.mouth_h = 5; p.mouth_cy = 164;
+        p.glow_w = 10;
+        p.glow_opa = 28 + 10 * std::sin(kTwoPi * t / 4000.0f);  // slow breathing
         break;
     }
 
-    expression_eye_width_ = eye_w;
-    expression_eye_height_ = eye_h;
-    pupil_x_ = pupil_x;
-    pupil_y_ = pupil_y;
-    look_x_ = 0;
-    look_y_ = 0;
-    if (!blinking_) {
-        lv_obj_set_size(left_eye_, eye_w, eye_h);
-        lv_obj_set_size(right_eye_, eye_w, eye_h);
-        lv_obj_set_style_radius(left_eye_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        lv_obj_set_style_radius(right_eye_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-        PositionEyes();
+    switch (mood) {
+    case Mood::Startled:
+        p.eye_w = 74; p.eye_h = 88;
+        p.pupil_w = 14; p.pupil_h = 18;
+        p.pupil_x = tilt.push_x * 6; p.pupil_y = 0;
+        p.mouth_w = 24; p.mouth_h = 30; p.mouth_cy = 170;
+        p.glow_w = 30; p.glow_opa = 85;
+        break;
+    case Mood::Dizzy:
+        p.eye_w = 62; p.eye_h = 16;
+        p.pupil_w = 22; p.pupil_h = 12;
+        p.pupil_x = 9 * std::sin(kTwoPi * t / 1100.0f); p.pupil_y = 0;
+        p.mouth_w = 22; p.mouth_h = 6; p.mouth_cy = 168;
+        p.glow_w = 14; p.glow_opa = 40;
+        break;
+    case Mood::Relieved:
+        p.eye_w = 62; p.eye_h = 56;
+        p.pupil_h = 24; p.pupil_x = 0; p.pupil_y = 0;
+        p.mouth_w = 54; p.mouth_h = 9; p.mouth_cy = 160;
+        break;
+    case Mood::Normal:
+        if (tilt.calibrated && shown != State::Sleep) {
+            // Leaning: the eyes follow the pull of gravity a little.
+            p.pupil_x += tilt.push_x * 14.0f;
+            if (tilt.angle_deg > 8.0f) p.pupil_y += 3.0f;
+        }
+        break;
     }
 
-    lv_obj_set_size(mouth_, mouth_w, mouth_h);
-    lv_obj_set_style_radius(mouth_, mouth_radius, LV_PART_MAIN);
-    lv_obj_set_pos(mouth_, (kCanvasWidth - mouth_w) / 2, mouth_y);
+    // Pupils must stay inside the eye.
+    const float max_x = std::max(0.0f, (p.eye_w - p.pupil_w) / 2.0f - 2.0f);
+    const float max_y = std::max(0.0f, (p.eye_h - p.pupil_h) / 2.0f - 2.0f);
+    p.pupil_x = Clamp(p.pupil_x, -max_x, max_x);
+    p.pupil_y = Clamp(p.pupil_y, -max_y, max_y);
+    return p;
 }
 
-void ChipoFace::BlinkTimerCallback(lv_timer_t* timer) {
-    auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
-    if (self) self->Blink();
-}
-
-void ChipoFace::RestoreEyesTimerCallback(lv_timer_t* timer) {
-    auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
-    if (!self) return;
-    self->blinking_ = false;
-    self->restore_timer_ = nullptr;
-    self->ApplyExpression();
-    lv_timer_delete(timer);
+void ChipoFace::UpdateDots(uint32_t now_ms, bool visible) {
+    if (visible != dots_visible_) {
+        dots_visible_ = visible;
+        for (int i = 0; i < 3; ++i) {
+            if (!dots_[i]) continue;
+            if (visible) lv_obj_remove_flag(dots_[i], LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(dots_[i], LV_OBJ_FLAG_HIDDEN);
+            dots_opa_[i] = -1;
+        }
+    }
+    if (!visible) return;
+    for (int i = 0; i < 3; ++i) {
+        if (!dots_[i]) continue;
+        const float phase = kTwoPi * static_cast<float>(now_ms) / 1200.0f - 0.9f * i;
+        const float v = 0.5f + 0.5f * std::sin(phase);
+        const int level = static_cast<int>(v * 7.0f + 0.5f);  // 8 brightness steps
+        if (level != dots_opa_[i]) {
+            dots_opa_[i] = level;
+            lv_obj_set_style_bg_opa(dots_[i], static_cast<lv_opa_t>(50 + level * 29), LV_PART_MAIN);
+        }
+    }
 }
 
 void ChipoFace::MotionTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
-    if (self) self->Tick();
+    if (self) self->Step(lv_tick_get());
 }
 
-void ChipoFace::Tick() {
-    if (!root_ || !mouth_) return;
-    ++tick_;
+void ChipoFace::Step(uint32_t now_ms) {
+    if (!root_) return;
 
-    switch (state_) {
-    case State::Speaking: {
-        // No audio level is available here, so the mouth just "talks" while the
-        // device is in the Speaking state. It stops as soon as the state changes.
-        const int32_t h = kSpeakMouth[tick_ % kSpeakMouthCount];
-        lv_obj_set_size(mouth_, kSpeakMouthWidth, h);
-        lv_obj_set_pos(mouth_, (kCanvasWidth - kSpeakMouthWidth) / 2, kSpeakMouthCenterY - h / 2);
-        break;
+    float dt = 0.04f;
+    if (stepped_) dt = Clamp(static_cast<float>(now_ms - last_step_ms_) / 1000.0f, 0.001f, 0.1f);
+    stepped_ = true;
+    last_step_ms_ = now_ms;
+
+    // ---- tilt sensor -----------------------------------------------------------------------
+    if (tilt_source_) {
+        ImuSample sample;
+        for (int guard = 0; guard < 4 && tilt_source_(&sample); ++guard) tilt_.Update(sample, now_ms);
     }
-    case State::Idle:
-    case State::Connecting:
-        if (!blinking_ && tick_ % kLookChangeTicks == 0) {
-            // Small glance around, kept well inside the eye (pupil margin is 20 px).
-            look_x_ = static_cast<int32_t>(lv_rand(0, 12)) - 6;
-            look_y_ = static_cast<int32_t>(lv_rand(0, 8)) - 4;
-            PositionEyes();
-        }
-        break;
-    default:
-        break;
+    const TiltOutput tilt = tilt_.output();
+    if (tilt.calibrated && !calibrated_logged_) {
+        calibrated_logged_ = true;
+        ESP_LOGI(TAG, "Tilt calibrated: home pose stored (vertical sensor axis %s)",
+                 tilt_.vertical_axis() == 0 ? "X" : "Y");
     }
-}
-
-void ChipoFace::Blink() {
-    if (!left_eye_ || !right_eye_ || !left_pupil_ || !right_pupil_ || blinking_) return;
-
-    // Next blink at an irregular interval so it does not look mechanical.
-    if (blink_timer_) {
-        lv_timer_set_period(blink_timer_, kBlinkMinMs + lv_rand(0, kBlinkJitterMs));
+    if (tilt.startle) {
+        startle_until_ms_ = now_ms + kStartleMs;
+        vel_y_ -= 240.0f;           // a little jump of fright
+        idle_since_ms_ = now_ms;    // wakes CHIPO up
     }
-
-    blinking_ = true;
-    // Close towards the vertical centre of the eye instead of collapsing to its top edge.
-    const int32_t closed_y = kEyeY + (expression_eye_height_ - kBlinkClosedHeight) / 2;
-    lv_obj_set_height(left_eye_, kBlinkClosedHeight);
-    lv_obj_set_height(right_eye_, kBlinkClosedHeight);
-    lv_obj_set_y(left_eye_, closed_y);
-    lv_obj_set_y(right_eye_, closed_y);
-    lv_obj_set_height(left_pupil_, 1);
-    lv_obj_set_height(right_pupil_, 1);
-    lv_obj_set_y(left_pupil_, kEyeY + expression_eye_height_ / 2);
-    lv_obj_set_y(right_pupil_, kEyeY + expression_eye_height_ / 2);
-
-    restore_timer_ = lv_timer_create(RestoreEyesTimerCallback, kBlinkClosedMs, this);
-    if (!restore_timer_) {
-        blinking_ = false;
-        ApplyExpression();
+    if (tilt.calibrated) {
+        if (!fell_ && tilt.angle_deg >= CHIPO_FALL_ANGLE_DEG) fell_ = true;
+        else if (fell_ && tilt.angle_deg < CHIPO_FALL_ANGLE_DEG - 12) fell_ = false;
     } else {
-        lv_timer_set_repeat_count(restore_timer_, 1);
+        fell_ = false;
     }
+    if (fell_) idle_since_ms_ = now_ms;
+
+    // ---- state and mood --------------------------------------------------------------------
+    if (thinking_ && now_ms - thinking_since_ms_ > CHIPO_THINKING_TIMEOUT_MS) thinking_ = false;
+    const State shown = ShownState(now_ms);
+    shown_ = shown;
+
+    Mood mood = Mood::Normal;
+    if (state_ != State::Error) {
+        if (tilt.lying) mood = Mood::Dizzy;
+        else if (fell_ || now_ms < startle_until_ms_) mood = Mood::Startled;
+    }
+    if (mood == Mood::Normal && (mood_ == Mood::Startled || mood_ == Mood::Dizzy) &&
+        state_ != State::Error) {
+        relief_until_ms_ = now_ms + kReliefMs;  // "phew"
+        next_blink_ms_ = now_ms;                // with a blink
+    }
+    if (mood == Mood::Normal && now_ms < relief_until_ms_) mood = Mood::Relieved;
+    mood_ = mood;
+
+    // ---- small timed behaviours ------------------------------------------------------------
+    if (shown == State::Speaking && now_ms >= speak_step_ms_) {
+        ++speak_index_;
+        speak_step_ms_ = now_ms + kSpeakStepMs;
+    }
+    if (shown == State::Idle || shown == State::Connecting) {
+        if (now_ms >= next_look_ms_) {
+            look_x_ = static_cast<float>(lv_rand(0, 12)) - 6.0f;
+            look_y_ = static_cast<float>(lv_rand(0, 8)) - 4.0f;
+            next_look_ms_ = now_ms + 1800 + lv_rand(0, 1800);
+        }
+    } else {
+        look_x_ = look_y_ = 0;
+        next_look_ms_ = now_ms + 1200;
+    }
+
+    // ---- ease the pose towards its target --------------------------------------------------
+    const Pose target = TargetPose(shown, mood, now_ms, tilt);
+    const bool snappy = mood == Mood::Startled;
+    const float tau_shape = snappy ? 0.04f : (mood == Mood::Relieved ? 0.12f : 0.09f);
+    const float tau_mouth = shown == State::Speaking && mood == Mood::Normal ? 0.045f : tau_shape;
+    Ease(cur_.eye_w, target.eye_w, dt, tau_shape);
+    Ease(cur_.eye_h, target.eye_h, dt, tau_shape);
+    Ease(cur_.pupil_w, target.pupil_w, dt, tau_shape);
+    Ease(cur_.pupil_h, target.pupil_h, dt, tau_shape);
+    Ease(cur_.pupil_x, target.pupil_x, dt, 0.05f);
+    Ease(cur_.pupil_y, target.pupil_y, dt, 0.05f);
+    Ease(cur_.mouth_w, target.mouth_w, dt, tau_mouth);
+    Ease(cur_.mouth_h, target.mouth_h, dt, tau_mouth);
+    Ease(cur_.mouth_cy, target.mouth_cy, dt, tau_mouth);
+    Ease(cur_.glow_w, target.glow_w, dt, 0.15f);
+    Ease(cur_.glow_opa, target.glow_opa, dt, 0.15f);
+
+    // ---- spring that carries the whole face ------------------------------------------------
+    float tx = 0, ty = 0;
+    if (tilt.calibrated && !tilt.lying) {
+        tx = Clamp(tilt.push_x * 170.0f, -64.0f, 64.0f);
+        ty = Clamp(tilt.lean_z * 46.0f, 0.0f, 46.0f);
+        if (mood == Mood::Startled) tx = Clamp(tx * 1.2f, -72.0f, 72.0f);
+    }
+    constexpr float kSpring = 120.0f, kDamping = 8.8f;
+    const int substeps = std::max(1, static_cast<int>(std::ceil(dt / 0.02f)));
+    const float h = dt / static_cast<float>(substeps);
+    for (int i = 0; i < substeps; ++i) {
+        vel_x_ += (kSpring * (tx - face_x_) - kDamping * vel_x_) * h;
+        vel_y_ += (kSpring * (ty - face_y_) - kDamping * vel_y_) * h;
+        face_x_ += vel_x_ * h;
+        face_y_ += vel_y_ * h;
+    }
+    face_x_ = Clamp(face_x_, -84.0f, 84.0f);
+    face_y_ = Clamp(face_y_, -48.0f, 64.0f);
+    if (std::fabs(vel_x_) < 0.05f && std::fabs(tx - face_x_) < 0.2f) { face_x_ = tx; vel_x_ = 0; }
+    if (std::fabs(vel_y_) < 0.05f && std::fabs(ty - face_y_) < 0.2f) { face_y_ = ty; vel_y_ = 0; }
+
+    // ---- blink on top of the pose ----------------------------------------------------------
+    float blink = BlinkAmount(now_ms);
+    if (mood == Mood::Startled || shown == State::Sleep) blink = 0.0f;
+    const float eye_h = std::max(4.0f, cur_.eye_h * (1.0f - blink));
+    const float pupil_h = std::min(cur_.pupil_h * (1.0f - blink), eye_h - 2.0f);
+
+    // ---- pose -> pixels --------------------------------------------------------------------
+    Layout layout{};
+    layout.eye_w = Round16(cur_.eye_w);
+    layout.eye_h = Round16(eye_h);
+    layout.eye_y = Round16(kEyeCenterY - eye_h / 2.0f);
+    layout.left_eye_x = Round16(kCenterX - kEyeGap / 2.0f - cur_.eye_w);
+    layout.right_eye_x = Round16(kCenterX + kEyeGap / 2.0f);
+    layout.pupils_visible = pupil_h >= 3.0f;
+    layout.pupil_w = Round16(cur_.pupil_w);
+    layout.pupil_h = Round16(std::max(pupil_h, 0.0f));
+    const float oy = Clamp(cur_.pupil_y, -(eye_h - pupil_h) / 2.0f, (eye_h - pupil_h) / 2.0f);
+    layout.pupil_y = Round16(kEyeCenterY - pupil_h / 2.0f + oy);
+    layout.left_pupil_x = Round16(layout.left_eye_x + (cur_.eye_w - cur_.pupil_w) / 2.0f + cur_.pupil_x);
+    layout.right_pupil_x = Round16(layout.right_eye_x + (cur_.eye_w - cur_.pupil_w) / 2.0f + cur_.pupil_x);
+    layout.mouth_w = Round16(cur_.mouth_w);
+    layout.mouth_h = Round16(cur_.mouth_h);
+    layout.mouth_x = Round16(kCenterX - cur_.mouth_w / 2.0f);
+    layout.mouth_y = Round16(cur_.mouth_cy - cur_.mouth_h / 2.0f);
+    layout.glow_w = static_cast<int16_t>(2 * std::lround(cur_.glow_w / 2.0f));  // steps of 2 px
+    layout.glow_opa = Round16(Clamp(cur_.glow_opa, 0.0f, 100.0f));
+    layout.face_dx = Round16(face_x_);
+    layout.face_dy = Round16(face_y_);
+    ApplyLayout(layout);
+
+    UpdateDots(now_ms, shown == State::Thinking && mood == Mood::Normal);
+
+#if CHIPO_DEBUG_TILT_LOG
+    if (tilt_source_ && now_ms >= next_debug_log_ms_) {
+        next_debug_log_ms_ = now_ms + 1000;
+        ESP_LOGI(TAG, "tilt: calibrated=%d angle=%.1f push_x=%.2f lean_z=%.2f lying=%d mood=%d",
+                 tilt.calibrated ? 1 : 0, tilt.angle_deg, tilt.push_x, tilt.lean_z,
+                 tilt.lying ? 1 : 0, static_cast<int>(mood));
+    }
+#endif
+}
+
+void ChipoFace::ApplyLayout(const Layout& l) {
+    const bool first = !layout_applied_;
+    const Layout& a = applied_;
+
+    if (first || l.eye_w != a.eye_w || l.eye_h != a.eye_h) {
+        lv_obj_set_size(left_eye_, l.eye_w, l.eye_h);
+        lv_obj_set_size(right_eye_, l.eye_w, l.eye_h);
+    }
+    if (first || l.eye_y != a.eye_y || l.left_eye_x != a.left_eye_x || l.right_eye_x != a.right_eye_x) {
+        lv_obj_set_pos(left_eye_, l.left_eye_x, l.eye_y);
+        lv_obj_set_pos(right_eye_, l.right_eye_x, l.eye_y);
+    }
+    if (first || l.pupils_visible != a.pupils_visible) {
+        if (l.pupils_visible) {
+            lv_obj_remove_flag(left_pupil_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_remove_flag(right_pupil_, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(left_pupil_, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(right_pupil_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (l.pupils_visible) {
+        if (first || l.pupil_w != a.pupil_w || l.pupil_h != a.pupil_h) {
+            lv_obj_set_size(left_pupil_, l.pupil_w, l.pupil_h);
+            lv_obj_set_size(right_pupil_, l.pupil_w, l.pupil_h);
+        }
+        if (first || l.pupil_y != a.pupil_y || l.left_pupil_x != a.left_pupil_x ||
+            l.right_pupil_x != a.right_pupil_x) {
+            lv_obj_set_pos(left_pupil_, l.left_pupil_x, l.pupil_y);
+            lv_obj_set_pos(right_pupil_, l.right_pupil_x, l.pupil_y);
+        }
+    }
+    if (first || l.mouth_w != a.mouth_w || l.mouth_h != a.mouth_h) {
+        lv_obj_set_size(mouth_, l.mouth_w, l.mouth_h);
+    }
+    if (first || l.mouth_x != a.mouth_x || l.mouth_y != a.mouth_y) {
+        lv_obj_set_pos(mouth_, l.mouth_x, l.mouth_y);
+    }
+    if (first || l.glow_w != a.glow_w) {
+        for (lv_obj_t* o : {left_eye_, right_eye_, mouth_}) {
+            lv_obj_set_style_shadow_width(o, l.glow_w, LV_PART_MAIN);
+        }
+    }
+    if (first || l.glow_opa != a.glow_opa) {
+        const lv_opa_t opa = static_cast<lv_opa_t>(l.glow_opa * 255 / 100);
+        for (lv_obj_t* o : {left_eye_, right_eye_, mouth_}) {
+            lv_obj_set_style_shadow_opa(o, opa, LV_PART_MAIN);
+        }
+    }
+    if (first || l.face_dx != a.face_dx || l.face_dy != a.face_dy) {
+        lv_obj_align(root_, LV_ALIGN_CENTER, l.face_dx, l.face_dy);
+    }
+    applied_ = l;
+    layout_applied_ = true;
+}
+
+ChipoFace::DebugInfo ChipoFace::Debug() const {
+    DebugInfo d{};
+    d.shown_state = shown_;
+    d.mood = mood_;
+    d.face_dx = applied_.face_dx;
+    d.face_dy = applied_.face_dy;
+    d.eye_w = applied_.eye_w;
+    d.eye_h = applied_.eye_h;
+    d.mouth_w = applied_.mouth_w;
+    d.mouth_h = applied_.mouth_h;
+    d.thinking_dots_visible = dots_visible_;
+    d.tilt_calibrated = tilt_.output().calibrated;
+    d.tilt_angle_deg = tilt_.output().angle_deg;
+    return d;
 }

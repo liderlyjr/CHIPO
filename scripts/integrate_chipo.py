@@ -74,6 +74,30 @@ replace_once(
 )
 replace_once(
     app_cc,
+    """                Schedule([display, message = std::string(text->valuestring),
+                          glyphs = std::move(glyphs), bpp]() {
+                    display->AddTextGlyphs(glyphs, bpp);
+                    display->SetChatMessage("user", message.c_str());
+                });
+""",
+    """                Schedule([this, display, message = std::string(text->valuestring),
+                          glyphs = std::move(glyphs), bpp]() {
+                    display->AddTextGlyphs(glyphs, bpp);
+                    display->SetChatMessage("user", message.c_str());
+                    // CHIPO: the user's speech was recognised and the model is now working on
+                    // the answer. This is the real "thinking" moment; Speaking clears it.
+                    if (chipo_face_) {
+                        DisplayLockGuard lock(display);
+                        if (lock) {
+                            chipo_face_->SetThinking(true);
+                        }
+                    }
+                });
+""",
+    "Show CHIPO thinking once speech is recognised",
+)
+replace_once(
+    app_cc,
     "    auto display = board.GetDisplay();\n    auto led = board.GetLed();\n",
     """    auto display = board.GetDisplay();
     if (chipo_face_) {
