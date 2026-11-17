@@ -9,6 +9,10 @@ OUT="$(mktemp -d)"
 SAN="-fsanitize=address,undefined"
 INC="-Icomponents/chipo_face/include"
 
+echo "== weather data (parsers, voice intent)"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_weather/include tests/host/test_weather.cpp components/chipo_weather/chipo_weather_data.cpp -o "$OUT/test_weather"
+"$OUT/test_weather"
+
 echo "== tilt maths"
 g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_tilt.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_tilt"
 "$OUT/test_tilt"
@@ -20,7 +24,13 @@ fi
 
 echo "== face behaviour (LVGL $(basename "$LVGL_DIR"))"
 mkdir -p "$OUT/stub" "$OUT/obj"
-sed 's/#if 0 \/\*Set this to "1" to enable content\*\//#if 1/' "$LVGL_DIR/lv_conf_template.h" > "$OUT/stub/lv_conf.h"
+# Turn the template on (its first guard reads `#if 0 /* Set this to "1" to enable content */`) and
+# compile in the two Montserrat sizes the weather screen uses.
+sed -e 's/^#if 0 \/\* *Set this to "1" to enable content *\*\//#if 1 \/* enabled *\//' \
+    -e 's/^#define LV_FONT_MONTSERRAT_20 0/#define LV_FONT_MONTSERRAT_20 1/' \
+    -e 's/^#define LV_FONT_MONTSERRAT_24 0/#define LV_FONT_MONTSERRAT_24 1/' \
+    "$LVGL_DIR/lv_conf_template.h" > "$OUT/stub/lv_conf.h"
+grep -q '^#if 1 /\* enabled' "$OUT/stub/lv_conf.h" || { echo "could not enable lv_conf template"; exit 1; }
 LVFLAGS="-DLV_CONF_INCLUDE_SIMPLE -I$OUT/stub -I$LVGL_DIR"
 # Software renderer core only: no GPU/OS back-ends, no SIMD variants, no optional libs.
 find "$LVGL_DIR/src" -name '*.c' \
@@ -37,3 +47,10 @@ g++ -std=gnu++23 -O1 -g $SAN -DCHIPO_DEBUG_TILT_LOG=0 $LVFLAGS -Itests/host/stub
     tests/host/test_face.cpp components/chipo_face/chipo_face.cpp components/chipo_face/chipo_tilt.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_face"
 "$OUT/test_face"
+
+echo "== weather screen (LVGL $(basename "$LVGL_DIR"))"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w \
+    tests/host/test_weather_ui.cpp components/chipo_weather/chipo_weather_view.cpp \
+    components/chipo_weather/chipo_weather_controller.cpp components/chipo_weather/chipo_weather_data.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_weather_ui"
+"$OUT/test_weather_ui"

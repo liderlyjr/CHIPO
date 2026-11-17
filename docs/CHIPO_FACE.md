@@ -37,11 +37,16 @@ a 25 lecturas por segundo y no toca ningún archivo de la placa de XiaoZhi.
   lo averigua solo: la primera vez que está quieto 1,2 s y más o menos derecho, esa postura queda guardada.
   Si arranca tumbado, espera a que lo pongas de pie. Si lo dejas apoyado en otra postura (menos de 30° de
   diferencia) más de 10 s, esa pasa a ser la nueva "casa".
-- **Inclinación suave** (menos de 40°): la cara se desliza hacia el lado que tira la gravedad, las pupilas miran
+- **Inclinación suave** (menos de 45°): la cara se desliza un poco hacia el lado que tira la gravedad, las pupilas miran
   hacia ahí y, si se inclina hacia delante o atrás, la cara se hunde un poco.
-- **Caída** (40° o más) **o sacudida o caída libre:** susto. Ojos enormes, pupilas diminutas, boca en "O",
-  un saltito y balanceo. Cuando se endereza, un "uff" con parpadeo.
-- **Tumbado** (más de 75° durante 1,5 s): mareado. Ojos entrecerrados con pupilas que bailan.
+- **Resbalón y caída** (45° o más, `CHIPO_FALL_ANGLE_DEG`): la cara pone cara de susto (ojos enormes, pupilas diminutas,
+  boca en "O"), **resbala hacia el lado al que lo inclinas, acelera, se cae y sale de la pantalla** en menos de un
+  segundo. Mientras sigas teniéndolo así de inclinado, la pantalla se queda vacía. Al enderezarlo (por debajo de 33°) la
+  cara **vuelve a entrar deslizándose desde ese mismo borde**, rebota un poco y hace un "uff" con parpadeo.
+  Si lo inclinas hacia delante o hacia atrás (sin tirón hacia un lado) no hay hacia dónde resbalar: solo se asusta.
+  Una sacudida o una caída libre también lo asustan, sin que la cara salga de la pantalla.
+- **Tumbado** (más de 75° durante 1,5 s): mareado. La cara, si se había caído, **vuelve** con los ojos entrecerrados y
+  pupilas que bailan.
 
 ### Si cae hacia el lado contrario
 
@@ -49,7 +54,7 @@ El código distingue arriba/abajo solo, pero no puede saber qué lado del sensor
 Si al inclinar CHIPO hacia su derecha la cara se desliza hacia la izquierda, pon `CHIPO_TILT_MIRROR_X` a `1`
 en `chipo_config.h` (o `-DCHIPO_TILT_MIRROR_X=1`) y vuelve a compilar.
 
-Para comprobarlo, con el monitor serie abierto verás una línea por segundo:
+Esto también decide hacia qué lado cae. Para comprobarlo, con el monitor serie abierto verás una línea por segundo:
 
 ```
 tilt: calibrated=1 angle=20.0 push_x=0.34 lean_z=0.00 lying=0 mood=0
