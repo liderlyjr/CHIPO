@@ -3,6 +3,8 @@
 #include "chipo_imu.h"
 
 #include "chipo_config.h"
+#include <initializer_list>
+
 #include "esp_log.h"
 
 namespace {
