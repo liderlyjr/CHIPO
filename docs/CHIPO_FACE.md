@@ -30,7 +30,7 @@ Despierta con voz, toque, inclinación o sacudida.
 ## Reacción a la inclinación (acelerómetro QMI8658)
 
 La placa tiene un QMI8658 en el mismo bus I2C que usa XiaoZhi (puerto 0, SDA 15, SCL 14, dirección 0x6B;
-fuente: ejemplo `92_qmi8658_imu` de Waveshare). CHIPO solo lee el acelerómetro (el giroscopio queda apagado)
+fuente: ejemplo `92_qmi8658_imu` de Waveshare). CHIPO lee el acelerómetro y el giroscopio
 a 25 lecturas por segundo y no toca ningún archivo de la placa de XiaoZhi.
 
 - **Postura de casa:** Waveshare no documenta cómo está orientado el sensor respecto a la pantalla, así que CHIPO
@@ -68,16 +68,66 @@ pon `CHIPO_DEBUG_TILT_LOG` a `0` para quitar esa línea.
 Si el QMI8658 no responde, CHIPO lo anota en el registro y sigue funcionando sin reacciones a la inclinación.
 `CHIPO_ENABLE_IMU=0` lo desactiva del todo.
 
+## Giroscopio (gestos)
+
+El giroscopio va configurado a ±512 °/s (registros CTRL3, CTRL5 y CTRL7 y escala de 64 cuentas por °/s, tomados de
+SensorLib, `SensorQMI8658_Reg.hpp`). Si el sensor lo rechaza, se queda solo con el acelerómetro, como antes;
+`CHIPO_ENABLE_GYRO=0` lo apaga. Solo se usa lo que no depende de hacia dónde apunten los ejes del sensor: el tamaño del giro
+y cuántas veces cambia de sentido, nunca el sentido.
+
+| Gesto | Cómo se reconoce | Qué hace CHIPO |
+|---|---|---|
+| **Girar** (como un volante) | rotación rápida (más de 200 °/s) alrededor de la normal de la pantalla durante 250 ms | cara **Whee** mientras gira (pupilas dando vueltas, boca grande, brillo violeta) |
+| **Girar mucho rato** | el giro anterior dura 2,5 s o más | al parar queda **mareado** 2,8 s |
+| **Asentir** ("sí") | vaivén rápido alrededor del eje horizontal de la pantalla: tres cambios de sentido seguidos (más de 90 °/s) | **Happy** 1,8 s y una pequeña cabezada |
+| **Negar** ("no") | lo mismo alrededor del eje vertical de la pantalla | **No** 1,8 s (pupilas de un lado a otro) |
+
+Asentir y negar solo funcionan cuando CHIPO ya ha averiguado su postura de casa (ver arriba). Un giro suelto o un
+movimiento lento no cuentan, ni un meneo en diagonal (ambos ejes a la vez); entre un gesto y el siguiente pasan 1,5 s.
+Todos despiertan a CHIPO si estaba dormido.
+
+## Emociones
+
+Se ponen encima de Reposo, Escuchando y Hablando (hablando, la boca sigue la voz y cambian los ojos y el brillo). No se ven
+en Pensando, Conectando, Error ni Dormido, ni mientras está asustado o mareado. Terminan solas y despiertan a CHIPO.
+
+| Emoción | Cómo se ve |
+|---|---|
+| Happy | ojos entrecerrados, sonrisa ancha, brillo cálido |
+| Laugh | ojos entrecerrados, boca que rebota |
+| Wink | ojo derecho cerrado, sonrisa de lado |
+| Love | brillo rosa que late, pupilas grandes y redondas |
+| Sad | pupilas hacia abajo, boca pequeña y baja, brillo apagado |
+| Tired | ojos a medias y un bostezo cada 5 s; sale sola los últimos 20 s antes de dormirse (`CHIPO_TIRED_BEFORE_SLEEP_MS`) |
+| Suspicious | un ojo más estrecho, mirando de lado, brillo ámbar |
+| Surprised | ojos muy abiertos, pupilas pequeñas, boca en "O" |
+| Whee | ver Girar |
+| No | ver Negar |
+| Grumpy | ojos planos, boca plana y baja, brillo rojo |
+
+- **Solas:** en reposo, de vez en cuando (cada 25–50 s, la primera a los 30–50 s) guiña o sonríe 1,4 s. No cuenta como actividad:
+  CHIPO se duerme igual. `CHIPO_IDLE_QUIRKS=0` o `SetIdleQuirks(false)` lo quitan.
+- **Desde código:** `face->ShowEmotion(ChipoFace::Emotion::Love, 3000)`, o con el nombre que manda el asistente:
+  `face->ShowEmotionByName("loving")`. Reconoce happy, laughing, funny, silly, winking, loving, kissy, sad, crying,
+  embarrassed, sleepy, confused, surprised, shocked, angry (más delicious, relaxed, confident y cool como Happy);
+  `neutral` y los nombres desconocidos no hacen nada.
+- **Pendiente:** todavía **no** está conectado a los mensajes de emoción de XiaoZhi (el campo `emotion` de los mensajes
+  `llm`): `scripts/integrate_chipo.py` no lo engancha, y la lista de nombres sale de memoria, no de comprobar el código de XiaoZhi.
+  Hasta entonces las emociones salen de los gestos, de las manías en reposo, del cansancio y de `ShowEmotion`.
+
 ## Pruebas
 
 `tests/host/run.sh` (con `LVGL_DIR` apuntando a LVGL 9.5) ejecuta en un PC, con AddressSanitizer y UBSan:
 
+- `test_gyro`: los gestos del giroscopio (girar, asentir, negar), sus cooldowns, ejes espejados, ruido y entradas absurdas.
 - `test_tilt`: la matemática de la inclinación con los cuatro montajes posibles del sensor, ruido, caída libre,
   tumbado, cambio de postura de reposo y arranque tumbado.
-- `test_face`: la cara completa sobre LVGL real con reloj y acelerómetro simulados: parpadeos, transiciones suaves,
-  Pensando, Hablando, caída a ambos lados, balanceo, mareo, sueño, errores y parada a medias.
+- `test_face`: la cara completa sobre LVGL real con reloj, acelerómetro y giroscopio simulados: parpadeos, transiciones suaves,
+  Pensando, Hablando, caída a ambos lados, balanceo, mareo, sueño, errores, parada a medias, gestos del giroscopio, las once
+  emociones (forma, color, que no tapen Pensando ni Error), nombres de emoción, guiños en reposo y cansancio antes de dormir.
 
 GitHub Actions las ejecuta antes de compilar el firmware.
 
-Lo que estas pruebas **no** pueden confirmar: la lectura real del sensor, hacia qué lado cae en la placa
-(el ajuste de espejo) y la fluidez en la pantalla AMOLED. Eso solo se ve con la placa.
+Lo que estas pruebas **no** pueden confirmar: la lectura real del sensor (acelerómetro y giroscopio), hacia qué lado cae en la placa
+(el ajuste de espejo), si los umbrales de los gestos (200 °/s para girar, 90 °/s para asentir y negar) son cómodos con la
+placa en la mano, y la fluidez en la pantalla AMOLED. Eso solo se ve con la placa.

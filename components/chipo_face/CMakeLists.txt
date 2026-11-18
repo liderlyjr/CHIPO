@@ -1,4 +1,4 @@
-set(CHIPO_FACE_SRCS chipo_face.cpp chipo_tilt.cpp)
+set(CHIPO_FACE_SRCS chipo_face.cpp chipo_tilt.cpp chipo_gyro.cpp)
 if(ESP_PLATFORM)
     list(APPEND CHIPO_FACE_SRCS chipo_imu.cpp)
 endif()

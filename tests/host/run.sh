@@ -17,6 +17,10 @@ echo "== update logic (versions, release parsing, URL trust)"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_update/include tests/host/test_update.cpp components/chipo_update/chipo_update_logic.cpp -o "$OUT/test_update"
 "$OUT/test_update"
 
+echo "== gyro gestures (spin, nod, shake)"
+g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_gyro.cpp components/chipo_face/chipo_gyro.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_gyro"
+"$OUT/test_gyro"
+
 echo "== tilt maths"
 g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_tilt.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_tilt"
 "$OUT/test_tilt"
@@ -49,6 +53,7 @@ JOBS="$(nproc 2>/dev/null || echo 2)"
 xargs -a "$OUT/sources.txt" -P "$JOBS" -I{} sh -c 'gcc -w -O1 '"$SAN"' '"$LVFLAGS"' -c "$1" -o "'"$OUT"'/obj/$(echo "$1" | md5sum | cut -c1-12).o"' _ {}
 g++ -std=gnu++23 -O1 -g $SAN -DCHIPO_DEBUG_TILT_LOG=0 $LVFLAGS -Itests/host/stub $INC -w \
     tests/host/test_face.cpp components/chipo_face/chipo_face.cpp components/chipo_face/chipo_tilt.cpp \
+    components/chipo_face/chipo_gyro.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_face"
 "$OUT/test_face"
 

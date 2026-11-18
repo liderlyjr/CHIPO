@@ -25,6 +25,7 @@ static void Flush(lv_display_t* d, const lv_area_t*, uint8_t*) { lv_display_flus
 
 using State = ChipoFace::State;
 using Mood = ChipoFace::Mood;
+using Emotion = ChipoFace::Emotion;
 constexpr float kDeg = 3.14159265f / 180.0f;
 
 // Fake accelerometer: the sensor is mounted with gravity on +Y when CHIPO stands upright.
@@ -33,6 +34,18 @@ static bool g_imu_new = false;
 static void SetPose(float roll_deg, float pitch_deg) {
     g_imu = {std::sin(roll_deg * kDeg) * std::cos(pitch_deg * kDeg),
              std::cos(roll_deg * kDeg) * std::cos(pitch_deg * kDeg), std::sin(pitch_deg * kDeg)};
+}
+
+// Fake gyroscope (degrees per second); off by default, like a board without one.
+static bool g_gyro_on = false;
+static float g_gx = 0, g_gy = 0, g_gz = 0;
+static void SetGyro(float gx, float gy, float gz) {
+    g_gyro_on = true;
+    g_gx = gx; g_gy = gy; g_gz = gz;
+}
+static void GyroOff() {
+    g_gyro_on = false;
+    g_gx = g_gy = g_gz = 0;
 }
 
 static void Advance(ChipoFace& f, uint32_t ms, const std::function<void()>& each = nullptr) {
@@ -46,6 +59,22 @@ static void Advance(ChipoFace& f, uint32_t ms, const std::function<void()>& each
 
 static bool HasFlag(lv_obj_t* o, lv_obj_flag_t flag) { return lv_obj_has_flag(o, flag); }
 
+// Square wave of rotation around one sensor axis (0 = X, 1 = Y, 2 = Z).
+static void GyroSwing(ChipoFace& f, int axis, float amplitude, int swings, uint32_t half_ms,
+                      const std::function<void()>& each = nullptr) {
+    float sign = 1;
+    for (int i = 0; i < swings; ++i) {
+        for (uint32_t t = 0; t < half_ms; t += 40) {
+            float g[3] = {0, 0, 0};
+            g[axis] = sign * amplitude;
+            SetGyro(g[0], g[1], g[2]);
+            Advance(f, 40, each);
+        }
+        sign = -sign;
+    }
+    SetGyro(0, 0, 0);
+}
+
 int main() {
     lv_init();
     lv_tick_set_cb(FakeTick);
@@ -58,11 +87,16 @@ int main() {
         g_now += 1000;
         SetPose(0, 0);
         auto* face = new ChipoFace();
+        face->SetIdleQuirks(false);  // the random idle winks have their own test at the end
         bool imu_on = true;
         face->SetTiltSource([&](ImuSample* s) {
             if (!imu_on || !g_imu_new) return false;
             g_imu_new = false;
             *s = g_imu;
+            if (g_gyro_on) {
+                s->has_gyro = true;
+                s->gx = g_gx; s->gy = g_gy; s->gz = g_gz;
+            }
             return true;
         });
         CHECK(face->Start(lv_screen_active()), "Start failed");
@@ -273,6 +307,180 @@ int main() {
         SetPose(0, 0);
         Advance(*face, 1500);
 
+        // ---- gyroscope: nod = yes, shake = no, spin = wheee, a long spin = dizzy -------------------
+        face->SetState(State::Idle);
+        SetPose(0, 0);
+        SetGyro(0, 0, 0);
+        Advance(*face, 1500);
+        CHECK(face->Debug().gyro_available, "gyroscope samples were not seen");
+        CHECK(face->Debug().emotion == Emotion::None, "no emotion expected at rest");
+        {
+            // The test sensor has gravity on +Y, so Y is the vertical axis and X the horizontal one.
+            bool happy = false;
+            int squint_max = 0, mouth_w_max = 0;
+            GyroSwing(*face, 0, 220, 5, 160, [&] { happy = happy || face->Debug().emotion == Emotion::Happy; });
+            CHECK(happy, "nodding did not make CHIPO happy");
+            Advance(*face, 500);
+            Advance(*face, 400, [&] {
+                squint_max = std::max(squint_max, face->Debug().eye_h);
+                mouth_w_max = std::max(mouth_w_max, face->Debug().mouth_w);
+            });
+            CHECK(face->Debug().emotion == Emotion::Happy, "happy ended too soon");
+            CHECK(squint_max <= 44, "happy eyes do not squint (%d)", squint_max);
+            CHECK(mouth_w_max >= 56, "happy mouth not wide (%d)", mouth_w_max);
+            Advance(*face, 3000);
+            CHECK(face->Debug().emotion == Emotion::None, "happy did not end");
+
+            bool no = false;
+            GyroSwing(*face, 1, 220, 5, 160, [&] { no = no || face->Debug().emotion == Emotion::No; });
+            Advance(*face, 300, [&] { no = no || face->Debug().emotion == Emotion::No; });
+            CHECK(no, "shaking did not make CHIPO say no");
+            Advance(*face, 3500);
+            CHECK(face->Debug().emotion == Emotion::None, "no did not end");
+
+            // A short spin: wheee, but not dizzy.
+            SetGyro(0, 0, 300);
+            Advance(*face, 1000);
+            CHECK(face->Debug().gyro_spinning && face->Debug().emotion == Emotion::Whee,
+                  "spinning did not make CHIPO whee (spin %d, emotion %d)", face->Debug().gyro_spinning,
+                  static_cast<int>(face->Debug().emotion));
+            SetGyro(0, 0, 0);
+            Advance(*face, 1500);
+            CHECK(!face->Debug().gyro_spinning && face->Debug().mood == Mood::Normal,
+                  "a short spin must not leave CHIPO dizzy");
+            Advance(*face, 2000);
+            CHECK(face->Debug().emotion == Emotion::None, "whee did not end");
+
+            // A long spin: dizzy afterwards, then back to normal.
+            SetGyro(0, 0, -300);  // the other way round: direction does not matter
+            Advance(*face, 3500);
+            SetGyro(0, 0, 0);
+            Advance(*face, 800);
+            CHECK(face->Debug().mood == Mood::Dizzy, "a long spin should leave CHIPO dizzy");
+            Advance(*face, 6000);
+            CHECK(face->Debug().mood == Mood::Normal, "dizziness after the spin did not end");
+            GyroOff();
+            Advance(*face, 500);
+            CHECK(face->Debug().emotion == Emotion::None && !face->Debug().gyro_spinning, "state after gyro off");
+        }
+
+        // ---- emotions ------------------------------------------------------------------------------
+        {
+            SetPose(0, 0);
+            Advance(*face, 1500);
+            const Emotion all[] = {Emotion::Happy,      Emotion::Laugh,    Emotion::Wink,
+                                   Emotion::Love,       Emotion::Sad,      Emotion::Tired,
+                                   Emotion::Suspicious, Emotion::Surprised, Emotion::Whee,
+                                   Emotion::No,         Emotion::Grumpy};
+            for (Emotion e : all) {
+                face->ShowEmotion(e, 1500);
+                Advance(*face, 1000);
+                const auto d = face->Debug();
+                CHECK(d.emotion == e, "emotion %d not shown (got %d)", static_cast<int>(e),
+                      static_cast<int>(d.emotion));
+                CHECK(d.mood == Mood::Normal && d.shown_state == State::Idle, "emotion %d changed state", static_cast<int>(e));
+                CHECK(d.eye_w >= 50 && d.eye_h >= 4 && d.right_eye_h >= 4 && d.mouth_w >= 10 && d.mouth_h >= 4,
+                      "emotion %d gave a broken face (%d,%d,%d,%d,%d)", static_cast<int>(e), d.eye_w, d.eye_h,
+                      d.right_eye_h, d.mouth_w, d.mouth_h);
+                Advance(*face, 2500);
+                CHECK(face->Debug().emotion == Emotion::None, "emotion %d did not end", static_cast<int>(e));
+            }
+
+            // Shapes and colours.
+            auto max_over = [&](uint32_t ms, const std::function<int(const ChipoFace::DebugInfo&)>& value) {
+                int best = -9999;
+                Advance(*face, ms, [&] { best = std::max(best, value(face->Debug())); });
+                return best;
+            };
+            face->ShowEmotion(Emotion::Wink, 4000);
+            Advance(*face, 600);
+            CHECK(max_over(600, [](const ChipoFace::DebugInfo& d) { return d.eye_h - d.right_eye_h; }) >= 40,
+                  "a wink closes only the right eye");
+            face->ShowEmotion(Emotion::Suspicious, 4000);
+            Advance(*face, 600);
+            CHECK(max_over(600, [](const ChipoFace::DebugInfo& d) { return d.eye_h - d.right_eye_h; }) >= 15,
+                  "suspicion narrows the right eye");
+            face->ShowEmotion(Emotion::Surprised, 4000);
+            Advance(*face, 600);
+            CHECK(max_over(600, [](const ChipoFace::DebugInfo& d) { return d.eye_h; }) >= 80, "surprise opens the eyes wide");
+            face->ShowEmotion(Emotion::Love, 4000);
+            Advance(*face, 900);
+            auto rgb = face->Debug().glow_rgb;
+            CHECK(((rgb >> 16) & 0xFF) >= 0xE0 && ((rgb >> 8) & 0xFF) <= 0x90, "love should glow pink (%06X)",
+                  static_cast<unsigned>(rgb));
+            face->ShowEmotion(Emotion::Grumpy, 4000);
+            Advance(*face, 900);
+            rgb = face->Debug().glow_rgb;
+            CHECK(((rgb >> 16) & 0xFF) >= 0xE0 && ((rgb >> 8) & 0xFF) <= 0x70, "grumpy should glow red (%06X)",
+                  static_cast<unsigned>(rgb));
+            face->ShowEmotion(Emotion::None, 0);
+            Advance(*face, 2500);
+            rgb = face->Debug().glow_rgb;
+            CHECK(((rgb >> 16) & 0xFF) <= 0x80 && (rgb & 0xFF) >= 0xF0, "glow did not go back to blue (%06X)",
+                  static_cast<unsigned>(rgb));
+            CHECK(face->Debug().right_eye_h >= 60 || face->Debug().right_eye_h <= 6, "right eye not back to normal");
+
+            // While speaking the mouth keeps following the voice.
+            face->SetState(State::Speaking);
+            face->ShowEmotion(Emotion::Happy, 5000);
+            Advance(*face, 800);
+            int mouth_lo = 999, mouth_hi = 0, eye_hi = 0;
+            Advance(*face, 1500, [&] {
+                mouth_lo = std::min(mouth_lo, face->Debug().mouth_h);
+                mouth_hi = std::max(mouth_hi, face->Debug().mouth_h);
+                eye_hi = std::max(eye_hi, face->Debug().eye_h);
+            });
+            CHECK(mouth_hi - mouth_lo >= 10, "mouth stopped moving while speaking with an emotion (%d..%d)", mouth_lo, mouth_hi);
+            CHECK(eye_hi <= 44 && face->Debug().emotion == Emotion::Happy, "emotion lost while speaking (%d)", eye_hi);
+            face->SetState(State::Idle);
+
+            // Hidden while thinking, in error, and when startled.
+            face->ShowEmotion(Emotion::Happy, 8000);
+            face->SetThinking(true);
+            Advance(*face, 600);
+            CHECK(face->Debug().shown_state == State::Thinking && face->Debug().emotion == Emotion::None,
+                  "emotion shown over thinking");
+            face->SetThinking(false);
+            Advance(*face, 600);
+            CHECK(face->Debug().emotion == Emotion::Happy, "emotion did not come back after thinking");
+            face->SetState(State::Error);
+            Advance(*face, 600);
+            CHECK(face->Debug().shown_state == State::Error && face->Debug().emotion == Emotion::None,
+                  "emotion shown over an error");
+            face->SetState(State::Idle);
+            face->ShowEmotion(Emotion::Love, 8000);
+            SetPose(60, 0);
+            Advance(*face, 600);
+            CHECK(face->Debug().mood == Mood::Startled && face->Debug().emotion == Emotion::None,
+                  "emotion shown over a startle");
+            SetPose(0, 0);
+            Advance(*face, 9000);
+            CHECK(face->Debug().mood == Mood::Normal && face->Debug().emotion == Emotion::None, "did not settle after startle");
+
+            // Names the assistant uses.
+            CHECK(ChipoFace::EmotionFromName("happy") == Emotion::Happy, "happy");
+            CHECK(ChipoFace::EmotionFromName("LAUGHING") == Emotion::Laugh, "LAUGHING");
+            CHECK(ChipoFace::EmotionFromName("Winking") == Emotion::Wink, "Winking");
+            CHECK(ChipoFace::EmotionFromName("loving") == Emotion::Love, "loving");
+            CHECK(ChipoFace::EmotionFromName("crying") == Emotion::Sad, "crying");
+            CHECK(ChipoFace::EmotionFromName("angry") == Emotion::Grumpy, "angry");
+            CHECK(ChipoFace::EmotionFromName("sleepy") == Emotion::Tired, "sleepy");
+            CHECK(ChipoFace::EmotionFromName("confused") == Emotion::Suspicious, "confused");
+            CHECK(ChipoFace::EmotionFromName("shocked") == Emotion::Surprised, "shocked");
+            CHECK(ChipoFace::EmotionFromName("neutral") == Emotion::None, "neutral");
+            CHECK(ChipoFace::EmotionFromName("") == Emotion::None, "empty name");
+            CHECK(ChipoFace::EmotionFromName(nullptr) == Emotion::None, "null name");
+            CHECK(ChipoFace::EmotionFromName("happyhappyhappyhappyhappyhappy") == Emotion::None, "overlong name");
+            face->ShowEmotionByName("angry", 3000);
+            Advance(*face, 600);
+            CHECK(face->Debug().emotion == Emotion::Grumpy, "ShowEmotionByName(angry)");
+            face->ShowEmotionByName("neutral");  // unknown or neutral names leave things as they are
+            face->ShowEmotionByName(nullptr);
+            Advance(*face, 200);
+            CHECK(face->Debug().emotion == Emotion::Grumpy, "neutral name changed the emotion");
+            Advance(*face, 4000);
+        }
+
         // ---- sleep and wake -------------------------------------------------------------------
         face->SetState(State::Listening);  // restart the idle clock
         face->SetState(State::Idle);
@@ -306,6 +514,46 @@ int main() {
         CHECK(!face->IsRunning(), "still running after Stop");
         lv_timer_handler();
         delete face;
+
+        // ---- idle winks, sleepiness before sleeping, emotions wake CHIPO (a face with no sensor) -----
+        {
+            g_now += 1000;
+            ChipoFace q;
+            CHECK(q.Start(lv_screen_active()), "second face did not start");
+            q.SetIdleQuirks(false);
+            bool any = false;
+            Advance(q, 95000, [&] { any = any || q.Debug().emotion != Emotion::None; });
+            CHECK(!any, "an emotion appeared by itself with idle quirks off");
+            Advance(q, 10000);
+            CHECK(q.Debug().emotion == Emotion::Tired && q.Debug().shown_state == State::Idle,
+                  "CHIPO should look sleepy before falling asleep (emotion %d)", static_cast<int>(q.Debug().emotion));
+            Advance(q, 18000);
+            CHECK(q.Debug().shown_state == State::Sleep && q.Debug().emotion == Emotion::None, "did not fall asleep");
+            q.ShowEmotion(Emotion::Happy, 2000);
+            Advance(q, 600);
+            CHECK(q.Debug().shown_state == State::Idle && q.Debug().emotion == Emotion::Happy,
+                  "an emotion should wake CHIPO up");
+            q.Stop();
+        }
+        {
+            g_now += 1000;
+            ChipoFace q;
+            CHECK(q.Start(lv_screen_active()), "third face did not start");
+            int seen = 0;
+            bool odd = false;
+            Emotion last = Emotion::None;
+            Advance(q, 95000, [&] {
+                const Emotion e = q.Debug().emotion;
+                if (e != Emotion::None && last == Emotion::None) ++seen;
+                if (e != Emotion::None && e != Emotion::Happy && e != Emotion::Wink) odd = true;
+                last = e;
+            });
+            CHECK(seen >= 1 && seen <= 4, "idle quirks seen in 95 s: %d", seen);
+            CHECK(!odd, "idle quirks must only be winks and smiles");
+            Advance(q, 30000);
+            CHECK(q.Debug().shown_state == State::Sleep, "idle quirks kept CHIPO awake");
+            q.Stop();
+        }
     }
 
     if (g_failures == 0) std::printf("ALL FACE TESTS PASSED\n");

@@ -11,11 +11,12 @@
 #include "freertos/task.h"
 
 /**
- * Minimal QMI8658 accelerometer reader.
+ * Minimal QMI8658 accelerometer + gyroscope reader.
  *
  * It does NOT create an I2C bus: it attaches to the one the XiaoZhi board code already opened
- * (i2c_master_get_bus_handle), so the board files stay untouched. Only the accelerometer is
- * enabled (the gyroscope stays off to save power). A small low-priority task samples at ~25 Hz
+ * (i2c_master_get_bus_handle), so the board files stay untouched. The accelerometer is always on;
+ * the gyroscope is switched on too unless CHIPO_ENABLE_GYRO is 0 or the sensor refuses it (then
+ * samples simply carry has_gyro = false). A small low-priority task samples at ~25 Hz
  * and publishes the latest reading; the UI task picks it up with Poll(), so no LVGL call ever
  * happens outside the UI task.
  *
@@ -48,6 +49,10 @@ private:
     std::atomic<int32_t> x_milli_g_{0};
     std::atomic<int32_t> y_milli_g_{0};
     std::atomic<int32_t> z_milli_g_{0};
+    std::atomic<int32_t> gx_milli_dps_{0};
+    std::atomic<int32_t> gy_milli_dps_{0};
+    std::atomic<int32_t> gz_milli_dps_{0};
+    bool gyro_ok_ = false;  // set in Start() before the task starts, then read-only
     std::atomic<uint32_t> sequence_{0};
     uint32_t polled_sequence_ = 0;
 };

@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 
+#include "chipo_gyro.h"
 #include "chipo_tilt.h"
 #include "lvgl.h"
 
@@ -20,6 +21,8 @@ class ChipoImu;
  *
  * Every expression change is eased (nothing snaps), blinking is time based, and the face sits
  * on a spring so tilting CHIPO makes it slide, wobble and, when tipped far enough, panic.
+ * With the gyroscope it also reacts to nodding ("yes"), shaking ("no") and spinning (and gets
+ * dizzy after a long spin). On top of the base state it can show emotions (see ShowEmotion).
  */
 class ChipoFace {
 public:
@@ -39,6 +42,23 @@ public:
     // What the face is actually showing right now (state plus tilt reactions).
     enum class Mood : uint8_t { Normal, Startled, Dizzy, Relieved };
 
+    // Expressions laid over Idle, Listening and Speaking (while speaking the mouth keeps moving
+    // with the voice). Hidden while Thinking, Connecting, Error and Sleep, and by Startled/Dizzy.
+    enum class Emotion : uint8_t {
+        None,
+        Happy,       // squinting smile
+        Laugh,       // squinting, mouth bouncing
+        Wink,        // right eye closed
+        Love,        // pink glow that beats, big round pupils
+        Sad,         // eyes down, small low mouth, dim glow
+        Tired,       // half-closed eyes, yawns; shown by itself shortly before falling asleep
+        Suspicious,  // one eye narrower, looking sideways
+        Surprised,   // wide eyes, round mouth
+        Whee,        // pupils circling fast (shown while spinning)
+        No,          // pupils swinging left and right (shown after shaking "no")
+        Grumpy       // flat eyes, red glow, flat mouth
+    };
+
     struct DebugInfo {
         State shown_state;
         Mood mood;
@@ -49,6 +69,11 @@ public:
         bool thinking_dots_visible;
         bool tilt_calibrated;
         float tilt_angle_deg;
+        Emotion emotion;      // emotion currently on screen (None when there is none)
+        int right_eye_h;
+        uint32_t glow_rgb;
+        bool gyro_available;  // gyroscope samples are arriving
+        bool gyro_spinning;
     };
 
     ChipoFace();
@@ -69,7 +94,17 @@ public:
     void SetThinking(bool thinking);
 
     // Replace the tilt sensor (tests, other boards). Pass nullptr to disable tilt reactions.
+    // Samples with has_gyro = true also drive the gyroscope gestures.
     void SetTiltSource(TiltSource source);
+
+    // Show an emotion for `duration_ms`, then go back to the base expression. It wakes CHIPO up.
+    void ShowEmotion(Emotion emotion, uint32_t duration_ms = 2500);
+    // Emotion names as the assistant sends them (happy, laughing, sad, angry, loving, winking,
+    // surprised, sleepy, confused...). Unknown names and "neutral" give Emotion::None.
+    static Emotion EmotionFromName(const char* name);
+    void ShowEmotionByName(const char* name, uint32_t duration_ms = 2500);
+    // Winks and smiles by themselves now and then while idle (default: CHIPO_IDLE_QUIRKS).
+    void SetIdleQuirks(bool enabled) { idle_quirks_ = enabled; }
 
     bool IsRunning() const { return root_ != nullptr; }
 
@@ -85,19 +120,30 @@ private:
         float pupil_w, pupil_h, pupil_x, pupil_y;
         float mouth_w, mouth_h, mouth_cy;
         float glow_w, glow_opa;
+        float right_k = 1.0f;  // right eye height as a share of the left one (winking, suspicion)
+        float glow_r = 117, glow_g = 223, glow_b = 255;  // glow colour (default: CHIPO blue)
     };
     struct Layout {
         int16_t eye_w, eye_h, eye_y;
+        int16_t right_eye_h, right_eye_y;
         int16_t left_eye_x, right_eye_x;
         int16_t pupil_w, pupil_h, pupil_y, left_pupil_x, right_pupil_x;
+        int16_t right_pupil_h, right_pupil_y;
+        bool right_pupil_visible;
+        uint32_t glow_rgb;
         int16_t mouth_w, mouth_h, mouth_x, mouth_y;
         int16_t glow_w, glow_opa;
         int16_t face_dx, face_dy;
         bool pupils_visible;
     };
 
+    uint32_t QuietMs(uint32_t now_ms) const;
     State ShownState(uint32_t now_ms) const;
-    Pose TargetPose(State shown, Mood mood, uint32_t now_ms, const TiltOutput& tilt);
+    Emotion ActiveEmotion(State shown, Mood mood, uint32_t now_ms) const;
+    void StartEmotion(Emotion emotion, uint32_t now_ms, uint32_t duration_ms);
+    void ApplyEmotion(Pose& pose, Emotion emotion, State shown, uint32_t now_ms) const;
+    Pose TargetPose(State shown, Mood mood, Emotion emotion, uint32_t now_ms,
+                    const TiltOutput& tilt);
     float BlinkAmount(uint32_t now_ms);
     void ApplyLayout(const Layout& layout);
     void UpdateDots(uint32_t now_ms, bool visible);
@@ -142,9 +188,18 @@ private:
     int fall_dir_ = 0;
     uint32_t startle_until_ms_ = 0;
     uint32_t relief_until_ms_ = 0;
+    uint32_t dizzy_until_ms_ = 0;  // dizzy after a long spin
     Mood mood_ = Mood::Normal;
     bool calibrated_logged_ = false;
     uint32_t next_debug_log_ms_ = 0;
+
+    // Gyroscope gestures and emotions.
+    ChipoGyro gyro_;
+    Emotion emotion_ = Emotion::None;
+    uint32_t emotion_until_ms_ = 0;
+    Emotion shown_emotion_ = Emotion::None;
+    bool idle_quirks_ = true;
+    uint32_t next_quirk_ms_ = 0;
 
     uint32_t speak_step_ms_ = 0;
     uint32_t speak_index_ = 0;
