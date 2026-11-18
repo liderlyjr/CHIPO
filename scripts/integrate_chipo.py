@@ -378,6 +378,11 @@ replace_once(
             if (!chipo_buddy_->Start(lv_screen_active(), std::move(hooks))) {
                 chipo_buddy_.reset();
                 ESP_LOGE(TAG, "Failed to initialize CHIPO Buddy");
+            } else if (chipo_face_) {
+                // Lying on its side for a while turns CHIPO into a desk clock (the face reports it).
+                chipo_face_->SetDeskClockObserver([this](bool on, int side) {
+                    if (chipo_buddy_) chipo_buddy_->SetDeskClock(on, side);
+                });
             }
         }
     }

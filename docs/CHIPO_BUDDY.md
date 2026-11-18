@@ -63,3 +63,24 @@ alarma no suena**; los temporizadores no dependen de ella.
 - Que el sonido de la alarma se oye bien por el altavoz y a qué volumen.
 - Que la hora del sistema llega con el huso horario correcto en tu servidor.
 - Consumo en modo dormir (la pantalla AMOLED con fondo negro apenas consume, pero no está medido).
+
+## Reloj de mesita: CHIPO tumbado de lado
+
+Si pones a CHIPO **tumbado sobre su lado izquierdo** (visto de frente, con el USB-C a la derecha, el puerto queda
+**hacia arriba**), pasa esto:
+
+1. Se cae de la pantalla como siempre (sin marearse).
+2. A los **10 s** tumbado aparece el **reloj grande**, girado para leerlo de frente, en ámbar. No se duerme mientras
+   esté así.
+3. Al **levantarlo** vuelve la cara y hace el **«uy, me mareé»** (2,8 s).
+
+Si lo levantas antes de los 10 s, no sale el reloj ni se marea. Tumbado del otro lado, boca arriba o boca abajo no
+es un reloj: se comporta como antes (se marea mientras está tumbado). Con el modo DRIVE encendido no se activa.
+Los temporizadores y la alarma se ven y suenan igual con el reloj puesto.
+
+Ajustes en `components/chipo_face/include/chipo_config.h`: `CHIPO_DESK_CLOCK_SIDE` (-1 izquierda, +1 derecha,
+0 apagado), `CHIPO_DESK_CLOCK_AFTER_MS` (10000), `CHIPO_DESK_CLOCK_DIZZY_MS` (2800).
+
+**Sin comprobar en la placa:** qué lado cuenta como «izquierdo» depende de cómo esté montado el sensor y se deduce
+de la primera vez que CHIPO queda quieto y derecho (igual que las inclinaciones). Si en la placa real el reloj sale
+al revés o en el lado contrario, basta con cambiar el signo de `CHIPO_DESK_CLOCK_SIDE`.

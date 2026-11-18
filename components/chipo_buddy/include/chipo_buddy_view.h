@@ -29,6 +29,10 @@ public:
     void Destroy();
 
     void Show(const BuddyScreen& screen);  // creates nothing new; only changes what changed
+    // 0: upright. 1: turned clockwise (CHIPO lying on its left side, right edge up). 2: counter-clockwise.
+    // While turned only the digits are drawn (bigger); the caption and footer are hidden.
+    void SetRotation(int rotation);
+    int rotation() const { return rotation_; }
     void Hide();
     bool IsShown() const { return shown_; }
     void SetTouchCallback(TouchCallback cb) { touch_ = std::move(cb); }
@@ -39,11 +43,14 @@ public:
         bool colon_on;
         int lit_segments;  // how many segments are lit
         uint32_t color;
+        int rotation;
+        uint8_t brightness;
     };
     DebugInfo Debug() const;
 
 private:
     static void EventCallback(lv_event_t* e);
+    void BuildGeometry();
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* seg_[4][7] = {};
@@ -51,6 +58,8 @@ private:
     lv_obj_t* caption_ = nullptr;
     lv_obj_t* footer_ = nullptr;
     bool shown_ = false;
+    int rotation_ = 0;
+    int screen_w_ = 368, screen_h_ = 448;
     BuddyScreen applied_;
     bool have_applied_ = false;
     std::string caption_text_, footer_text_;

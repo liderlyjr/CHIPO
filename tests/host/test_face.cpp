@@ -132,9 +132,12 @@ int main() {
         int prev = face->Debug().eye_h;
         int biggest_jump = 0;
         bool grew = false;
+        int blink_cooldown = 0;
         Advance(*face, 800, [&] {
             const int h = face->Debug().eye_h;
-            if (h < 68 || prev < 68) { prev = h; return; }  // ignore blinks (closing, and the step that reopens); open eyes are 70+
+            if (h < 68) blink_cooldown = 8;  // a blink: ignore it and the 8 steps (320 ms) while the eyes reopen
+            if (blink_cooldown > 0) { --blink_cooldown; prev = h; return; }
+            if (prev < 68) { prev = h; return; }  // open eyes are 70+
             biggest_jump = std::max(biggest_jump, std::abs(h - prev));
             prev = h;
         });
@@ -254,9 +257,10 @@ int main() {
         Advance(*face, 3000);
 
         // Falls off, then ends up lying flat: it comes back, dizzy.
-        SetPose(80, 0);
+        // (the opposite side to the desk-clock one: lying on that side makes a clock, see below)
+        SetPose(-80, 0);
         Advance(*face, 900);
-        CHECK(face->Debug().face_dx * side >= 320, "should have fallen before lying down");
+        CHECK(face->Debug().face_dx * side <= -320, "should have fallen before lying down");
         Advance(*face, 3500);
         CHECK(face->Debug().mood == Mood::Dizzy && std::abs(face->Debug().face_dx) < 100,
               "lying flat should bring it back dizzy (dx %d)", face->Debug().face_dx);
@@ -265,13 +269,55 @@ int main() {
         CHECK(face->Debug().mood == Mood::Normal && std::abs(face->Debug().face_dx) <= 1, "did not recover from lying");
 
         // Lying down for a while: dizzy, face re-centred.
-        SetPose(90, 0);
+        SetPose(-90, 0);
         Advance(*face, 4000);
         CHECK(face->Debug().mood == Mood::Dizzy, "not dizzy when lying");
         CHECK(face->Debug().eye_h <= 20, "dizzy eyes too open (%d)", face->Debug().eye_h);
         SetPose(0, 0);
         Advance(*face, 3000);
         CHECK(face->Debug().mood == Mood::Normal, "dizziness did not end");
+
+        // ---- desk clock: lying on its left side (+roll in this fake mounting) ---------------------------
+        {
+            int clock_events_on = 0, clock_events_off = 0;
+            face->SetDeskClockObserver([&](bool on, int side_down) { CHECK(side_down == -1, "side reported"); (on ? clock_events_on : clock_events_off)++; });
+            SetPose(90, 0);
+            Advance(*face, 1200);
+            CHECK(face->Debug().side_lying && !face->Debug().desk_clock, "on its side but the clock is not up yet");
+            CHECK(face->Debug().face_dx * side >= 320 || face->Debug().face_dx * side <= -320, "the face fell off and stays gone (dx %d)", face->Debug().face_dx);
+            CHECK(face->Debug().mood != Mood::Dizzy, "no dizziness while lying on the clock side");
+            Advance(*face, 7000);
+            CHECK(!face->Debug().desk_clock && clock_events_on == 0, "not before 10 s");
+            Advance(*face, 3500);
+            CHECK(face->Debug().desk_clock && clock_events_on == 1, "clock after ~10 s");
+            CHECK(std::abs(face->Debug().face_dx) >= 320, "the face is still off the screen");
+            Advance(*face, 30000);
+            CHECK(face->Debug().shown_state != State::Sleep && clock_events_on == 1, "no sleep, no repeated events");
+            SetPose(0, 0);
+            Advance(*face, 400);
+            CHECK(!face->Debug().desk_clock && clock_events_off == 1, "clock goes away when stood up");
+            CHECK(face->Debug().mood == Mood::Dizzy, "'uy, me mareé' when it comes back");
+            Advance(*face, 1500);
+            CHECK(std::abs(face->Debug().face_dx) < 100, "the face is back");
+            Advance(*face, 4500);
+            CHECK(face->Debug().mood != Mood::Dizzy, "dizziness ends");
+
+            // Picked up before 10 s: no clock, no dizziness from it.
+            SetPose(90, 0);
+            Advance(*face, 5000);
+            SetPose(0, 0);
+            Advance(*face, 400);
+            CHECK(clock_events_on == 1 && !face->Debug().side_lying, "a short lie never became a clock");
+            Advance(*face, 4000);
+
+            // The other side, flat on the back or upside down: never a clock.
+            SetPose(-90, 0);
+            Advance(*face, 13000);
+            CHECK(!face->Debug().desk_clock && !face->Debug().side_lying, "the other side is not the clock side");
+            SetPose(0, 0);
+            Advance(*face, 4000);
+            face->SetDeskClockObserver(nullptr);
+        }
 
         // Free fall: startle straight away.
         g_imu = {0.01f, 0.02f, 0.01f};

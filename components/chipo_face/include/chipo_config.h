@@ -53,6 +53,20 @@
 #define CHIPO_FALL_ANGLE_DEG 45
 #endif
 
+// Desk clock: CHIPO lying on its side for this long turns into a big clock (see BUDDY). The side is the one
+// that ends up DOWN, seen from the front: -1 = left (USB-C edge up when the port is on the right), +1 = right,
+// 0 = off. If the real board turns out mirrored, flip the sign here (or CHIPO_TILT_MIRROR_X).
+#ifndef CHIPO_DESK_CLOCK_SIDE
+#define CHIPO_DESK_CLOCK_SIDE -1
+#endif
+#ifndef CHIPO_DESK_CLOCK_AFTER_MS
+#define CHIPO_DESK_CLOCK_AFTER_MS 10000
+#endif
+// "Uy, me mareé": how long the dizzy face lasts when CHIPO is stood up again after being a clock.
+#ifndef CHIPO_DESK_CLOCK_DIZZY_MS
+#define CHIPO_DESK_CLOCK_DIZZY_MS 2800
+#endif
+
 // Idle (no voice, no touch) for this long and CHIPO falls asleep. 0 disables sleeping.
 #ifndef CHIPO_SLEEP_AFTER_MS
 #define CHIPO_SLEEP_AFTER_MS 120000

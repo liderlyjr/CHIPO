@@ -4,7 +4,7 @@
 
 namespace {
 
-constexpr int kDigitW = 62, kDigitH = 124, kThick = 11, kGap = 12, kColonW = 26;
+constexpr int kDigitW = 62, kDigitH = 124, kThick = 11, kGap = 12, kColonW = 26;  // portrait sizes
 // Segments: 0 top, 1 top-right, 2 bottom-right, 3 bottom, 4 bottom-left, 5 top-left, 6 middle.
 constexpr uint8_t kMask[10] = {0b0111111, 0b0000110, 0b1011011, 0b1001111, 0b1100110,
                                0b1101101, 0b1111101, 0b0000111, 0b1111111, 0b1101111};
@@ -39,6 +39,8 @@ bool ChipoBuddyView::Create(lv_obj_t* parent, const lv_font_t* font) {
     int32_t w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
     if (w <= 0) w = 368;
     if (h <= 0) h = 448;
+    screen_w_ = static_cast<int>(w);
+    screen_h_ = static_cast<int>(h);
     root_ = lv_obj_create(parent);
     if (!root_) return false;
     lv_obj_remove_style_all(root_);
@@ -52,36 +54,74 @@ bool ChipoBuddyView::Create(lv_obj_t* parent, const lv_font_t* font) {
     lv_obj_add_event_cb(root_, EventCallback, LV_EVENT_CLICKED, this);
     lv_obj_add_event_cb(root_, EventCallback, LV_EVENT_LONG_PRESSED, this);
 
-    const int total = 4 * kDigitW + 2 * kGap + kColonW + 2 * kGap;  // digits, two groups of two, colon in the middle
-    const int x0 = (w - total) / 2;
-    const int y0 = h / 2 - kDigitH / 2 - 6;
-    int x = x0;
-    for (int d = 0; d < 4; ++d) {
-        if (d == 2) x += kColonW + 2 * kGap - kGap;  // colon area
-        const int hh = (kDigitH - 3 * kThick) / 2;   // inner vertical segment length
-        // horizontals
-        seg_[d][0] = Rect(root_, x + kThick / 2, y0, kDigitW - kThick, kThick, kThick / 2);
-        seg_[d][6] = Rect(root_, x + kThick / 2, y0 + kThick + hh, kDigitW - kThick, kThick, kThick / 2);
-        seg_[d][3] = Rect(root_, x + kThick / 2, y0 + kDigitH - kThick, kDigitW - kThick, kThick, kThick / 2);
-        // verticals
-        seg_[d][5] = Rect(root_, x, y0 + kThick / 2 + 2, kThick, hh + kThick - 4, kThick / 2);
-        seg_[d][1] = Rect(root_, x + kDigitW - kThick, y0 + kThick / 2 + 2, kThick, hh + kThick - 4, kThick / 2);
-        seg_[d][4] = Rect(root_, x, y0 + kThick + hh + kThick / 2 + 2, kThick, hh + kThick - 4, kThick / 2);
-        seg_[d][2] = Rect(root_, x + kDigitW - kThick, y0 + kThick + hh + kThick / 2 + 2, kThick, hh + kThick - 4, kThick / 2);
-        x += kDigitW + kGap;
-        if (d == 1) {
-            const int cx = x - kGap + (kColonW + 2 * kGap - kGap) / 2 - 5;
-            dot_[0] = Rect(root_, cx, y0 + kDigitH / 3 - 6, 12, 12, 6);
-            dot_[1] = Rect(root_, cx, y0 + 2 * kDigitH / 3 - 6, 12, 12, 6);
-        }
-    }
+    for (auto& row : seg_) for (auto& o : row) o = Rect(root_, 0, 0, 1, 1, 1);
+    for (auto& o : dot_) o = Rect(root_, 0, 0, 1, 1, 1);
     caption_ = Text(root_, font);
     lv_obj_set_width(caption_, w - 40);
-    lv_obj_align(caption_, LV_ALIGN_TOP_MID, 0, y0 - 70);
     footer_ = Text(root_, font);
     lv_obj_set_width(footer_, w - 40);
-    lv_obj_align(footer_, LV_ALIGN_TOP_MID, 0, y0 + kDigitH + 34);
+    BuildGeometry();
     return true;
+}
+
+// Digits are laid out on a logical canvas: the screen itself (portrait) or the screen turned on its side
+// (landscape, bigger digits). Rectangles stay rectangles when turned by 90 degrees, so no rotated layer
+// is needed: only the position and size of each segment change.
+void ChipoBuddyView::BuildGeometry() {
+    const bool turned = rotation_ != 0;
+    const int lw = turned ? screen_h_ : screen_w_, lh = turned ? screen_w_ : screen_h_;
+    const float sc = turned ? 1.3f : 1.0f;
+    const int dw = static_cast<int>(kDigitW * sc), dh = static_cast<int>(kDigitH * sc), th = static_cast<int>(kThick * sc);
+    const int gap = static_cast<int>(kGap * sc), colon_w = static_cast<int>(kColonW * sc);
+    const int total = 4 * dw + 2 * gap + colon_w + 2 * gap;
+    const int x0 = (lw - total) / 2;
+    const int y0 = turned ? (lh - dh) / 2 : lh / 2 - dh / 2 - 6;
+    const int hh = (dh - 3 * th) / 2;
+    int x = x0;
+    auto put = [&](lv_obj_t* o, int lx, int ly, int w, int h, int radius) {
+        int sx = lx, sy = ly, sw = w, sh = h;
+        if (rotation_ == 1) {  // turned clockwise: the screen's right edge is now up
+            sx = screen_w_ - ly - h; sy = lx; sw = h; sh = w;
+        } else if (rotation_ == 2) {  // turned counter-clockwise
+            sx = ly; sy = screen_h_ - lx - w; sw = h; sh = w;
+        }
+        lv_obj_set_pos(o, sx, sy);
+        lv_obj_set_size(o, sw, sh);
+        lv_obj_set_style_radius(o, radius, 0);
+    };
+    for (int d = 0; d < 4; ++d) {
+        if (d == 2) x += colon_w + 2 * gap - gap;
+        put(seg_[d][0], x + th / 2, y0, dw - th, th, th / 2);
+        put(seg_[d][6], x + th / 2, y0 + th + hh, dw - th, th, th / 2);
+        put(seg_[d][3], x + th / 2, y0 + dh - th, dw - th, th, th / 2);
+        put(seg_[d][5], x, y0 + th / 2 + 2, th, hh + th - 4, th / 2);
+        put(seg_[d][1], x + dw - th, y0 + th / 2 + 2, th, hh + th - 4, th / 2);
+        put(seg_[d][4], x, y0 + th + hh + th / 2 + 2, th, hh + th - 4, th / 2);
+        put(seg_[d][2], x + dw - th, y0 + th + hh + th / 2 + 2, th, hh + th - 4, th / 2);
+        x += dw + gap;
+        if (d == 1) {
+            const int cx = x - gap + (colon_w + 2 * gap - gap) / 2 - 6;
+            const int ds = static_cast<int>(12 * sc);
+            put(dot_[0], cx, y0 + dh / 3 - ds / 2, ds, ds, ds / 2);
+            put(dot_[1], cx, y0 + 2 * dh / 3 - ds / 2, ds, ds, ds / 2);
+        }
+    }
+    if (turned) {
+        lv_obj_add_flag(caption_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(footer_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_remove_flag(caption_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(footer_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_align(caption_, LV_ALIGN_TOP_MID, 0, y0 - 70);
+        lv_obj_align(footer_, LV_ALIGN_TOP_MID, 0, y0 + dh + 34);
+    }
+}
+
+void ChipoBuddyView::SetRotation(int rotation) {
+    if (rotation < 0 || rotation > 2) rotation = 0;
+    if (!root_ || rotation == rotation_) return;
+    rotation_ = rotation;
+    BuildGeometry();
 }
 
 void ChipoBuddyView::Destroy() {
@@ -91,6 +131,7 @@ void ChipoBuddyView::Destroy() {
     dot_[0] = dot_[1] = nullptr;
     shown_ = false;
     have_applied_ = false;
+    rotation_ = 0;
 }
 
 void ChipoBuddyView::Show(const BuddyScreen& s) {
@@ -153,6 +194,8 @@ ChipoBuddyView::DebugInfo ChipoBuddyView::Debug() const {
     DebugInfo d{};
     d.shown = shown_;
     d.color = applied_.color;
+    d.rotation = rotation_;
+    d.brightness = have_applied_ ? applied_.brightness : 0;
     d.colon_on = have_applied_ && applied_.colon;
     for (int i = 0; i < 4; ++i) {
         d.digits[i] = have_applied_ ? applied_.digits[i] : ' ';

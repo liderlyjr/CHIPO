@@ -206,6 +206,42 @@ int main() {
         CHECK(!h.buddy.bedtime() && h.scenes.back() == "morning", "stopping the alarm is good morning");
     }
 
+    std::printf("== desk clock (CHIPO lying on its side)\n");
+    {
+        Harness h;
+        h.Start();
+        h.SetWall(9, 41);
+        h.buddy.SetDeskClock(true, -1);
+        h.Run(500);
+        auto dbg = h.buddy.Debug();
+        CHECK(h.buddy.desk_clock() && dbg.shown && dbg.rotation == 1, "clock up, turned for the left side (rot %d)", dbg.rotation);
+        CHECK(std::string(dbg.digits) == "0941" && dbg.brightness >= 200, "bright time (%s, %d)", dbg.digits, dbg.brightness);
+        h.SetWall(9, 42);
+        h.Run(500);
+        CHECK(std::string(h.buddy.Debug().digits) == "0942", "follows the time");
+        h.buddy.OnVoiceText("temporizador de 1 minuto");
+        h.Run(8000);
+        CHECK(h.buddy.Debug().shown && h.buddy.Debug().rotation == 1, "a countdown peek ending does not close the clock");
+        h.Run(60000);
+        CHECK(h.buddy.ringing() && h.buddy.Debug().rotation == 1, "the ring screen is turned too");
+        h.buddy.OnTouch(false);
+        h.Run(500);
+        CHECK(h.buddy.Debug().shown, "after the ring the clock is still there");
+        h.buddy.SetDeskClock(false, -1);
+        h.Run(500);
+        CHECK(!h.buddy.Debug().shown && h.buddy.Debug().rotation == 0, "stood up: clock gone, upright again");
+        h.buddy.SetDeskClock(true, +1);
+        h.Run(500);
+        CHECK(h.buddy.Debug().rotation == 2, "right side down turns the other way");
+        h.buddy.SetDeskClock(false, +1);
+        h.SetWall(0, 0);
+        h.wall.valid = false;
+        h.buddy.SetDeskClock(true, -1);
+        h.Run(500);
+        CHECK(h.buddy.Debug().shown && std::string(h.buddy.Debug().digits) == "    ", "no real time: blank display, no invented time");
+        h.buddy.Stop();
+    }
+
     std::printf("== no clips: still works, the assistant is not silenced\n");
     {
         Harness h;

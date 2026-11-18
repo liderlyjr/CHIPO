@@ -49,5 +49,9 @@ int main(int argc, char** argv) {
     s = BuddyScreen{}; s.caption = ""; s.footer = "alarma 07:30"; s.color = 0xC8641A; s.brightness = 70;
     s.digits[0] = '2'; s.digits[1] = '3'; s.digits[2] = '0'; s.digits[3] = '5';
     shot("buddy_night", s);
+    v.SetRotation(1);
+    s = BuddyScreen{}; s.brightness = 230;
+    s.digits[0] = '0'; s.digits[1] = '9'; s.digits[2] = '4'; s.digits[3] = '1';
+    shot("buddy_desk", s);
     return 0;
 }

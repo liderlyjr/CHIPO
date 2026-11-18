@@ -70,7 +70,7 @@ Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de 
 - **Pantalla del clima** (Open-Meteo) al preguntar por el tiempo o con un toque.
 - **Modo DRIVE** para el coche («Chipo, vámonos»): gafas de aviador, escena de carretera y comentarios de copiloto
   según aceleración, frenada, curvas y baches.
-- **BUDDY**: temporizador, pomodoro, cronómetro, alarma y modo dormir con reloj de siete segmentos.
+- **BUDDY**: temporizador, pomodoro, cronómetro, alarma y modo dormir con reloj de siete segmentos; tumbado de lado se convierte en reloj de mesita.
 - **Home Assistant** por voz: luces y escenas (apagado hasta configurar la dirección y el token).
 - **Actualización automática** desde las Releases de GitHub.
 

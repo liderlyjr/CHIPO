@@ -40,6 +40,11 @@ public:
     // spoken reply must be dropped. "Qué hora es" is left to the assistant (returns false).
     bool OnVoiceText(const char* text);
 
+    // CHIPO lies on its side like a bedside clock (reported by the face after a while): show the big clock
+    // turned to be read from the front. `side` is -1 for the left side down (right edge up), +1 for the right.
+    void SetDeskClock(bool on, int side = -1);
+    bool desk_clock() const { return desk_clock_; }
+
     bool bedtime() const { return bedtime_; }
     bool ringing() const { return ring_ != Ring::None; }
     const BuddyEngine& engine() const { return engine_; }
@@ -73,6 +78,7 @@ private:
     BuddyEngine engine_;
     bool running_ = false;
     bool bedtime_ = false;
+    bool desk_clock_ = false;
 
     uint32_t peek_until_ = 0;
     bool peeking_ = false;

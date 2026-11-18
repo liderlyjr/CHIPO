@@ -61,6 +61,10 @@ public:
 
     // CHIPO DRIVE (car mode) -----------------------------------------------------------------
     // Called for every IMU sample (all of them, not only the latest one) with the sensor clock.
+    // Told when CHIPO has been lying on its side long enough to be a clock (true) and when it is stood up (false).
+    using DeskClockObserver = std::function<void(bool on, int side)>;  // side: -1 left down, +1 right down
+    void SetDeskClockObserver(DeskClockObserver observer) { desk_clock_observer_ = std::move(observer); }
+
     using SampleObserver = std::function<void(const ImuSample& sample, uint32_t now_ms)>;
     void SetSampleObserver(SampleObserver observer) { sample_observer_ = std::move(observer); }
     // Sunglasses slide down over the eyes (and up again when switched off). While the car mode is
@@ -90,6 +94,8 @@ public:
         bool gyro_available;  // gyroscope samples are arriving
         bool gyro_spinning;
         bool drive_mode;
+        bool side_lying;   // on its side (the desk-clock side), whether or not the clock is up yet
+        bool desk_clock;   // lying long enough: the clock is wanted
         float glasses_progress;  // 0: no glasses, 1: on the eyes
         bool road_visible;       // car scene shown behind the face
         float road_speed;        // decorative scroll speed 0..1.4
@@ -226,6 +232,10 @@ private:
 
     // CHIPO DRIVE.
     SampleObserver sample_observer_;
+    DeskClockObserver desk_clock_observer_;
+    bool side_lying_ = false;
+    bool desk_clock_ = false;
+    uint32_t side_lying_ms_ = 0;
     bool drive_mode_ = false;
     float drive_lean_ = 0;       // target, from the motion detector
     float drive_lean_cur_ = 0;   // eased

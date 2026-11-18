@@ -198,6 +198,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         lv_obj_add_flag(piece, LV_OBJ_FLAG_HIDDEN);
     }
     drive_mode_ = false;
+    side_lying_ = desk_clock_ = false;
+    side_lying_ms_ = 0;
     drive_lean_ = drive_lean_cur_ = glasses_t_ = glasses_jolt_ = 0;
     glasses_shown_ = false;
     for (int& v : glasses_applied_) v = -9999;
@@ -745,6 +747,29 @@ void ChipoFace::Step(uint32_t now_ms) {
     } else {
         fell_ = false;
     }
+    // Desk clock: lying on the configured side (not in the car). Lying for CHIPO_DESK_CLOCK_AFTER_MS turns it into
+    // a clock; the face stays off the screen meanwhile (no dizziness: that comes when it is stood up again).
+    {
+        const bool side_ok = CHIPO_DESK_CLOCK_SIDE != 0 && tilt.calibrated && !drive_mode_;
+        const float pull = tilt.push_x * static_cast<float>(CHIPO_DESK_CLOCK_SIDE);  // > 0: gravity towards that side
+        if (side_ok && tilt.angle_deg >= 70.0f && pull > 0.75f) side_lying_ = true;
+        else if (!side_ok || tilt.angle_deg < 50.0f || pull < 0.45f) side_lying_ = false;
+        if (side_lying_) {
+            side_lying_ms_ += static_cast<uint32_t>(dt * 1000.0f);
+            idle_since_ms_ = now_ms;
+        } else {
+            side_lying_ms_ = 0;
+        }
+        const bool want_clock = side_lying_ && side_lying_ms_ >= CHIPO_DESK_CLOCK_AFTER_MS;
+        if (want_clock != desk_clock_) {
+            desk_clock_ = want_clock;
+            if (!desk_clock_) {  // stood up again: "uy, me mareé"
+                dizzy_until_ms_ = now_ms + CHIPO_DESK_CLOCK_DIZZY_MS;
+                tilt.lying = false;
+            }
+            if (desk_clock_observer_) desk_clock_observer_(desk_clock_, CHIPO_DESK_CLOCK_SIDE);
+        }
+    }
     // Which side does it slip towards? The side gravity pulls (latched once there is a clear pull).
     if (!fell_) fall_dir_ = 0;
     else if (fall_dir_ == 0 && std::fabs(tilt.push_x) >= kFallMinPush) fall_dir_ = tilt.push_x > 0 ? 1 : -1;
@@ -757,7 +782,7 @@ void ChipoFace::Step(uint32_t now_ms) {
 
     Mood mood = Mood::Normal;
     if (state_ != State::Error) {
-        if (tilt.lying || now_ms < dizzy_until_ms_) mood = Mood::Dizzy;
+        if ((tilt.lying && !side_lying_) || now_ms < dizzy_until_ms_) mood = Mood::Dizzy;
         else if (fell_ || now_ms < startle_until_ms_) mood = Mood::Startled;
     }
     if (mood == Mood::Normal && (mood_ == Mood::Startled || mood_ == Mood::Dizzy) &&
@@ -833,7 +858,7 @@ void ChipoFace::Step(uint32_t now_ms) {
     // Tilted past the fall angle: the face slips, speeds up and drops off the screen on the side it
     // leans to. It stays gone while CHIPO is held that far over (unless it ends up lying flat: then
     // it comes back dizzy) and slides back in from that edge when CHIPO is stood up again.
-    const bool falling = fell_ && fall_dir_ != 0 && !tilt.lying;
+    const bool falling = fell_ && fall_dir_ != 0 && (!tilt.lying || side_lying_);
     float tx = 0, ty = 0;
     if (tilt.calibrated && !tilt.lying) {
         tx = Clamp(tilt.push_x * 170.0f, -64.0f, 64.0f);
@@ -1223,6 +1248,8 @@ ChipoFace::DebugInfo ChipoFace::Debug() const {
     d.gyro_available = gyro_.output().available;
     d.gyro_spinning = gyro_.output().spinning;
     d.drive_mode = drive_mode_;
+    d.side_lying = side_lying_;
+    d.desk_clock = desk_clock_;
     d.glasses_progress = glasses_t_;
     d.road_visible = road_shown_;
     d.road_speed = road_speed_;

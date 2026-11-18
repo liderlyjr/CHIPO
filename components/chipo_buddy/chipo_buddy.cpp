@@ -119,6 +119,13 @@ void ChipoBuddy::StopRinging(bool snooze) {
     }
 }
 
+void ChipoBuddy::SetDeskClock(bool on, int side) {
+    if (!running_) return;
+    desk_clock_ = on;
+    view_.SetRotation(on ? (side > 0 ? 2 : 1) : 0);
+    if (!on && !bedtime_ && ring_ == Ring::None && !peeking_) view_.Hide();
+}
+
 void ChipoBuddy::EnterBedtime() {
     bedtime_ = true;
     peeking_ = false;
@@ -144,7 +151,7 @@ void ChipoBuddy::OnTouch(bool long_press) {
         return;
     }
     // A short tap closes a peek of a countdown.
-    if (peeking_ && !bedtime_) {
+    if (peeking_ && !bedtime_ && !desk_clock_) {
         peeking_ = false;
         view_.Hide();
     }
@@ -282,7 +289,7 @@ void ChipoBuddy::Step(uint32_t now_ms) {
     }
     if (peeking_ && BuddyReached(now_ms, peek_until_) && ring_ == Ring::None) {
         peeking_ = false;
-        if (!bedtime_) view_.Hide();
+        if (!bedtime_ && !desk_clock_) view_.Hide();
     }
     Render(now_ms);
 }
@@ -352,6 +359,13 @@ void ChipoBuddy::Render(uint32_t now_ms) {
             }
             s.footer = hours ? "horas : minutos" : "minutos : segundos";
         }
+        view_.Show(s);
+        return;
+    }
+    if (desk_clock_) {
+        wall_digits(false);
+        s.color = bedtime_ ? 0xC8641A : kAmber;
+        s.brightness = bedtime_ ? 90 : 230;
         view_.Show(s);
         return;
     }
