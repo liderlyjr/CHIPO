@@ -17,7 +17,7 @@
  * (i2c_master_get_bus_handle), so the board files stay untouched. The accelerometer is always on;
  * the gyroscope is switched on too unless CHIPO_ENABLE_GYRO is 0 or the sensor refuses it (then
  * samples simply carry has_gyro = false). A small low-priority task samples at ~25 Hz
- * and publishes the latest reading; the UI task picks it up with Poll(), so no LVGL call ever
+ * (50 Hz in the car mode) and queues the readings; the UI task picks it up with Poll(), so no LVGL call ever
  * happens outside the UI task.
  *
  * If the sensor is missing or does not answer, Start() returns false and CHIPO simply works
@@ -33,8 +33,12 @@ public:
     bool Start();
     void Stop();
 
-    // True when a sample newer than the last Poll() is available.
+    // True and fills `out` when an unread sample is available (oldest first). Every sample the
+    // task read is kept (a small queue), so a faster rate really delivers every sample.
     bool Poll(ImuSample* out);
+
+    // 50 Hz readout instead of 25 Hz (CHIPO DRIVE needs short jolts). Thread safe.
+    void SetFastSampling(bool fast) { fast_.store(fast); }
 
 private:
     static void TaskEntry(void* arg);
@@ -46,15 +50,12 @@ private:
     TaskHandle_t task_ = nullptr;
     std::atomic<bool> running_{false};
     std::atomic<bool> task_done_{true};
-    std::atomic<int32_t> x_milli_g_{0};
-    std::atomic<int32_t> y_milli_g_{0};
-    std::atomic<int32_t> z_milli_g_{0};
-    std::atomic<int32_t> gx_milli_dps_{0};
-    std::atomic<int32_t> gy_milli_dps_{0};
-    std::atomic<int32_t> gz_milli_dps_{0};
+    static constexpr uint32_t kRingSize = 16;
+    ImuSample ring_[kRingSize];          // written by the task, read by the UI task
+    std::atomic<uint32_t> head_{0};      // samples written so far
+    uint32_t tail_ = 0;                  // samples read so far (UI task only)
+    std::atomic<bool> fast_{false};
     bool gyro_ok_ = false;  // set in Start() before the task starts, then read-only
-    std::atomic<uint32_t> sequence_{0};
-    uint32_t polled_sequence_ = 0;
 };
 
 #endif  // ESP_PLATFORM

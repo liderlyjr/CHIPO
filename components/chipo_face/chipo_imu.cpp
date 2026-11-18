@@ -6,6 +6,7 @@
 #include <initializer_list>
 
 #include "esp_log.h"
+#include "esp_timer.h"
 
 namespace {
 constexpr char TAG[] = "ChipoImu";
@@ -39,6 +40,7 @@ constexpr uint8_t kCtrl7WithGyroValue = 0x03;
 
 constexpr int kI2cTimeoutMs = 50;
 constexpr uint32_t kSamplePeriodMs = 40;  // 25 Hz
+constexpr uint32_t kFastSamplePeriodMs = CHIPO_DRIVE_SAMPLE_MS;  // car mode
 }  // namespace
 
 ChipoImu::~ChipoImu() {
@@ -150,18 +152,11 @@ void ChipoImu::Stop() {
 }
 
 bool ChipoImu::Poll(ImuSample* out) {
-    const uint32_t sequence = sequence_.load();
-    if (sequence == polled_sequence_) return false;
-    polled_sequence_ = sequence;
-    out->x = x_milli_g_.load() / 1000.0f;
-    out->y = y_milli_g_.load() / 1000.0f;
-    out->z = z_milli_g_.load() / 1000.0f;
-    out->has_gyro = gyro_ok_;
-    if (gyro_ok_) {
-        out->gx = gx_milli_dps_.load() / 1000.0f;
-        out->gy = gy_milli_dps_.load() / 1000.0f;
-        out->gz = gz_milli_dps_.load() / 1000.0f;
-    }
+    const uint32_t head = head_.load(std::memory_order_acquire);
+    if (head == tail_) return false;
+    if (head - tail_ > kRingSize - 4) tail_ = head - 4;  // the UI task fell behind: skip the oldest
+    *out = ring_[tail_ % kRingSize];
+    ++tail_;
     return true;
 }
 
@@ -177,26 +172,25 @@ void ChipoImu::Run() {
         uint8_t raw[12];
         if (ReadRegs(kRegAccelX_L, raw, gyro_ok_ ? 12 : 6)) {
             consecutive_errors = 0;
-            const int16_t ax = static_cast<int16_t>(raw[0] | (raw[1] << 8));
-            const int16_t ay = static_cast<int16_t>(raw[2] | (raw[3] << 8));
-            const int16_t az = static_cast<int16_t>(raw[4] | (raw[5] << 8));
-            x_milli_g_.store(static_cast<int32_t>(ax * 1000.0f / kLsbPerG));
-            y_milli_g_.store(static_cast<int32_t>(ay * 1000.0f / kLsbPerG));
-            z_milli_g_.store(static_cast<int32_t>(az * 1000.0f / kLsbPerG));
+            ImuSample sample;
+            sample.x = static_cast<int16_t>(raw[0] | (raw[1] << 8)) / kLsbPerG;
+            sample.y = static_cast<int16_t>(raw[2] | (raw[3] << 8)) / kLsbPerG;
+            sample.z = static_cast<int16_t>(raw[4] | (raw[5] << 8)) / kLsbPerG;
+            sample.has_gyro = gyro_ok_;
             if (gyro_ok_) {
-                const int16_t gx = static_cast<int16_t>(raw[6] | (raw[7] << 8));
-                const int16_t gy = static_cast<int16_t>(raw[8] | (raw[9] << 8));
-                const int16_t gz = static_cast<int16_t>(raw[10] | (raw[11] << 8));
-                gx_milli_dps_.store(static_cast<int32_t>(gx * 1000.0f / kLsbPerDps));
-                gy_milli_dps_.store(static_cast<int32_t>(gy * 1000.0f / kLsbPerDps));
-                gz_milli_dps_.store(static_cast<int32_t>(gz * 1000.0f / kLsbPerDps));
+                sample.gx = static_cast<int16_t>(raw[6] | (raw[7] << 8)) / kLsbPerDps;
+                sample.gy = static_cast<int16_t>(raw[8] | (raw[9] << 8)) / kLsbPerDps;
+                sample.gz = static_cast<int16_t>(raw[10] | (raw[11] << 8)) / kLsbPerDps;
             }
-            sequence_.fetch_add(1);
+            sample.t_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+            const uint32_t head = head_.load(std::memory_order_relaxed);
+            ring_[head % kRingSize] = sample;
+            head_.store(head + 1, std::memory_order_release);
         } else if (++consecutive_errors == 25) {
             ESP_LOGW(TAG, "IMU not answering; slowing down");
         }
         // After a long run of errors poll once per second instead of hammering the shared bus.
-        const uint32_t period = consecutive_errors >= 25 ? 1000 : kSamplePeriodMs;
+        const uint32_t period = consecutive_errors >= 25 ? 1000 : (fast_.load() ? kFastSamplePeriodMs : kSamplePeriodMs);
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(period));
     }
     task_done_.store(true);

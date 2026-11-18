@@ -67,3 +67,8 @@
 #ifndef CHIPO_DEBUG_TILT_LOG
 #define CHIPO_DEBUG_TILT_LOG 1
 #endif
+
+// Sampling period of the IMU while the car mode (CHIPO DRIVE) is on; 40 ms (25 Hz) otherwise.
+#ifndef CHIPO_DRIVE_SAMPLE_MS
+#define CHIPO_DRIVE_SAMPLE_MS 20
+#endif

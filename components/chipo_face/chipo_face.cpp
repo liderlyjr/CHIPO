@@ -61,6 +61,11 @@ constexpr uint32_t kSpinDizzyAfterMs = 2500;  // spin at least this long and CHI
 constexpr uint32_t kSpinDizzyMs = 2800;
 
 constexpr uint32_t kGlowBlue = 0x75DFFF;
+constexpr uint32_t kGlassesFrame = 0xB4C6D8;
+constexpr float kGlassesInS = 1.1f;         // sunglasses slide on
+constexpr float kGlassesOutS = 0.8f;        // and off
+constexpr float kGlassesTravel = 150.0f;    // px above their place when fully off
+constexpr float kDriveLookPx = 10.0f;       // how far the eyes look into a curve
 constexpr uint32_t kEyeCore = 0xDDF8FF;
 constexpr uint32_t kPupil = 0x06121B;
 
@@ -138,9 +143,11 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     right_pupil_ = lv_obj_create(root_);
     mouth_ = lv_obj_create(root_);
     for (auto& dot : dots_) dot = lv_obj_create(root_);
+    for (auto& piece : glasses_) piece = lv_obj_create(root_);
 
     bool ok = left_eye_ && right_eye_ && left_pupil_ && right_pupil_ && mouth_;
     for (auto* dot : dots_) ok = ok && dot != nullptr;
+    for (auto* piece : glasses_) ok = ok && piece != nullptr;
     if (!ok) {
         Stop();
         ESP_LOGE(TAG, "Could not create face objects");
@@ -158,6 +165,35 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         lv_obj_set_pos(dots_[i], static_cast<int32_t>(kCenterX) + (i - 1) * 22 - 4, kDotsY);
         lv_obj_add_flag(dots_[i], LV_OBJ_FLAG_HIDDEN);
     }
+
+    // Sunglasses (hidden until the car mode starts): translucent dark lenses with a light frame.
+    for (int i = 0; i < 7; ++i) {
+        lv_obj_t* piece = glasses_[i];
+        lv_obj_remove_style_all(piece);
+        lv_obj_set_style_border_width(piece, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(piece, 0, LV_PART_MAIN);
+        if (i < 2) {  // lenses
+            lv_obj_set_style_bg_color(piece, lv_color_hex(0x101C2A), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(piece, LV_OPA_90, LV_PART_MAIN);
+            lv_obj_set_style_border_color(piece, lv_color_hex(kGlassesFrame), LV_PART_MAIN);
+            lv_obj_set_style_border_width(piece, 4, LV_PART_MAIN);
+            lv_obj_set_style_radius(piece, 24, LV_PART_MAIN);
+        } else if (i < 5) {  // bridge and arms
+            lv_obj_set_style_bg_color(piece, lv_color_hex(kGlassesFrame), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(piece, LV_OPA_COVER, LV_PART_MAIN);
+            lv_obj_set_style_radius(piece, 3, LV_PART_MAIN);
+        } else {  // glints
+            lv_obj_set_style_bg_color(piece, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(piece, LV_OPA_40, LV_PART_MAIN);
+            lv_obj_set_style_radius(piece, 3, LV_PART_MAIN);
+        }
+        MakeInert(piece);
+        lv_obj_add_flag(piece, LV_OBJ_FLAG_HIDDEN);
+    }
+    drive_mode_ = false;
+    drive_lean_ = drive_lean_cur_ = glasses_t_ = glasses_jolt_ = 0;
+    glasses_shown_ = false;
+    for (int& v : glasses_applied_) v = -9999;
 
     const uint32_t now = lv_tick_get();
     cur_ = Pose{62, 70, 22, 30, 0, 0, 42, 8, kMouthCenterY, 20, 60};
@@ -216,6 +252,7 @@ void ChipoFace::Stop() {
     if (root_) lv_obj_delete(root_);
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
     for (auto& dot : dots_) dot = nullptr;
+    for (auto& piece : glasses_) piece = nullptr;
     dots_visible_ = false;
     for (int& o : dots_opa_) o = -1;
 }
@@ -225,6 +262,55 @@ void ChipoFace::SetTiltSource(TiltSource source) {
     imu_.reset();
 #endif
     tilt_source_ = std::move(source);
+}
+
+void ChipoFace::SetDriveMode(bool on) {
+    if (on == drive_mode_) return;
+    drive_mode_ = on;
+    if (on) {
+        idle_since_ms_ = last_step_ms_;  // wakes CHIPO up
+        fell_ = false;
+        fall_dir_ = 0;
+    } else {
+        drive_lean_ = drive_lean_cur_ = 0;
+    }
+}
+
+void ChipoFace::DriveReact(DriveReaction reaction, float intensity) {
+    if (!drive_mode_ || !root_) return;
+    const uint32_t now = last_step_ms_;
+    const float k = intensity < 0.2f ? 0.2f : (intensity > 1.0f ? 1.0f : intensity);
+    idle_since_ms_ = now;
+    switch (reaction) {
+        case DriveReaction::Accelerate:
+            StartEmotion(Emotion::Happy, now, 1300);
+            vel_y_ += 90.0f + 90.0f * k;   // pushed back into the seat
+            glasses_jolt_ = -0.4f * k;
+            break;
+        case DriveReaction::Brake:
+            StartEmotion(Emotion::Surprised, now, 900);
+            vel_y_ -= 120.0f + 120.0f * k;  // thrown forward
+            glasses_jolt_ = 1.0f * k;       // glasses slide down the nose
+            break;
+        case DriveReaction::Bump:
+            vel_y_ -= 160.0f + 180.0f * k;  // bounce
+            glasses_jolt_ = -0.8f * k;
+            break;
+        case DriveReaction::Abrupt:
+            if (k > 0.75f) dizzy_until_ms_ = now + 1100;
+            else StartEmotion(Emotion::Surprised, now, 1100);
+            vel_y_ -= 200.0f;
+            glasses_jolt_ = 1.0f;
+            break;
+    }
+}
+
+void ChipoFace::SetFastSampling(bool fast) {
+#ifdef ESP_PLATFORM
+    if (imu_) imu_->SetFastSampling(fast);
+#else
+    (void)fast;
+#endif
 }
 
 void ChipoFace::SetState(State state) {
@@ -577,15 +663,18 @@ void ChipoFace::Step(uint32_t now_ms) {
     last_step_ms_ = now_ms;
 
     // ---- tilt sensor -----------------------------------------------------------------------
-    bool nodded = false, shook = false, spin_ended = false;
+    bool nodded = false, shook = false, spin_ended = false, startle_seen = false;
     uint32_t spin_len_ms = 0;
     if (tilt_source_) {
         ImuSample sample;
-        for (int guard = 0; guard < 4 && tilt_source_(&sample); ++guard) {
-            tilt_.Update(sample, now_ms);
+        for (int guard = 0; guard < 8 && tilt_source_(&sample); ++guard) {
+            const uint32_t t = sample.t_ms != 0 ? sample.t_ms : now_ms;
+            if (sample_observer_) sample_observer_(sample, t);
+            tilt_.Update(sample, t);
+            startle_seen = startle_seen || tilt_.output().startle;  // a later sample would clear it
             if (sample.has_gyro) {
                 const GyroOutput& g = gyro_.Update(sample, tilt_.output().calibrated,
-                                                   tilt_.vertical_axis(), now_ms);
+                                                   tilt_.vertical_axis(), t);
                 nodded = nodded || g.nod;
                 shook = shook || g.shake;
                 if (g.spin_ended) {
@@ -595,8 +684,21 @@ void ChipoFace::Step(uint32_t now_ms) {
             }
         }
     }
-    const TiltOutput tilt = tilt_.output();
-    const GyroOutput gyro = gyro_.output();
+    TiltOutput tilt = tilt_.output();
+    tilt.startle = tilt.startle || startle_seen;
+    GyroOutput gyro = gyro_.output();
+    if (drive_mode_) {
+        // In the car the road would set off every reaction below: only the lean of the curves is used.
+        Ease(drive_lean_cur_, drive_lean_, dt, 0.12f);
+        nodded = shook = spin_ended = false;
+        gyro.spinning = false;
+        tilt.startle = false;
+        tilt.lying = false;
+        tilt.calibrated = true;
+        tilt.angle_deg = 0;
+        tilt.push_x = Clamp(drive_lean_cur_ * 0.28f, -1.0f, 1.0f);
+        tilt.lean_z = 0;
+    }
     if (tilt.calibrated && !calibrated_logged_) {
         calibrated_logged_ = true;
         ESP_LOGI(TAG, "Tilt calibrated: home pose stored (vertical sensor axis %s)",
@@ -674,6 +776,11 @@ void ChipoFace::Step(uint32_t now_ms) {
     } else {
         look_x_ = look_y_ = 0;
         next_look_ms_ = now_ms + 1200;
+    }
+
+    if (drive_mode_ && (shown == State::Idle || shown == State::Listening || shown == State::Speaking)) {
+        look_x_ = -drive_lean_cur_ * kDriveLookPx;  // the eyes look into the turn
+        look_y_ = 0;
     }
 
     // ---- ease the pose towards its target --------------------------------------------------
@@ -790,6 +897,7 @@ void ChipoFace::Step(uint32_t now_ms) {
     layout.glow_opa = Round16(Clamp(cur_.glow_opa, 0.0f, 100.0f));
     layout.face_dx = Round16(face_x_);
     layout.face_dy = Round16(face_y_);
+    UpdateGlasses(layout, dt);
     ApplyLayout(layout);
 
     UpdateDots(now_ms, shown == State::Thinking && mood == Mood::Normal);
@@ -804,6 +912,63 @@ void ChipoFace::Step(uint32_t now_ms) {
                  gyro.spinning ? 1 : 0, static_cast<int>(emotion));
     }
 #endif
+}
+
+void ChipoFace::UpdateGlasses(const Layout& l, float dt) {
+    const float target = drive_mode_ ? 1.0f : 0.0f;
+    const float speed = dt / (drive_mode_ ? kGlassesInS : kGlassesOutS);
+    if (glasses_t_ < target) glasses_t_ = std::min(target, glasses_t_ + speed);
+    else if (glasses_t_ > target) glasses_t_ = std::max(target, glasses_t_ - speed);
+    Ease(glasses_jolt_, 0.0f, dt, 0.18f);
+
+    const bool visible = glasses_t_ > 0.001f;
+    if (visible != glasses_shown_) {
+        for (lv_obj_t* piece : glasses_) {
+            if (visible) lv_obj_remove_flag(piece, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(piece, LV_OBJ_FLAG_HIDDEN);
+        }
+        glasses_shown_ = visible;
+    }
+    if (!visible) return;
+
+    // Slide in with a small overshoot (settles on the eyes), slide out smoothly.
+    const float p = glasses_t_;
+    float e;
+    if (drive_mode_) {
+        const float c1 = 1.4f, c3 = c1 + 1.0f, q = p - 1.0f;
+        e = 1.0f + c3 * q * q * q + c1 * q * q;  // ease-out-back
+    } else {
+        e = p * p * (3.0f - 2.0f * p);
+    }
+    const int dy = Round16(-(1.0f - e) * kGlassesTravel + glasses_jolt_ * 7.0f);
+    const int dx = Round16(drive_lean_cur_ * 4.0f);
+    const int key[4] = {l.eye_w, l.left_eye_x, dx, dy};
+    bool same = true;
+    for (int i = 0; i < 4; ++i) same = same && key[i] == glasses_applied_[i];
+    if (same) return;
+    for (int i = 0; i < 4; ++i) glasses_applied_[i] = key[i];
+
+    constexpr int kPad = 10;       // lens margin around the eye
+    constexpr int kLensH = 78;
+    const int lens_w = l.eye_w + 2 * kPad;
+    const int lens_y = static_cast<int>(kEyeCenterY) - kLensH / 2 + dy;
+    const int left_x = l.left_eye_x - kPad + dx;
+    const int right_x = l.right_eye_x - kPad + dx;
+    lv_obj_set_size(glasses_[0], lens_w, kLensH);
+    lv_obj_set_pos(glasses_[0], left_x, lens_y);
+    lv_obj_set_size(glasses_[1], lens_w, kLensH);
+    lv_obj_set_pos(glasses_[1], right_x, lens_y);
+    const int bridge_x = left_x + lens_w - 4;
+    lv_obj_set_size(glasses_[2], right_x - bridge_x + 4, 7);
+    lv_obj_set_pos(glasses_[2], bridge_x, lens_y + 22);
+    lv_obj_set_size(glasses_[3], 18, 6);  // arms
+    lv_obj_set_pos(glasses_[3], left_x - 14, lens_y + 14);
+    lv_obj_set_size(glasses_[4], 18, 6);
+    lv_obj_set_pos(glasses_[4], right_x + lens_w - 4, lens_y + 14);
+    lv_obj_set_size(glasses_[5], 24, 6);  // glints
+    lv_obj_set_pos(glasses_[5], left_x + 14, lens_y + 12);
+    lv_obj_set_size(glasses_[6], 24, 6);
+    lv_obj_set_pos(glasses_[6], right_x + 14, lens_y + 12);
 }
 
 void ChipoFace::ApplyLayout(const Layout& l) {
@@ -897,5 +1062,7 @@ ChipoFace::DebugInfo ChipoFace::Debug() const {
     d.glow_rgb = applied_.glow_rgb;
     d.gyro_available = gyro_.output().available;
     d.gyro_spinning = gyro_.output().spinning;
+    d.drive_mode = drive_mode_;
+    d.glasses_progress = glasses_t_;
     return d;
 }

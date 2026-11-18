@@ -8,6 +8,7 @@ cd "$(dirname "$0")/../.."
 OUT="$(mktemp -d)"
 SAN="-fsanitize=address,undefined"
 INC="-Icomponents/chipo_face/include"
+DINC="-Icomponents/chipo_drive/include -Icomponents/chipo_face/include"
 
 echo "== weather data (parsers, voice intent)"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_weather/include tests/host/test_weather.cpp components/chipo_weather/chipo_weather_data.cpp -o "$OUT/test_weather"
@@ -20,6 +21,14 @@ g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_update/include tests/host/t
 echo "== gyro gestures (spin, nod, shake)"
 g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_gyro.cpp components/chipo_face/chipo_gyro.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_gyro"
 "$OUT/test_gyro"
+
+echo "== CHIPO DRIVE voice commands and personality"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_drive/include tests/host/test_drive_logic.cpp components/chipo_drive/chipo_drive_voice.cpp components/chipo_drive/chipo_drive_personality.cpp -o "$OUT/test_drive_logic"
+"$OUT/test_drive_logic"
+
+echo "== CHIPO DRIVE motion (simulated drives, hand rotations, bumps, mountings)"
+g++ -std=c++17 -Wall -Wextra $SAN $DINC tests/host/test_drive_motion.cpp components/chipo_drive/chipo_drive_motion.cpp -o "$OUT/test_drive_motion"
+"$OUT/test_drive_motion"
 
 echo "== tilt maths"
 g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_tilt.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_tilt"
@@ -55,6 +64,15 @@ g++ -std=gnu++23 -O1 -g $SAN -DCHIPO_DEBUG_TILT_LOG=0 $LVFLAGS -Itests/host/stub
     tests/host/test_face.cpp components/chipo_face/chipo_face.cpp components/chipo_face/chipo_tilt.cpp \
     components/chipo_face/chipo_gyro.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_face"
+
+echo "== CHIPO DRIVE on the face (voice on/off, sunglasses, reactions only in the mode)"
+g++ -std=gnu++23 -O1 -g $SAN -DCHIPO_DEBUG_TILT_LOG=0 -DCHIPO_DRIVE_DEBUG_LOG=0 $LVFLAGS -Itests/host/stub $DINC -w \
+    tests/host/test_drive.cpp components/chipo_face/chipo_face.cpp components/chipo_face/chipo_tilt.cpp \
+    components/chipo_face/chipo_gyro.cpp components/chipo_drive/chipo_drive.cpp \
+    components/chipo_drive/chipo_drive_motion.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    components/chipo_drive/chipo_drive_personality.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_drive"
+"$OUT/test_drive"
 "$OUT/test_face"
 
 echo "== weather screen (LVGL $(basename "$LVGL_DIR"))"

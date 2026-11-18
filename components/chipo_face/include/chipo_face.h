@@ -59,6 +59,21 @@ public:
         Grumpy       // flat eyes, red glow, flat mouth
     };
 
+    // CHIPO DRIVE (car mode) -----------------------------------------------------------------
+    // Called for every IMU sample (all of them, not only the latest one) with the sensor clock.
+    using SampleObserver = std::function<void(const ImuSample& sample, uint32_t now_ms)>;
+    void SetSampleObserver(SampleObserver observer) { sample_observer_ = std::move(observer); }
+    // Sunglasses slide down over the eyes (and up again when switched off). While the car mode is
+    // on, the tilt reactions (fall, dizzy, shake, spin) are paused: the road would trigger them.
+    void SetDriveMode(bool on);
+    bool DriveMode() const { return drive_mode_; }
+    // Lean of the face in a curve, -1..1 (positive: to the screen's right); the eyes look into the turn.
+    void SetDriveLean(float lean) { drive_lean_ = lean < -1 ? -1 : (lean > 1 ? 1 : lean); }
+    enum class DriveReaction : uint8_t { Accelerate, Brake, Bump, Abrupt };
+    void DriveReact(DriveReaction reaction, float intensity);
+    // 50 Hz IMU readout (needs the real board; no effect elsewhere).
+    void SetFastSampling(bool fast);
+
     struct DebugInfo {
         State shown_state;
         Mood mood;
@@ -74,6 +89,8 @@ public:
         uint32_t glow_rgb;
         bool gyro_available;  // gyroscope samples are arriving
         bool gyro_spinning;
+        bool drive_mode;
+        float glasses_progress;  // 0: no glasses, 1: on the eyes
     };
 
     ChipoFace();
@@ -155,6 +172,8 @@ private:
     lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
     lv_obj_t* dots_[3] = {nullptr, nullptr, nullptr};
+    // Sunglasses: left lens, right lens, bridge, left arm, right arm, left glint, right glint.
+    lv_obj_t* glasses_[7] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
     lv_timer_t* motion_timer_ = nullptr;
 
     State state_ = State::Idle;
@@ -200,6 +219,17 @@ private:
     Emotion shown_emotion_ = Emotion::None;
     bool idle_quirks_ = true;
     uint32_t next_quirk_ms_ = 0;
+
+    // CHIPO DRIVE.
+    SampleObserver sample_observer_;
+    bool drive_mode_ = false;
+    float drive_lean_ = 0;       // target, from the motion detector
+    float drive_lean_cur_ = 0;   // eased
+    float glasses_t_ = 0;        // 0..1 progress of the sunglasses
+    float glasses_jolt_ = 0;     // glasses bumped by a jolt (+: down, -: up), decays
+    bool glasses_shown_ = false;
+    int glasses_applied_[4] = {-9999, -9999, -9999, -9999};  // eye_w, left_eye_x, dx, dy
+    void UpdateGlasses(const Layout& layout, float dt);
 
     uint32_t speak_step_ms_ = 0;
     uint32_t speak_index_ = 0;

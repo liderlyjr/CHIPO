@@ -32,6 +32,9 @@ No se deben inventar pines ni sustituir controladores de la placa.
 Consulta [docs/CHIPO_FACE.md](docs/CHIPO_FACE.md) para ver todas las animaciones, cómo reacciona CHIPO cuando
 lo inclinas o se cae, y cómo ajustar el sentido de la caída.
 
+Consulta [docs/CHIPO_DRIVE.md](docs/CHIPO_DRIVE.md) para el modo copiloto del coche («Chipo, vámonos»: gafas de sol,
+reacciones a aceleración, frenada, curvas y baches; sin probar aún en la placa).
+
 Consulta [docs/CHIPO_UPDATE.md](docs/CHIPO_UPDATE.md) para actualizar CHIPO subiendo `VERSION` a GitHub.
 
 Consulta [docs/CHIPO_WEATHER.md](docs/CHIPO_WEATHER.md) para la pantalla del clima (se abre al preguntar por el

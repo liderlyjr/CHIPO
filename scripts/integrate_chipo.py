@@ -24,7 +24,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -238,6 +238,119 @@ replace_once(
 """,
     "Gate UpgradeFirmware to CHIPO releases",
 )
+
+# --- CHIPO DRIVE: copilot mode for the car (voice on/off, sunglasses, motion reactions) -------------
+replace_once(
+    app_h,
+    '#include "chipo_weather_controller.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n',
+    "Application drive header include",
+)
+replace_once(
+    app_h,
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "Application drive members",
+)
+replace_once(
+    app_cc,
+    '#include "chipo_update.h"\n',
+    '#include "chipo_update.h"\n#include "chipo_drive_clips.h"\n#include "esp_timer.h"\n',
+    "Application drive includes",
+)
+replace_once(
+    app_cc,
+    """        if (!ChipoUpdaterStart(std::move(hooks))) {
+            ESP_LOGW(TAG, "CHIPO updater not started");
+        }
+    }
+""",
+    """        if (!ChipoUpdaterStart(std::move(hooks))) {
+            ESP_LOGW(TAG, "CHIPO updater not started");
+        }
+    }
+
+    // CHIPO DRIVE (copilot mode for the car). Switched on and off by voice only.
+    if (chipo_face_) {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_drive_ = std::make_unique<ChipoDrive>();
+            ChipoDrive::Hooks hooks;
+            // Sounds are clips embedded in the firmware, played through the assistant's own audio path.
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
+            hooks.assistant_busy = [this]() {
+                const auto state = GetDeviceState();
+                return state == kDeviceStateListening || state == kDeviceStateSpeaking;
+            };
+            if (!chipo_drive_->Start(chipo_face_.get(), std::move(hooks))) {
+                chipo_drive_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Drive");
+            }
+        }
+    }
+""",
+    "Create CHIPO Drive after the face",
+)
+replace_once(
+    app_cc,
+    """                    // CHIPO: a weather question opens the weather screen while the server answers by voice.
+                    if (chipo_weather_) {
+                        DisplayLockGuard lock(display);
+                        if (lock) {
+                            chipo_weather_->OnVoiceText(message.c_str());
+                        }
+                    }
+""",
+    """                    // CHIPO: a weather question opens the weather screen while the server answers by voice.
+                    if (chipo_weather_) {
+                        DisplayLockGuard lock(display);
+                        if (lock) {
+                            chipo_weather_->OnVoiceText(message.c_str());
+                        }
+                    }
+                    // CHIPO DRIVE: "Chipo, vámonos" and the other car-mode commands. When CHIPO answers with
+                    // its own sound, the server's spoken reply to that sentence is dropped (see "tts" below).
+                    if (chipo_drive_) {
+                        DisplayLockGuard lock(display);
+                        if (lock && chipo_drive_->OnVoiceText(message.c_str())) {
+                            chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                            if (chipo_face_) chipo_face_->SetThinking(false);
+                        }
+                    }
+""",
+    "Car-mode voice commands on speech recognition",
+)
+replace_once(
+    app_cc,
+    """                Schedule([this]() {
+                    aborted_ = false;
+                    SetDeviceState(kDeviceStateSpeaking);
+                });""",
+    """                Schedule([this]() {
+                    aborted_ = false;
+                    if (esp_timer_get_time() < chipo_drive_silence_until_us_) {
+                        // CHIPO DRIVE already answered this command: do not play the server's reply.
+                        chipo_drive_silence_until_us_ = 0;
+                        AbortSpeaking(kAbortReasonNone);
+                        return;
+                    }
+                    SetDeviceState(kDeviceStateSpeaking);
+                });""",
+    "Drop the server reply to a car-mode command",
+)
+replace_once(
+    cmake,
+    "                        chipo_update\n",
+    "                        chipo_update\n                        chipo_drive\n",
+    "Link chipo_drive component",
+)
+
 ota_cc = main / "ota.cc"
 replace_once(
     ota_cc,
