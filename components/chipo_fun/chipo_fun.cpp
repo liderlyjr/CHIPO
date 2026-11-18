@@ -354,7 +354,9 @@ bool ChipoFun::OnVoiceText(const char* text) {
 
 void ChipoFun::OnTouch() {
     if (!running_ || mode_ == Mode::Off) return;
+    const bool was_boot = mode_ == Mode::Boot;
     SetMode(Mode::Off, Now());
+    if (was_boot && hooks_.boot_done) hooks_.boot_done();
 }
 
 void ChipoFun::Step(uint32_t now_ms) {
@@ -363,7 +365,10 @@ void ChipoFun::Step(uint32_t now_ms) {
     case Mode::Off: break;
     case Mode::Boot:
         UpdateBoot(now_ms);
-        if (now_ms - mode_since_ >= kBootMs) SetMode(Mode::Off, now_ms);
+        if (now_ms - mode_since_ >= kBootMs) {
+            SetMode(Mode::Off, now_ms);
+            if (hooks_.boot_done) hooks_.boot_done();
+        }
         break;
     case Mode::Lamp:
         UpdateLamp(now_ms);

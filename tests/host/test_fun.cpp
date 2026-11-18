@@ -59,6 +59,27 @@ int main() {
         CHECK(r.fun.mode() == ChipoFun::Mode::Off, "a touch skips it");
     }
 
+    std::printf("== start-up screen hands over to the face\n");
+    {
+        int woke = 0;
+        ChipoFun fun;
+        ChipoFun::Hooks h;
+        h.play_clip = [](const char*) { return true; };
+        h.notify = [](const char*) {};
+        h.boot_done = [&woke] { ++woke; };
+        h.clock = [] { return g_now; };
+        fun.Start(lv_screen_active(), std::move(h), "0.6.0");
+        fun.ShowBoot();
+        for (uint32_t t = 0; t < 3000; t += 50) { g_now += 50; fun.Step(g_now); }
+        CHECK(woke == 1, "the face wakes up when the start-up screen ends (%d)", woke);
+        fun.ShowBoot();
+        g_now += 200;
+        fun.OnTouch();
+        CHECK(woke == 2, "also when a touch skips it");
+        fun.OnTouch();
+        CHECK(woke == 2, "a touch with nothing on screen does nothing");
+    }
+
     std::printf("== lamp\n");
     {
         Rig r;

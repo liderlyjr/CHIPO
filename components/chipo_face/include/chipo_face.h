@@ -109,6 +109,9 @@ public:
     ChipoFace& operator=(const ChipoFace&) = delete;
 
     bool Start(lv_obj_t* parent);
+    // AMOLED burn-in protection: the whole face drifts a few pixels (set slowly from outside; not part of the face's own
+    // position, so tilt and fall reactions are untouched).
+    void SetPixelShift(int dx, int dy);
     void Stop();
 
     // Base state coming from the assistant (see integration/xiaozhi/chipo_state_map.h).
@@ -250,6 +253,7 @@ private:
     static constexpr int kLaneDashes = 5;
     static constexpr int kStreaks = 8;
     lv_obj_t* road_ = nullptr;  // full-screen container below the face
+    int shift_x_ = 0, shift_y_ = 0;
     lv_obj_t* sun_ = nullptr;       // synthwave sun on the horizon (upper half; the mask hides the rest)
     lv_obj_t* sun_mask_ = nullptr;  // black ground below the horizon
     lv_obj_t* horizon_ = nullptr;   // neon horizon line

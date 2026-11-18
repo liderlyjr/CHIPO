@@ -23,6 +23,7 @@ public:
     struct Hooks {
         std::function<bool(const char* clip_id)> play_clip;  // false if the clip does not exist
         std::function<void(const char* text)> notify;
+        std::function<void()> boot_done;                      // the start-up screen ended: the face can wake up happy
         std::function<void()> oops;                           // face reacts to a fall (server error)
         std::function<void(uint32_t ms)> babble;             // face laughs while the murmur plays
         std::function<uint32_t()> clock;                      // ms, defaults to lv_tick_get

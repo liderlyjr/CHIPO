@@ -47,6 +47,7 @@ public:
 
     bool bedtime() const { return bedtime_; }
     bool ringing() const { return ring_ != Ring::None; }
+    bool screen_shown() const { return view_.IsShown(); }
     const BuddyEngine& engine() const { return engine_; }
     ChipoBuddyView::DebugInfo Debug() const { return view_.Debug(); }
 

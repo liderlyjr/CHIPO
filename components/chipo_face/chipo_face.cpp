@@ -1294,10 +1294,17 @@ void ChipoFace::ApplyLayout(const Layout& l) {
         }
     }
     if (first || l.face_dx != a.face_dx || l.face_dy != a.face_dy) {
-        lv_obj_align(root_, LV_ALIGN_CENTER, l.face_dx, l.face_dy);
+        lv_obj_align(root_, LV_ALIGN_CENTER, l.face_dx + shift_x_, l.face_dy + shift_y_);
     }
     applied_ = l;
     layout_applied_ = true;
+}
+
+void ChipoFace::SetPixelShift(int dx, int dy) {
+    if (dx == shift_x_ && dy == shift_y_) return;
+    shift_x_ = dx;
+    shift_y_ = dy;
+    if (root_ && layout_applied_) lv_obj_align(root_, LV_ALIGN_CENTER, applied_.face_dx + dx, applied_.face_dy + dy);
 }
 
 ChipoFace::DebugInfo ChipoFace::Debug() const {

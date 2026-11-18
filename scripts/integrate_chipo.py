@@ -24,7 +24,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_settings"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -188,6 +188,7 @@ replace_once(
         DisplayLockGuard lock(display);
         if (lock) {
             chipo_face_->SetState(ChipoStateFromXiaoZhi(new_state));
+            if (chipo_settings_) chipo_settings_->NotifyActivity();  // wakes the screen saver
         }
     }
     if (chipo_fun_ && new_state == kDeviceStateWifiConfiguring) chipo_fun_->SetOffline(true);  // no Wi-Fi yet
@@ -293,13 +294,13 @@ replace_once(
 replace_once(
     app_h,
     '#include "chipo_weather_controller.h"\n',
-    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_version.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_settings.h"\n#include "chipo_version.h"\n',
     "Application drive header include",
 )
 replace_once(
     app_h,
     "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
-    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
     "Application drive members",
 )
 replace_once(
@@ -383,6 +384,10 @@ replace_once(
                 return true;
             };
             hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            // The start-up screen ends: the face wakes up with a smile.
+            hooks.boot_done = [this]() {
+                if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Happy, 1800);
+            };
             // A server error ("me caí"): the face gets sad for a moment.
             hooks.oops = [this]() {
                 if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Sad, 3500);
@@ -444,6 +449,65 @@ replace_once(
             }
         }
     }
+
+    // CHIPO SETTINGS (last, so it is drawn above everything): long-press menu, battery, screen saver,
+    // burn-in drift of the face and touch reactions of the face.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_settings_ = std::make_unique<ChipoSettings>();
+            ChipoSettings::Hooks hooks;
+            hooks.get_volume = []() {
+                auto codec = Board::GetInstance().GetAudioCodec();
+                return codec ? codec->output_volume() : 70;
+            };
+            hooks.set_volume = [](int volume) {
+                auto codec = Board::GetInstance().GetAudioCodec();
+                if (codec) codec->SetOutputVolume(volume);
+            };
+            hooks.get_brightness = []() {
+                auto backlight = Board::GetInstance().GetBacklight();
+                return backlight ? static_cast<int>(backlight->brightness()) : 80;
+            };
+            hooks.set_brightness = [](int percent, bool permanent) {
+                auto backlight = Board::GetInstance().GetBacklight();
+                if (backlight) backlight->SetBrightness(static_cast<uint8_t>(percent), permanent);
+            };
+            hooks.battery = [](int* level, bool* charging, bool* discharging) {
+                return Board::GetInstance().GetBatteryLevel(*level, *charging, *discharging);
+            };
+            hooks.wifi = ChipoSettingsWifi;
+            hooks.restart = []() { esp_restart(); };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.react = [this](TapKind kind) {
+                if (!chipo_face_) return;
+                if (kind == TapKind::Tickle) chipo_face_->ShowEmotion(ChipoFace::Emotion::Laugh, 2500);
+                else chipo_face_->ShowEmotion(ChipoFace::Emotion::Wink, 900);
+            };
+            hooks.shift = [this](int dx, int dy) {
+                if (chipo_face_) chipo_face_->SetPixelShift(dx, dy);
+            };
+            auto overlay = [this]() {
+                return (chipo_weather_ && chipo_weather_->IsShown()) || (chipo_fun_ && chipo_fun_->mode() != ChipoFun::Mode::Off) ||
+                       (chipo_buddy_ && chipo_buddy_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
+            };
+            hooks.overlay_active = overlay;
+            hooks.keep_awake = [this, overlay]() { return GetDeviceState() != kDeviceStateIdle || overlay(); };
+            if (!chipo_settings_->Start(lv_screen_active(), std::move(hooks), CHIPO_OS_VERSION)) {
+                chipo_settings_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Settings");
+            } else if (chipo_weather_) {
+                // The weather opens on a tap anywhere except on the face (which reacts) and over other screens.
+                chipo_weather_->SetTapBlocker([this](int y) { return chipo_settings_ && chipo_settings_->BlocksWeatherTap(y); });
+            }
+        }
+    }
 """,
     "Create CHIPO Drive after the face",
 )
@@ -468,7 +532,7 @@ replace_once(
 replace_once(
     cmake,
     "                        chipo_update\n",
-    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n",
+    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n                        chipo_settings\n",
     "Link chipo_drive component",
 )
 

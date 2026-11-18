@@ -85,8 +85,17 @@ void ChipoWeather::TimerCallback(lv_timer_t* timer) {
 void ChipoWeather::ClickCallback(lv_event_t* e) {
     auto* self = static_cast<ChipoWeather*>(lv_event_get_user_data(e));
     if (!self->running_) return;
-    if (self->view_.IsVisible()) self->Hide();
-    else self->Show();
+    if (self->view_.IsVisible()) {
+        self->Hide();
+        return;
+    }
+    if (self->tap_blocker_) {
+        lv_point_t pt{0, 0};
+        lv_indev_t* in = lv_event_get_indev(e);
+        if (in) lv_indev_get_point(in, &pt);
+        if (self->tap_blocker_(pt.y)) return;
+    }
+    self->Show();
 }
 
 bool ChipoWeather::IsShown() const { return running_ && view_.IsVisible(); }
