@@ -61,7 +61,7 @@ constexpr uint32_t kSpinDizzyAfterMs = 2500;  // spin at least this long and CHI
 constexpr uint32_t kSpinDizzyMs = 2800;
 
 constexpr uint32_t kGlowBlue = 0x75DFFF;
-constexpr uint32_t kGlassesFrame = 0xE3B94F;   // gold aviator frame
+constexpr uint32_t kGlassesFrame = 0xFFCF4A;   // gold aviator frame
 constexpr float kGlassesInS = 1.1f;         // sunglasses slide on
 constexpr float kGlassesOutS = 0.8f;        // and off
 constexpr float kGlassesTravel = 150.0f;    // px above their place when fully off
@@ -194,7 +194,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         lv_obj_set_style_pad_all(piece, 0, LV_PART_MAIN);
         if (i < 2) {  // lenses
             lv_obj_set_style_bg_color(piece, lv_color_hex(0x0B1730), LV_PART_MAIN);
-            lv_obj_set_style_bg_grad_color(piece, lv_color_hex(0xC2561F), LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_color(piece, lv_color_hex(0xFF6A1F), LV_PART_MAIN);
             lv_obj_set_style_bg_grad_dir(piece, LV_GRAD_DIR_VER, LV_PART_MAIN);
             lv_obj_set_style_bg_main_stop(piece, 90, LV_PART_MAIN);
             lv_obj_set_style_bg_grad_stop(piece, 255, LV_PART_MAIN);
@@ -223,6 +223,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     road_speed_ = road_boost_ = road_jolt_ = wheel_angle_ = 0;
     road_phase_ = streak_phase_ = 0;
     road_shown_ = false;
+    sun_opa_applied_ = -1;
     for (auto& piece : road_applied_) piece = RoadPiece{};
     wheel_rot_applied_ = wheel_y_applied_ = -9999;
     wheel_opa_applied_ = -1;
@@ -283,7 +284,7 @@ void ChipoFace::Stop() {
 #endif
     if (root_) lv_obj_delete(root_);
     if (road_) lv_obj_delete(road_);
-    road_ = wheel_ = nullptr;
+    road_ = wheel_ = sun_ = sun_mask_ = horizon_ = nullptr;
     for (auto& o : lane_) o = nullptr;
     for (auto& o : streak_) o = nullptr;
     road_shown_ = false;
@@ -1062,8 +1063,42 @@ void ChipoFace::CreateRoad(lv_obj_t* parent) {
         lv_obj_set_style_radius(o, 3, LV_PART_MAIN);
         MakeInert(o);
     };
-    for (auto& o : lane_) dash(o, 0xCFD8E3);
-    for (auto& o : streak_) dash(o, 0x9FD8FF);
+    // Synthwave scenery (AMOLED: true black ground, saturated neon): a half sun sets on a glowing horizon.
+    const int horizon_y = static_cast<int>(h * 0.70f);
+    const int sun_d = 170;
+    sun_ = lv_obj_create(road_);
+    sun_mask_ = lv_obj_create(road_);
+    horizon_ = lv_obj_create(road_);
+    for (lv_obj_t* o : {sun_, sun_mask_, horizon_}) {
+        if (o == nullptr) continue;
+        lv_obj_remove_style_all(o);
+        lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, LV_PART_MAIN);
+        MakeInert(o);
+    }
+    if (sun_ != nullptr) {
+        lv_obj_set_size(sun_, sun_d, sun_d);
+        lv_obj_set_pos(sun_, (w - sun_d) / 2, horizon_y - sun_d / 2);
+        lv_obj_set_style_radius(sun_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(sun_, lv_color_hex(0xFFD23F), LV_PART_MAIN);
+        lv_obj_set_style_bg_grad_color(sun_, lv_color_hex(0xFF2E93), LV_PART_MAIN);
+        lv_obj_set_style_bg_grad_dir(sun_, LV_GRAD_DIR_VER, LV_PART_MAIN);
+    }
+    if (sun_mask_ != nullptr) {
+        lv_obj_set_size(sun_mask_, w, h - horizon_y);
+        lv_obj_set_pos(sun_mask_, 0, horizon_y);
+        lv_obj_set_style_bg_color(sun_mask_, lv_color_black(), LV_PART_MAIN);
+    }
+    if (horizon_ != nullptr) {
+        lv_obj_set_size(horizon_, w - 24, 3);
+        lv_obj_set_pos(horizon_, 12, horizon_y);
+        lv_obj_set_style_radius(horizon_, 2, LV_PART_MAIN);
+        lv_obj_set_style_bg_color(horizon_, lv_color_hex(0x00E5FF), LV_PART_MAIN);
+        lv_obj_set_style_shadow_color(horizon_, lv_color_hex(0x00E5FF), LV_PART_MAIN);
+        lv_obj_set_style_shadow_width(horizon_, 14, LV_PART_MAIN);
+        lv_obj_set_style_shadow_opa(horizon_, LV_OPA_70, LV_PART_MAIN);
+    }
+    for (auto& o : lane_) dash(o, 0x7FF3FF);   // neon cyan lane dashes
+    for (auto& o : streak_) dash(o, 0xFF5CC8); // pink speed streaks
     // Steering wheel: only its top edge shows at the bottom of the screen; the orange marker at 12
     // o'clock turns with the curves.
     wheel_ = lv_arc_create(road_);
@@ -1078,7 +1113,7 @@ void ChipoFace::CreateRoad(lv_obj_t* parent) {
         lv_obj_set_style_arc_color(wheel_, lv_color_hex(0x2B3644), LV_PART_MAIN);
         lv_obj_set_style_arc_opa(wheel_, LV_OPA_TRANSP, LV_PART_MAIN);
         lv_obj_set_style_arc_width(wheel_, 13, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_color(wheel_, lv_color_hex(0xFF8A2A), LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(wheel_, lv_color_hex(0xFFA23A), LV_PART_INDICATOR);
         lv_obj_set_style_arc_opa(wheel_, LV_OPA_TRANSP, LV_PART_INDICATOR);
         lv_obj_set_style_arc_rounded(wheel_, true, LV_PART_MAIN);
         lv_obj_set_style_arc_rounded(wheel_, true, LV_PART_INDICATOR);
@@ -1128,6 +1163,18 @@ void ChipoFace::UpdateRoad(float dt, uint32_t now_ms) {
         }
     };
 
+    {   // the scenery fades in with the glasses (few opacity steps: few repaints)
+        const int opa = fade > 0.97f ? 255 : (static_cast<int>(fade * 255.0f) / 16) * 16;
+        if (opa != sun_opa_applied_) {
+            if (sun_) lv_obj_set_style_bg_opa(sun_, static_cast<lv_opa_t>(opa * 3 / 4), LV_PART_MAIN);
+            if (sun_mask_) lv_obj_set_style_bg_opa(sun_mask_, static_cast<lv_opa_t>(opa), LV_PART_MAIN);
+            if (horizon_) {
+                lv_obj_set_style_bg_opa(horizon_, static_cast<lv_opa_t>(opa), LV_PART_MAIN);
+                lv_obj_set_style_shadow_opa(horizon_, static_cast<lv_opa_t>(opa * 2 / 3), LV_PART_MAIN);
+            }
+            sun_opa_applied_ = opa;
+        }
+    }
     // Lane dashes ahead: they grow and spread as they come towards the car, and swing sideways in curves.
     const float y0 = h * 0.66f, y1 = h * 0.80f;
     for (int i = 0; i < kLaneDashes; ++i) {
@@ -1137,7 +1184,7 @@ void ChipoFace::UpdateRoad(float dt, uint32_t now_ms) {
         const float cx = w / 2.0f - drive_lean_cur_ * 22.0f * p;
         const float in = p < 0.15f ? p / 0.15f : 1.0f;
         place(lane_[i], road_applied_[i], Round16(cx - dw / 2), Round16(yy), Round16(dw), Round16(dh),
-              static_cast<int>(fade * in * 150.0f * Clamp(0.4f + vigor, 0.0f, 1.0f)));
+              static_cast<int>(fade * in * 230.0f * Clamp(0.4f + vigor, 0.0f, 1.0f)));
     }
     // Speed streaks at the sides, flying outwards. Faster with a faster scene, invisible when it crawls.
     const float rows[4] = {0.30f, 0.38f, 0.50f, 0.62f};
@@ -1149,7 +1196,7 @@ void ChipoFace::UpdateRoad(float dt, uint32_t now_ms) {
         const float lead = w * 0.2f - q * (w * 0.2f + 16.0f);
         const int x = side == 0 ? Round16(lead) : Round16(w - lead - len);
         const float bell = std::sin(3.14159265f * q);
-        place(streak_[j], road_applied_[kLaneDashes + j], x, Round16(h * rows[row] + road_jolt_ * 4.0f), Round16(len), 2,
+        place(streak_[j], road_applied_[kLaneDashes + j], x, Round16(h * rows[row] + road_jolt_ * 4.0f), Round16(len), 3,
               static_cast<int>(fade * strength * bell * 255.0f));
     }
     // Steering wheel marker follows the curves.

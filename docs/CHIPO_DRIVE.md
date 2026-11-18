@@ -124,3 +124,14 @@ si CHIPO contesta con su sonido, ignorar el `tts start` siguiente (8 s de plazo)
 - Consumo con el modo activo (50 Hz de IMU) y temperatura al sol.
 - Los tests son simulaciones con ruido sintético; no hay ninguna grabación de un coche real.
 - Seguridad: CHIPO es un juguete. No mira la pantalla mientras conduces y no uses el modo para nada que distraiga.
+
+
+## Escena AMOLED (neón)
+
+![DRIVE en neón](img/chipo_drive_neon.png)
+
+La escena del coche aprovecha el negro puro y los colores saturados de la pantalla: medio sol que se pone sobre un
+horizonte cian brillante, suelo negro (píxeles apagados), líneas de carril cian, rayas de velocidad rosas y el
+marcador naranja del volante. Las gafas de aviador tienen cristales más saturados (azul noche a naranja) y montura
+dorada más viva. Todo aparece y desaparece con las gafas. La lógica de movimiento no ha cambiado.
+Herramienta de capturas: `tests/host/render_drive.cpp`.

@@ -250,6 +250,10 @@ private:
     static constexpr int kLaneDashes = 5;
     static constexpr int kStreaks = 8;
     lv_obj_t* road_ = nullptr;  // full-screen container below the face
+    lv_obj_t* sun_ = nullptr;       // synthwave sun on the horizon (upper half; the mask hides the rest)
+    lv_obj_t* sun_mask_ = nullptr;  // black ground below the horizon
+    lv_obj_t* horizon_ = nullptr;   // neon horizon line
+    int sun_opa_applied_ = -1;
     lv_obj_t* lane_[kLaneDashes] = {};
     lv_obj_t* streak_[kStreaks] = {};
     lv_obj_t* wheel_ = nullptr;
