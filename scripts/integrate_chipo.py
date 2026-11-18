@@ -152,6 +152,15 @@ replace_once(
                             chipo_weather_->OnVoiceText(message.c_str());
                         }
                     }
+                    // CHIPO DRIVE: "Chipo, vámonos" and the other car-mode commands. When CHIPO answers with
+                    // its own sound, the server's spoken reply to that sentence is dropped (see "tts" below).
+                    if (chipo_drive_) {
+                        DisplayLockGuard lock(display);
+                        if (lock && chipo_drive_->OnVoiceText(message.c_str())) {
+                            chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                            if (chipo_face_) chipo_face_->SetThinking(false);
+                        }
+                    }
                 });
 """,
     "Show CHIPO thinking and weather once speech is recognised",
@@ -296,35 +305,6 @@ replace_once(
     }
 """,
     "Create CHIPO Drive after the face",
-)
-replace_once(
-    app_cc,
-    """                    // CHIPO: a weather question opens the weather screen while the server answers by voice.
-                    if (chipo_weather_) {
-                        DisplayLockGuard lock(display);
-                        if (lock) {
-                            chipo_weather_->OnVoiceText(message.c_str());
-                        }
-                    }
-""",
-    """                    // CHIPO: a weather question opens the weather screen while the server answers by voice.
-                    if (chipo_weather_) {
-                        DisplayLockGuard lock(display);
-                        if (lock) {
-                            chipo_weather_->OnVoiceText(message.c_str());
-                        }
-                    }
-                    // CHIPO DRIVE: "Chipo, vámonos" and the other car-mode commands. When CHIPO answers with
-                    // its own sound, the server's spoken reply to that sentence is dropped (see "tts" below).
-                    if (chipo_drive_) {
-                        DisplayLockGuard lock(display);
-                        if (lock && chipo_drive_->OnVoiceText(message.c_str())) {
-                            chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
-                            if (chipo_face_) chipo_face_->SetThinking(false);
-                        }
-                    }
-""",
-    "Car-mode voice commands on speech recognition",
 )
 replace_once(
     app_cc,
