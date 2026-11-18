@@ -169,6 +169,25 @@ int main() {
         fun.MurmurTick(g_now);  // after Stop: must not crash
     }
 
+    std::printf("== server down: me caí\n");
+    {
+        Rig r;
+        int faces = 0;
+        ChipoFun fun;
+        ChipoFun::Hooks h;
+        h.play_clip = [&r](const char* id) { r.clips.push_back(id); return true; };
+        h.notify = [&r](const char* t) { r.notes.push_back(t); };
+        h.oops = [&faces] { ++faces; };
+        h.clock = [] { return g_now; };
+        fun.Start(lv_screen_active(), std::move(h), "0.6.0");
+        CHECK(fun.OnServerError(g_now) && r.Played("oops") && faces == 1, "reacts with sound and face");
+        CHECK(!r.notes.empty() && r.notes.back() == "Me caí... uuuy, me caí", "says it in text");
+        CHECK(!fun.OnServerError(g_now + 5000) && fun.oops_count() == 1, "not again within 20 s (an error storm stays calm)");
+        CHECK(fun.OnServerError(g_now + 21000) && fun.oops_count() == 2, "again after 20 s");
+        fun.Stop();
+        CHECK(!fun.OnServerError(g_now + 60000), "after Stop: nothing");
+    }
+
     std::printf("== no clips, ordinary speech, stop\n");
     {
         Rig r;

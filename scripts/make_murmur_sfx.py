@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generates CHIPO's offline "murmur" clips (cheerful made-up babble, OGG/Opus 48 kHz mono) into
-components/chipo_drive/clips/murmur_1..4.ogg.
+components/chipo_drive/clips/murmur_1..4.ogg and oops.ogg ("uuuy", the fall).
 
     python3 scripts/make_murmur_sfx.py
 
@@ -53,8 +53,26 @@ def make(seed):
     return 0.6 * y / (np.max(np.abs(y)) + 1e-9)
 
 
-for k in range(1, 5):
-    s = np.clip(make(100 + k), -0.95, 0.95)
+def oops():
+    """'uuuuy': a long falling slide (u to i) and a little thud at the end."""
+    n = int(SR * 0.9)
+    t = np.arange(n) / SR
+    f = 560 * np.exp(-1.1 * t / 0.9 * 1.0) + 120  # slides down
+    f *= 1 + 0.03 * np.sin(2 * np.pi * 7 * t)
+    phase = 2 * np.pi * np.cumsum(f) / SR
+    src = sum(np.sin(k * phase) / k for k in range(1, 12))
+    mix = np.clip(t / 0.9, 0, 1)  # u -> i
+    y = (1 - mix) * (resonator(src, 320) + 0.8 * resonator(src, 800, 150)) + mix * (resonator(src, 320) + 0.8 * resonator(src, 2300, 150))
+    y /= np.max(np.abs(y)) + 1e-9
+    y *= np.minimum(1, t / 0.02) * np.minimum(1, (0.9 - t) / 0.08)
+    tt = np.arange(int(SR * 0.16)) / SR
+    thud = np.sin(2 * np.pi * (140 - 60 * tt / 0.16) * tt) * np.exp(-tt * 28)  # bonk
+    return 0.6 * np.concatenate([y, np.zeros(int(SR * 0.05)), 0.9 * thud]).astype(np.float32)
+
+
+CLIPS = [(f"murmur_{k}", make(100 + k)) for k in range(1, 5)] + [("oops", oops())]
+for name, samples in CLIPS:
+    s = np.clip(samples, -0.95, 0.95)
     with tempfile.TemporaryDirectory() as d:
         wav = Path(d) / "a.wav"
         with wave.open(str(wav), "wb") as w:
@@ -62,5 +80,5 @@ for k in range(1, 5):
             w.writeframes((s * 32767).astype("<i2").tobytes())
         OUT.mkdir(parents=True, exist_ok=True)
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), "-c:a", "libopus", "-b:a", "32k",
-                        "-ar", "48000", "-ac", "1", str(OUT / f"murmur_{k}.ogg")], check=True)
-    print(f"murmur_{k}.ogg  {len(s) / SR:.2f} s")
+                        "-ar", "48000", "-ac", "1", str(OUT / f"{name}.ogg")], check=True)
+    print(f"{name}.ogg  {len(s) / SR:.2f} s")

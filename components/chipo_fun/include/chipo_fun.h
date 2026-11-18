@@ -23,6 +23,7 @@ public:
     struct Hooks {
         std::function<bool(const char* clip_id)> play_clip;  // false if the clip does not exist
         std::function<void(const char* text)> notify;
+        std::function<void()> oops;                           // face reacts to a fall (server error)
         std::function<void(uint32_t ms)> babble;             // face laughs while the murmur plays
         std::function<uint32_t()> clock;                      // ms, defaults to lv_tick_get
     };
@@ -61,6 +62,10 @@ public:
     void SetOffline(bool offline);
     void MurmurTick(uint32_t now_ms);
     int murmur_count() const { return murmur_count_; }
+    // The server could not be reached or failed: "Me caí... uuuy, me caí" (text, falling sound, sad face).
+    // At most once every 20 s; returns true if it reacted.
+    bool OnServerError(uint32_t now_ms);
+    int oops_count() const { return oops_count_; }
 
     void Step(uint32_t now_ms);  // public so tests can drive time
 
@@ -90,6 +95,9 @@ private:
     uint32_t next_murmur_ms_ = 0;
     int murmur_count_ = 0;
     int murmur_last_ = 0;
+    int oops_count_ = 0;
+    uint32_t last_oops_ms_ = 0;
+    bool had_oops_ = false;
     int w_ = 368, h_ = 448;  // screen size, kept from Start (object sizes read 0 before the first layout)
     lv_timer_t* timer_ = nullptr;
     lv_obj_t* root_ = nullptr;

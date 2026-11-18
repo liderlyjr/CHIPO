@@ -28,6 +28,13 @@ sílabas inventadas, alegres y agudas, con una risita y la cara riéndose. Sin p
 - No murmura sobre la lámpara, los dados o la moneda.
 - Cuatro clips `murmur_1..4.ogg` generados por síntesis con `scripts/make_murmur_sfx.py`.
 
+## «Me caí» cuando falla el servidor
+
+Si XiaoZhi avisa de un error (no llega al servidor, se corta la conexión...), CHIPO pone cara triste unos segundos,
+suelta un «uuuuy» que cae con un golpecito y muestra el texto «Me caí... uuuy, me caí». Como mucho una vez cada 20 s,
+para que una racha de errores no lo vuelva pesado. Sin internet no puede decir palabras (la voz viene del servidor),
+por eso es texto más sonido. El aviso de error normal de XiaoZhi sigue apareciendo.
+
 ## Ojos de CHIPO (cara AMOLED)
 
 ![Caras de CHIPO](img/chipo_faces.png)
@@ -51,5 +58,5 @@ sílabas inventadas, alegres y agudas, con una risita y la cara riéndose. Sin p
 
 ## Qué no está verificado
 
-Nada de esto se ha probado en la placa: cómo suena el murmullo por el altavoz, si el aviso de "sin internet" salta en todos los casos (por ejemplo, Wi-Fi conectado pero servidor caído no cuenta como sin internet), reconocimiento de las frases, volumen de los sonidos, fluidez real de la
+Nada de esto se ha probado en la placa: cómo suena el murmullo por el altavoz, si el aviso de "sin internet" salta en todos los casos y qué errores de XiaoZhi disparan el «me caí», reconocimiento de las frases, volumen de los sonidos, fluidez real de la
 animación en el ESP32-S3 y consumo de la lámpara.

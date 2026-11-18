@@ -194,6 +194,18 @@ void ChipoFun::Stop() {
     mode_ = Mode::Off;
 }
 
+bool ChipoFun::OnServerError(uint32_t now_ms) {
+    if (!running_) return false;
+    if (had_oops_ && now_ms - last_oops_ms_ < 20000u) return false;
+    had_oops_ = true;
+    last_oops_ms_ = now_ms;
+    ++oops_count_;
+    Note("Me caí... uuuy, me caí");
+    Play("oops");  // without the clip the text and the face are still shown
+    if (hooks_.oops) hooks_.oops();
+    return true;
+}
+
 void ChipoFun::MurmurCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFun*>(lv_timer_get_user_data(timer));
     if (self) self->MurmurTick(self->Now());

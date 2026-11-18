@@ -209,6 +209,18 @@ replace_once(
     "Tell CHIPO Fun the network is gone",
 )
 
+replace_once(
+    app_cc,
+    "            SetDeviceState(kDeviceStateIdle);\n            Alert(Lang::Strings::ERROR, last_error_message_.c_str(), \"cancel\",",
+    """            if (chipo_fun_) {
+                DisplayLockGuard lock(Board::GetInstance().GetDisplay());
+                if (lock) chipo_fun_->OnServerError(static_cast<uint32_t>(esp_timer_get_time() / 1000));
+            }
+            SetDeviceState(kDeviceStateIdle);
+            Alert(Lang::Strings::ERROR, last_error_message_.c_str(), "cancel",""",
+    "CHIPO Fun reacts to a server error",
+)
+
 cmake = main / "CMakeLists.txt"
 replace_once(
     cmake,
@@ -371,6 +383,10 @@ replace_once(
                 return true;
             };
             hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            // A server error ("me caí"): the face gets sad for a moment.
+            hooks.oops = [this]() {
+                if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Sad, 3500);
+            };
             // Offline murmur: the face laughs while CHIPO babbles (runs on the LVGL task, display lock held).
             hooks.babble = [this](uint32_t ms) {
                 if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Laugh, ms);
