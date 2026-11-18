@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace {
 constexpr float kRadToDeg = 57.29578f;

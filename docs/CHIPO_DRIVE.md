@@ -90,7 +90,7 @@ CHIPO no tiene sintetizador de voz propio (la voz viene del servidor), así que 
 - Sin clip para un comentario, sale el texto en pantalla 2,5 s.
 
 Lista de frases y nombres: `python scripts/make_drive_clips.py --list`. Para convertir tus grabaciones (cualquier formato):
-`python scripts/make_drive_clips.py carpeta_con_grabaciones` (o `scripts\make_drive_clips.bat carpeta`) y recompila.
+`python scripts/make_drive_clips.py carpeta_con_grabaciones` (o `scripts\make_drive_clips.bat carpeta`) y recompila (si añades clips nuevos: `idf.py reconfigure`).
 Necesita ffmpeg.
 
 ## Registro para ajustar en un trayecto real
