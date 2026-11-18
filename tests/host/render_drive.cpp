@@ -45,6 +45,23 @@ int main(int argc, char** argv) {
     face.Start(lv_screen_active());
     auto run = [&](uint32_t ms) { for (uint32_t t = 0; t < ms; t += 40) { g_now += 40; face.Step(g_now); lv_timer_handler(); } };
     run(1500);
+    if (argc > 2 && std::string(argv[2]) == "frames") {  // every animation step as a numbered frame
+        int n = 0;
+        auto shot = [&](uint32_t ms) {
+            for (uint32_t t = 0; t < ms; t += 40) {
+                g_now += 40; face.Step(g_now); lv_timer_handler(); lv_refr_now(nullptr);
+                char name[32]; std::snprintf(name, sizeof name, "/f_%03d.ppm", n++);
+                Save(out + name);
+            }
+        };
+        shot(600);
+        face.SetDriveMode(true);
+        shot(1800);
+        face.SetDriveLean(-0.8f); shot(800);
+        face.SetDriveLean(0); face.DriveReact(ChipoFace::DriveReaction::Brake, 1.0f); shot(1000);
+        face.SetDriveMode(false); shot(1100);
+        return 0;
+    }
     lv_refr_now(nullptr); Save(out + "/drive_0_desktop.ppm");
     face.SetDriveMode(true);
     run(400);  lv_refr_now(nullptr); Save(out + "/drive_1_sliding.ppm");
