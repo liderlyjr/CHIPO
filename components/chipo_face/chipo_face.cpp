@@ -61,7 +61,7 @@ constexpr uint32_t kSpinDizzyAfterMs = 2500;  // spin at least this long and CHI
 constexpr uint32_t kSpinDizzyMs = 2800;
 
 constexpr uint32_t kGlowBlue = 0x75DFFF;
-constexpr uint32_t kGlassesFrame = 0xB4C6D8;
+constexpr uint32_t kGlassesFrame = 0xE3B94F;   // gold aviator frame
 constexpr float kGlassesInS = 1.1f;         // sunglasses slide on
 constexpr float kGlassesOutS = 0.8f;        // and off
 constexpr float kGlassesTravel = 150.0f;    // px above their place when fully off
@@ -128,6 +128,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_rand_set_seed(esp_random());
 #endif
 
+    CreateRoad(parent);  // below the face, above XiaoZhi's own screen
+
     root_ = lv_obj_create(parent);
     if (root_ == nullptr) return false;
 
@@ -166,25 +168,30 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         lv_obj_add_flag(dots_[i], LV_OBJ_FLAG_HIDDEN);
     }
 
-    // Sunglasses (hidden until the car mode starts): translucent dark lenses with a light frame.
-    for (int i = 0; i < 7; ++i) {
+    // Aviator sunglasses (hidden until the car mode starts): mirrored lenses (dark blue at the top
+    // fading to a sunset orange), gold frame, brow bar and a glint.
+    for (int i = 0; i < kGlassesPieces; ++i) {
         lv_obj_t* piece = glasses_[i];
         lv_obj_remove_style_all(piece);
         lv_obj_set_style_border_width(piece, 0, LV_PART_MAIN);
         lv_obj_set_style_pad_all(piece, 0, LV_PART_MAIN);
         if (i < 2) {  // lenses
-            lv_obj_set_style_bg_color(piece, lv_color_hex(0x101C2A), LV_PART_MAIN);
+            lv_obj_set_style_bg_color(piece, lv_color_hex(0x0B1730), LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_color(piece, lv_color_hex(0xC2561F), LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_dir(piece, LV_GRAD_DIR_VER, LV_PART_MAIN);
+            lv_obj_set_style_bg_main_stop(piece, 90, LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_stop(piece, 255, LV_PART_MAIN);
             lv_obj_set_style_bg_opa(piece, LV_OPA_90, LV_PART_MAIN);
             lv_obj_set_style_border_color(piece, lv_color_hex(kGlassesFrame), LV_PART_MAIN);
             lv_obj_set_style_border_width(piece, 4, LV_PART_MAIN);
-            lv_obj_set_style_radius(piece, 24, LV_PART_MAIN);
-        } else if (i < 5) {  // bridge and arms
+            lv_obj_set_style_radius(piece, 40, LV_PART_MAIN);
+        } else if (i < 6) {  // bridge, brow bar, arms
             lv_obj_set_style_bg_color(piece, lv_color_hex(kGlassesFrame), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(piece, LV_OPA_COVER, LV_PART_MAIN);
             lv_obj_set_style_radius(piece, 3, LV_PART_MAIN);
         } else {  // glints
             lv_obj_set_style_bg_color(piece, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-            lv_obj_set_style_bg_opa(piece, LV_OPA_40, LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(piece, LV_OPA_50, LV_PART_MAIN);
             lv_obj_set_style_radius(piece, 3, LV_PART_MAIN);
         }
         MakeInert(piece);
@@ -194,6 +201,12 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     drive_lean_ = drive_lean_cur_ = glasses_t_ = glasses_jolt_ = 0;
     glasses_shown_ = false;
     for (int& v : glasses_applied_) v = -9999;
+    road_speed_ = road_boost_ = road_jolt_ = wheel_angle_ = 0;
+    road_phase_ = streak_phase_ = 0;
+    road_shown_ = false;
+    for (auto& piece : road_applied_) piece = RoadPiece{};
+    wheel_rot_applied_ = wheel_y_applied_ = -9999;
+    wheel_opa_applied_ = -1;
 
     const uint32_t now = lv_tick_get();
     cur_ = Pose{62, 70, 22, 30, 0, 0, 42, 8, kMouthCenterY, 20, 60};
@@ -250,6 +263,11 @@ void ChipoFace::Stop() {
     imu_.reset();
 #endif
     if (root_) lv_obj_delete(root_);
+    if (road_) lv_obj_delete(road_);
+    road_ = wheel_ = nullptr;
+    for (auto& o : lane_) o = nullptr;
+    for (auto& o : streak_) o = nullptr;
+    road_shown_ = false;
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
     for (auto& dot : dots_) dot = nullptr;
     for (auto& piece : glasses_) piece = nullptr;
@@ -286,21 +304,25 @@ void ChipoFace::DriveReact(DriveReaction reaction, float intensity) {
             StartEmotion(Emotion::Happy, now, 1300);
             vel_y_ += 90.0f + 90.0f * k;   // pushed back into the seat
             glasses_jolt_ = -0.4f * k;
+            road_boost_ += 0.5f * k;   // the scenery streams by faster
             break;
         case DriveReaction::Brake:
             StartEmotion(Emotion::Surprised, now, 900);
             vel_y_ -= 120.0f + 120.0f * k;  // thrown forward
             glasses_jolt_ = 1.0f * k;       // glasses slide down the nose
+            road_boost_ -= 0.45f * k;       // and the scenery slows
             break;
         case DriveReaction::Bump:
             vel_y_ -= 160.0f + 180.0f * k;  // bounce
             glasses_jolt_ = -0.8f * k;
+            road_jolt_ = k;                 // the road jumps
             break;
         case DriveReaction::Abrupt:
             if (k > 0.75f) dizzy_until_ms_ = now + 1100;
             else StartEmotion(Emotion::Surprised, now, 1100);
             vel_y_ -= 200.0f;
             glasses_jolt_ = 1.0f;
+            road_jolt_ = 1.0f;
             break;
     }
 }
@@ -896,8 +918,11 @@ void ChipoFace::Step(uint32_t now_ms) {
     layout.glow_w = static_cast<int16_t>(2 * std::lround(cur_.glow_w / 2.0f));  // steps of 2 px
     layout.glow_opa = Round16(Clamp(cur_.glow_opa, 0.0f, 100.0f));
     layout.face_dx = Round16(face_x_);
-    layout.face_dy = Round16(face_y_);
+    float sway = 0;  // the car rocks the face gently while driving
+    if (drive_mode_) sway = glasses_t_ * (2.0f * std::sin(static_cast<float>(now_ms) * 0.0022f) + road_jolt_ * 3.0f);
+    layout.face_dy = Round16(face_y_ + sway);
     UpdateGlasses(layout, dt);
+    UpdateRoad(dt, now_ms);
     ApplyLayout(layout);
 
     UpdateDots(now_ms, shown == State::Thinking && mood == Mood::Normal);
@@ -948,8 +973,8 @@ void ChipoFace::UpdateGlasses(const Layout& l, float dt) {
     if (same) return;
     for (int i = 0; i < 4; ++i) glasses_applied_[i] = key[i];
 
-    constexpr int kPad = 10;       // lens margin around the eye
-    constexpr int kLensH = 78;
+    constexpr int kPad = 12;       // lens margin around the eye
+    constexpr int kLensH = 82;
     const int lens_w = l.eye_w + 2 * kPad;
     const int lens_y = static_cast<int>(kEyeCenterY) - kLensH / 2 + dy;
     const int left_x = l.left_eye_x - kPad + dx;
@@ -958,17 +983,152 @@ void ChipoFace::UpdateGlasses(const Layout& l, float dt) {
     lv_obj_set_pos(glasses_[0], left_x, lens_y);
     lv_obj_set_size(glasses_[1], lens_w, kLensH);
     lv_obj_set_pos(glasses_[1], right_x, lens_y);
-    const int bridge_x = left_x + lens_w - 4;
-    lv_obj_set_size(glasses_[2], right_x - bridge_x + 4, 7);
-    lv_obj_set_pos(glasses_[2], bridge_x, lens_y + 22);
-    lv_obj_set_size(glasses_[3], 18, 6);  // arms
-    lv_obj_set_pos(glasses_[3], left_x - 14, lens_y + 14);
-    lv_obj_set_size(glasses_[4], 18, 6);
-    lv_obj_set_pos(glasses_[4], right_x + lens_w - 4, lens_y + 14);
-    lv_obj_set_size(glasses_[5], 24, 6);  // glints
-    lv_obj_set_pos(glasses_[5], left_x + 14, lens_y + 12);
-    lv_obj_set_size(glasses_[6], 24, 6);
-    lv_obj_set_pos(glasses_[6], right_x + 14, lens_y + 12);
+    const int bridge_x = left_x + lens_w - 5;
+    lv_obj_set_size(glasses_[2], right_x - bridge_x + 5, 8);   // bridge
+    lv_obj_set_pos(glasses_[2], bridge_x, lens_y + 20);
+    const int brow_x = left_x + lens_w / 2;
+    lv_obj_set_size(glasses_[3], right_x + lens_w / 2 - brow_x, 6);  // brow bar across the top
+    lv_obj_set_pos(glasses_[3], brow_x, lens_y + 5);
+    lv_obj_set_size(glasses_[4], 20, 7);                        // arms
+    lv_obj_set_pos(glasses_[4], left_x - 16, lens_y + 16);
+    lv_obj_set_size(glasses_[5], 20, 7);
+    lv_obj_set_pos(glasses_[5], right_x + lens_w - 4, lens_y + 16);
+    lv_obj_set_size(glasses_[6], 26, 6);                        // glints
+    lv_obj_set_pos(glasses_[6], left_x + 16, lens_y + 16);
+    lv_obj_set_size(glasses_[7], 26, 6);
+    lv_obj_set_pos(glasses_[7], right_x + 16, lens_y + 16);
+}
+
+void ChipoFace::CreateRoad(lv_obj_t* parent) {
+    int32_t w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
+    if (w <= 0) w = 368;
+    if (h <= 0) h = 448;
+    road_ = lv_obj_create(parent);
+    if (road_ == nullptr) return;
+    lv_obj_remove_style_all(road_);
+    lv_obj_set_size(road_, w, h);
+    lv_obj_set_pos(road_, 0, 0);
+    MakeInert(road_);
+    lv_obj_add_flag(road_, LV_OBJ_FLAG_HIDDEN);
+    auto dash = [&](lv_obj_t*& o, uint32_t color) {
+        o = lv_obj_create(road_);
+        if (o == nullptr) return;
+        lv_obj_remove_style_all(o);
+        lv_obj_set_style_bg_color(o, lv_color_hex(color), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_radius(o, 3, LV_PART_MAIN);
+        MakeInert(o);
+    };
+    for (auto& o : lane_) dash(o, 0xCFD8E3);
+    for (auto& o : streak_) dash(o, 0x9FD8FF);
+    // Steering wheel: only its top edge shows at the bottom of the screen; the orange marker at 12
+    // o'clock turns with the curves.
+    wheel_ = lv_arc_create(road_);
+    if (wheel_ != nullptr) {
+        lv_obj_remove_style_all(wheel_);
+        lv_obj_set_size(wheel_, 210, 210);
+        lv_obj_set_pos(wheel_, (w - 210) / 2, h - 80);
+        lv_arc_set_bg_angles(wheel_, 0, 360);
+        lv_arc_set_angles(wheel_, 0, 26);
+        lv_arc_set_rotation(wheel_, 257);
+        lv_obj_set_style_arc_width(wheel_, 13, LV_PART_MAIN);
+        lv_obj_set_style_arc_color(wheel_, lv_color_hex(0x2B3644), LV_PART_MAIN);
+        lv_obj_set_style_arc_opa(wheel_, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_arc_width(wheel_, 13, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_color(wheel_, lv_color_hex(0xFF8A2A), LV_PART_INDICATOR);
+        lv_obj_set_style_arc_opa(wheel_, LV_OPA_TRANSP, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_rounded(wheel_, true, LV_PART_MAIN);
+        lv_obj_set_style_arc_rounded(wheel_, true, LV_PART_INDICATOR);
+        lv_obj_set_style_bg_opa(wheel_, LV_OPA_TRANSP, LV_PART_KNOB);
+        lv_obj_set_style_pad_all(wheel_, 0, LV_PART_KNOB);
+        MakeInert(wheel_);
+    }
+}
+
+void ChipoFace::UpdateRoad(float dt, uint32_t now_ms) {
+    (void)now_ms;
+    if (road_ == nullptr) return;
+    const float target = drive_mode_ ? Clamp(0.5f + road_boost_, 0.08f, 1.4f) : 0.0f;
+    Ease(road_boost_, 0.0f, dt, 1.8f);
+    Ease(road_speed_, target, dt, 0.5f);
+    Ease(road_jolt_, 0.0f, dt, 0.25f);
+    const bool visible = glasses_t_ > 0.02f;
+    if (visible != road_shown_) {
+        if (visible) lv_obj_remove_flag(road_, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(road_, LV_OBJ_FLAG_HIDDEN);
+        road_shown_ = visible;
+    }
+    if (!visible) return;
+
+    const int w = lv_obj_get_width(road_), h = lv_obj_get_height(road_);
+    const float fade = Clamp(glasses_t_, 0.0f, 1.0f);
+    const float vigor = Clamp(road_speed_, 0.0f, 1.4f);
+    road_phase_ = std::fmod(road_phase_ + dt * (0.2f + 0.9f * vigor), 1.0f);
+    streak_phase_ = std::fmod(streak_phase_ + dt * (0.5f + 1.6f * vigor), 1.0f);
+
+    auto place = [&](lv_obj_t* o, RoadPiece& applied, int x, int y, int pw, int ph, int opa) {
+        if (opa < 6) opa = 0;
+        opa = (opa / 8) * 8;  // few distinct values: fewer redraws
+        if (pw < 1) pw = 1;
+        if (ph < 1) ph = 1;
+        if (x != applied.x || y != applied.y || pw != applied.w || ph != applied.h) {
+            lv_obj_set_size(o, pw, ph);
+            lv_obj_set_pos(o, x, y);
+            applied.x = static_cast<int16_t>(x);
+            applied.y = static_cast<int16_t>(y);
+            applied.w = static_cast<int16_t>(pw);
+            applied.h = static_cast<int16_t>(ph);
+        }
+        if (opa != applied.opa) {
+            lv_obj_set_style_bg_opa(o, static_cast<lv_opa_t>(opa), LV_PART_MAIN);
+            applied.opa = static_cast<int16_t>(opa);
+        }
+    };
+
+    // Lane dashes ahead: they grow and spread as they come towards the car, and swing sideways in curves.
+    const float y0 = h * 0.66f, y1 = h * 0.80f;
+    for (int i = 0; i < kLaneDashes; ++i) {
+        const float p = std::fmod(road_phase_ + static_cast<float>(i) / kLaneDashes, 1.0f);
+        const float yy = y0 + p * p * (y1 - y0) + road_jolt_ * 6.0f;
+        const float dw = 4.0f + p * 14.0f, dh = 5.0f + p * 22.0f;
+        const float cx = w / 2.0f - drive_lean_cur_ * 22.0f * p;
+        const float in = p < 0.15f ? p / 0.15f : 1.0f;
+        place(lane_[i], road_applied_[i], Round16(cx - dw / 2), Round16(yy), Round16(dw), Round16(dh),
+              static_cast<int>(fade * in * 150.0f * Clamp(0.4f + vigor, 0.0f, 1.0f)));
+    }
+    // Speed streaks at the sides, flying outwards. Faster with a faster scene, invisible when it crawls.
+    const float rows[4] = {0.30f, 0.38f, 0.50f, 0.62f};
+    const float strength = Clamp((vigor - 0.15f) * 1.2f, 0.0f, 1.0f);
+    for (int j = 0; j < kStreaks; ++j) {
+        const int side = j % 2, row = j / 2;
+        const float q = std::fmod(streak_phase_ + row * 0.23f + side * 0.11f, 1.0f);
+        const float len = 10.0f + q * 70.0f * (0.4f + vigor);
+        const float lead = w * 0.2f - q * (w * 0.2f + 16.0f);
+        const int x = side == 0 ? Round16(lead) : Round16(w - lead - len);
+        const float bell = std::sin(3.14159265f * q);
+        place(streak_[j], road_applied_[kLaneDashes + j], x, Round16(h * rows[row] + road_jolt_ * 4.0f), Round16(len), 2,
+              static_cast<int>(fade * strength * bell * 255.0f));
+    }
+    // Steering wheel marker follows the curves.
+    if (wheel_ != nullptr) {
+        Ease(wheel_angle_, Clamp(drive_lean_cur_ * 35.0f, -40.0f, 40.0f), dt, 0.15f);
+        const int rotation = Round16(257.0f + wheel_angle_);
+        if (rotation != wheel_rot_applied_) {
+            lv_arc_set_rotation(wheel_, rotation);
+            wheel_rot_applied_ = rotation;
+        }
+        const int y = h - 80 + Round16(road_jolt_ * 4.0f);
+        if (y != wheel_y_applied_) {
+            lv_obj_set_pos(wheel_, (w - 210) / 2, y);
+            wheel_y_applied_ = y;
+        }
+        int opa = (static_cast<int>(fade * 255.0f) / 16) * 16;
+        if (opa != wheel_opa_applied_) {
+            lv_obj_set_style_arc_opa(wheel_, static_cast<lv_opa_t>(opa), LV_PART_MAIN);
+            lv_obj_set_style_arc_opa(wheel_, static_cast<lv_opa_t>(opa), LV_PART_INDICATOR);
+            wheel_opa_applied_ = opa;
+        }
+    }
 }
 
 void ChipoFace::ApplyLayout(const Layout& l) {
@@ -1064,5 +1224,8 @@ ChipoFace::DebugInfo ChipoFace::Debug() const {
     d.gyro_spinning = gyro_.output().spinning;
     d.drive_mode = drive_mode_;
     d.glasses_progress = glasses_t_;
+    d.road_visible = road_shown_;
+    d.road_speed = road_speed_;
+    d.wheel_angle_deg = wheel_angle_;
     return d;
 }

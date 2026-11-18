@@ -91,6 +91,9 @@ public:
         bool gyro_spinning;
         bool drive_mode;
         float glasses_progress;  // 0: no glasses, 1: on the eyes
+        bool road_visible;       // car scene shown behind the face
+        float road_speed;        // decorative scroll speed 0..1.4
+        float wheel_angle_deg;   // steering wheel marker, + = clockwise
     };
 
     ChipoFace();
@@ -172,8 +175,9 @@ private:
     lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
     lv_obj_t* dots_[3] = {nullptr, nullptr, nullptr};
-    // Sunglasses: left lens, right lens, bridge, left arm, right arm, left glint, right glint.
-    lv_obj_t* glasses_[7] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+    // Aviator sunglasses: left lens, right lens, bridge, brow bar, left arm, right arm, left glint, right glint.
+    static constexpr int kGlassesPieces = 8;
+    lv_obj_t* glasses_[kGlassesPieces] = {};
     lv_timer_t* motion_timer_ = nullptr;
 
     State state_ = State::Idle;
@@ -230,6 +234,26 @@ private:
     bool glasses_shown_ = false;
     int glasses_applied_[4] = {-9999, -9999, -9999, -9999};  // eye_w, left_eye_x, dx, dy
     void UpdateGlasses(const Layout& layout, float dt);
+
+    // Car scene behind the face (decoration, NOT a speed reading): lane dashes ahead, speed streaks
+    // at the sides and a steering wheel that turns with the curves. Only while the car mode is on.
+    static constexpr int kLaneDashes = 5;
+    static constexpr int kStreaks = 8;
+    lv_obj_t* road_ = nullptr;  // full-screen container below the face
+    lv_obj_t* lane_[kLaneDashes] = {};
+    lv_obj_t* streak_[kStreaks] = {};
+    lv_obj_t* wheel_ = nullptr;
+    bool road_shown_ = false;
+    float road_speed_ = 0;      // 0..1.4, eased: how fast the scenery streams by
+    float road_boost_ = 0;      // from acceleration (+) and braking (-), decays
+    float road_jolt_ = 0;       // bump: the scenery jumps, decays
+    float road_phase_ = 0, streak_phase_ = 0;
+    float wheel_angle_ = 0;     // degrees, + = clockwise
+    struct RoadPiece { int16_t x = -9999, y = 0, w = 0, h = 0; int16_t opa = -1; };
+    RoadPiece road_applied_[kLaneDashes + kStreaks];
+    int wheel_rot_applied_ = -9999, wheel_opa_applied_ = -1, wheel_y_applied_ = -9999;
+    void CreateRoad(lv_obj_t* parent);
+    void UpdateRoad(float dt, uint32_t now_ms);
 
     uint32_t speak_step_ms_ = 0;
     uint32_t speak_index_ = 0;

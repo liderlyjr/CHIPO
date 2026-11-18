@@ -20,6 +20,11 @@ mira "Qué falta comprobar" al final.
 
 1. CHIPO reconoce el comando y reproduce el "brum, brum… ¡vámonos!" (ver "Voz" abajo).
 2. Las gafas de sol bajan desde arriba hasta los ojos (1,1 s, con un pequeño rebote al asentarse) y se quedan.
+   Son unas gafas de aviador motero: montura dorada, lentes espejo con degradado azul→naranja, puente doble y destellos.
+   Con ellas aparece una **escena de coche** (solo decoración, no mide la velocidad real): rayas de la carretera que
+   avanzan en perspectiva, líneas de velocidad a los lados, el volante asomando abajo (la marca naranja gira con las
+   curvas) y un suave balanceo de la cara. Al acelerar el paisaje corre más, al frenar se frena, y un bache hace saltar
+   la carretera. Desaparece con las gafas al salir del modo.
 3. Al salir, se deslizan hacia arriba (0,8 s) y CHIPO vuelve a su cara de siempre.
 
 Las gafas no existen antes de activar el modo. Dentro del modo, **se pausan** las reacciones de escritorio que la

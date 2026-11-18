@@ -137,6 +137,7 @@ int main() {
         h.Run(200);
         CHECK(!h.drive.active() && !h.face.DriveMode(), "starts in desktop mode");
         CHECK(h.face.Debug().glasses_progress == 0.0f, "no glasses before the mode starts");
+        CHECK(!h.face.Debug().road_visible, "no road scene in desktop mode");
         h.Trip();
         CHECK(h.clips.empty() && h.notes.empty(), "no drive sounds or texts in desktop mode");
         CHECK(h.emotions_seen_happy == 0 && h.emotions_seen_surprised == 0, "no driving expressions in desktop mode (%d,%d)", h.emotions_seen_happy, h.emotions_seen_surprised);
@@ -173,6 +174,22 @@ int main() {
         CHECK(h.face.Debug().glasses_progress >= 0.999f, "glasses end on the eyes");
         h.Run(30000);
         CHECK(h.face.Debug().glasses_progress >= 0.999f, "and stay while driving");
+        CHECK(h.face.Debug().road_visible, "road scene shown in car mode");
+        const float cruise = h.face.Debug().road_speed;
+        CHECK(cruise > 0.3f && cruise < 0.8f, "scenery cruises (%.2f)", cruise);
+        h.face.DriveReact(ChipoFace::DriveReaction::Accelerate, 1.0f);
+        h.Run(400);
+        CHECK(h.face.Debug().road_speed > cruise + 0.1f, "scenery speeds up when accelerating (%.2f)", h.face.Debug().road_speed);
+        h.Run(6000);
+        h.face.SetDriveLean(-1.0f);
+        h.Run(1500);
+        const float left = h.face.Debug().wheel_angle_deg;
+        h.face.SetDriveLean(1.0f);
+        h.Run(1500);
+        const float right = h.face.Debug().wheel_angle_deg;
+        CHECK(left < -20 && right > 20, "steering wheel follows the curves (%.0f / %.0f)", left, right);
+        h.face.SetDriveLean(0);
+        h.Run(1500);
 
         h.min_dx = h.max_dx = 0;
         h.Trip();
@@ -212,6 +229,7 @@ int main() {
         CHECK(h.face.Debug().glasses_progress < 1.0f, "glasses start sliding off");
         h.Run(1500);
         CHECK(h.face.Debug().glasses_progress == 0.0f, "glasses are gone, desktop appearance back");
+        CHECK(!h.face.Debug().road_visible, "road scene gone with the glasses");
         CHECK(!h.drive.OnVoiceText("desactiva el modo conducción"), "deactivating while off is ignored");
 
         // Back in desktop mode nothing reacts again.
