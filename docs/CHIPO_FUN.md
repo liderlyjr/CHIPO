@@ -18,10 +18,15 @@ De izquierda a derecha: pantalla de inicio, lámpara cálida, lámpara arcoíris
 
 "Apaga la luz del salón" no es de la lámpara: se queda para Home Assistant.
 
-## Ojos de CHIPO
+## Ojos de CHIPO (cara AMOLED)
 
-El halo de los ojos y la boca es ahora más ancho y más brillante (x1,3 de ancho, x1,25 de opacidad), porque sobre
-negro puro se lee como luz y no como una neblina gris. Los colores por estado no cambian.
+![Caras de CHIPO](img/chipo_faces.png)
+
+- Cada ojo es un cristal iluminado: claro arriba y del color saturado del estado abajo (cian en reposo, rosa en amor,
+  rojo en enfado, violeta en tristeza...).
+- Cada pupila lleva dos brillos (uno grande y uno pequeño) que se mueven con ella y se recortan al cerrar el ojo.
+- El halo es 1,3 veces más ancho y 1,25 veces más opaco: sobre negro puro se lee como luz y no como niebla gris.
+- Herramienta de capturas: `tests/host/render_faces.cpp`.
 
 ## Detalles técnicos
 

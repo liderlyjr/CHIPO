@@ -162,6 +162,21 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     StyleGlow(right_eye_, kEyeCore, 20);
     StylePupil(left_pupil_);
     StylePupil(right_pupil_);
+    // Two specular highlights on every pupil (a big and a small one) make the eyes look wet and deep.
+    // They are children of the pupil: they move with it and are clipped when it shrinks.
+    for (lv_obj_t* pupil : {left_pupil_, right_pupil_}) {
+        for (int k = 0; k < 2; ++k) {
+            lv_obj_t* spark = lv_obj_create(pupil);
+            if (!spark) continue;
+            lv_obj_remove_style_all(spark);
+            lv_obj_set_size(spark, k == 0 ? 11 : 5, k == 0 ? 11 : 5);
+            lv_obj_set_style_bg_color(spark, lv_color_white(), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(spark, k == 0 ? LV_OPA_COVER : LV_OPA_70, LV_PART_MAIN);
+            lv_obj_set_style_radius(spark, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+            lv_obj_align(spark, k == 0 ? LV_ALIGN_TOP_LEFT : LV_ALIGN_BOTTOM_RIGHT, k == 0 ? 4 : -4, k == 0 ? 5 : -5);
+            MakeInert(spark);
+        }
+    }
     StyleGlow(mouth_, kGlowBlue, 20);
     for (int i = 0; i < 3; ++i) {
         StyleGlow(dots_[i], kGlowBlue, 8);
@@ -1222,6 +1237,14 @@ void ChipoFace::ApplyLayout(const Layout& l) {
             lv_obj_set_style_shadow_color(o, color, LV_PART_MAIN);
         }
         lv_obj_set_style_bg_color(mouth_, color, LV_PART_MAIN);  // the mouth is made of the glow itself
+        // AMOLED: the eyes are lit glass, pale on top and the state's saturated colour at the bottom.
+        for (lv_obj_t* o : {left_eye_, right_eye_}) {
+            lv_obj_set_style_bg_color(o, lv_color_mix(color, lv_color_white(), 70), LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_color(o, color, LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_VER, LV_PART_MAIN);
+            lv_obj_set_style_bg_main_stop(o, 40, LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_stop(o, 255, LV_PART_MAIN);
+        }
     }
     if (first || l.face_dx != a.face_dx || l.face_dy != a.face_dy) {
         lv_obj_align(root_, LV_ALIGN_CENTER, l.face_dx, l.face_dy);
