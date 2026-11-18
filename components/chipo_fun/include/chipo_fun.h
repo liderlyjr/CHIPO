@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <atomic>
 #include <functional>
 #include <string>
 
@@ -13,6 +14,8 @@
  *   - colour lamp (warm, cool, green, pink, rainbow), by voice, with an automatic switch-off
  *   - dice (one or two) and coin flip with a short animation
  *
+ * Offline murmur: with no internet CHIPO babbles now and then, laughing.
+ *
  * Own sounds only (embedded clips). All methods run on the LVGL task with the display lock held.
  */
 class ChipoFun {
@@ -20,6 +23,7 @@ public:
     struct Hooks {
         std::function<bool(const char* clip_id)> play_clip;  // false if the clip does not exist
         std::function<void(const char* text)> notify;
+        std::function<void(uint32_t ms)> babble;             // face laughs while the murmur plays
         std::function<uint32_t()> clock;                      // ms, defaults to lv_tick_get
     };
 
@@ -52,10 +56,17 @@ public:
     };
     DebugInfo Debug() const;
 
+    // Offline murmur: with no internet CHIPO babbles now and then (cheerful made-up sounds, no words).
+    // SetOffline may be called from any task; MurmurTick runs on the LVGL task (a 1 s timer, also public for tests).
+    void SetOffline(bool offline);
+    void MurmurTick(uint32_t now_ms);
+    int murmur_count() const { return murmur_count_; }
+
     void Step(uint32_t now_ms);  // public so tests can drive time
 
 private:
     static void TimerCallback(lv_timer_t* timer);
+    static void MurmurCallback(lv_timer_t* timer);
     static void EventCallback(lv_event_t* e);
     uint32_t Now() const;
     bool Play(const char* clip);
@@ -73,6 +84,12 @@ private:
     void Hide();
 
     Hooks hooks_;
+    lv_timer_t* murmur_timer_ = nullptr;
+    std::atomic<bool> offline_{false};
+    bool offline_seen_ = false;
+    uint32_t next_murmur_ms_ = 0;
+    int murmur_count_ = 0;
+    int murmur_last_ = 0;
     int w_ = 368, h_ = 448;  // screen size, kept from Start (object sizes read 0 before the first layout)
     lv_timer_t* timer_ = nullptr;
     lv_obj_t* root_ = nullptr;

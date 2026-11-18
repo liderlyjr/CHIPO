@@ -129,6 +129,46 @@ int main() {
         CHECK(heads > 60 && heads < 140, "fair coin: %d heads of 200", heads);
     }
 
+    std::printf("== offline murmur\n");
+    {
+        Rig r;
+        int babbles = 0;
+        ChipoFun::Hooks h;
+        h.play_clip = [&r](const char* id) { r.clips.push_back(id); return true; };
+        h.notify = [](const char*) {};
+        h.babble = [&babbles](uint32_t) { ++babbles; };
+        h.clock = [] { return g_now; };
+        ChipoFun fun;
+        CHECK(fun.Start(lv_screen_active(), std::move(h), "0.6.0"), "start");
+        auto tick = [&](uint32_t ms) { for (uint32_t t = 0; t < ms; t += 1000) { g_now += 1000; fun.MurmurTick(g_now); } };
+        tick(120000);
+        CHECK(fun.murmur_count() == 0 && babbles == 0, "online: silence");
+        fun.SetOffline(true);
+        tick(7000);
+        CHECK(fun.murmur_count() == 0, "not instantly");
+        tick(3000);
+        CHECK(fun.murmur_count() == 1 && babbles == 1, "first murmur within about 8 s (%d)", fun.murmur_count());
+        const int before = fun.murmur_count();
+        tick(25000);
+        CHECK(fun.murmur_count() == before, "then a pause of at least 30 s");
+        tick(600000);
+        CHECK(fun.murmur_count() >= before + 9 && fun.murmur_count() <= before + 21, "about every 30-60 s (%d in 10 min)", fun.murmur_count() - before);
+        std::set<std::string> kinds;
+        for (auto& c : r.clips) { CHECK(c.rfind("murmur_", 0) == 0, "only murmur clips (%s)", c.c_str()); kinds.insert(c); }
+        CHECK(kinds.size() == 4, "all four clips get used (%zu)", kinds.size());
+        for (size_t i = 1; i < r.clips.size(); ++i) CHECK(r.clips[i] != r.clips[i - 1], "never the same clip twice in a row");
+        fun.SetOffline(false);
+        const int done = fun.murmur_count();
+        tick(300000);
+        CHECK(fun.murmur_count() == done, "internet is back: silence again");
+        fun.SetOffline(true);
+        fun.OnVoiceText("modo lámpara");
+        tick(300000);
+        CHECK(fun.murmur_count() == done, "no murmur over the lamp");
+        fun.Stop();
+        fun.MurmurTick(g_now);  // after Stop: must not crash
+    }
+
     std::printf("== no clips, ordinary speech, stop\n");
     {
         Rig r;

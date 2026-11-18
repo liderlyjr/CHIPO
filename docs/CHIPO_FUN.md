@@ -18,6 +18,16 @@ De izquierda a derecha: pantalla de inicio, lámpara cálida, lámpara arcoíris
 
 "Apaga la luz del salón" no es de la lámpara: se queda para Home Assistant.
 
+## Murmullo sin internet
+
+Sin internet CHIPO no puede hablar (la voz viene del servidor de XiaoZhi), así que balbucea de vez en cuando:
+sílabas inventadas, alegres y agudas, con una risita y la cara riéndose. Sin palabras ni voces de nadie.
+
+- Solo cuando no hay red: al perder la conexión o mientras espera configurar el Wi-Fi. Con internet no suena nunca.
+- El primer murmullo llega a los ~8 s y luego cada 30-60 s al azar, nunca el mismo clip dos veces seguidas.
+- No murmura sobre la lámpara, los dados o la moneda.
+- Cuatro clips `murmur_1..4.ogg` generados por síntesis con `scripts/make_murmur_sfx.py`.
+
 ## Ojos de CHIPO (cara AMOLED)
 
 ![Caras de CHIPO](img/chipo_faces.png)
@@ -41,5 +51,5 @@ De izquierda a derecha: pantalla de inicio, lámpara cálida, lámpara arcoíris
 
 ## Qué no está verificado
 
-Nada de esto se ha probado en la placa: reconocimiento de las frases, volumen de los sonidos, fluidez real de la
+Nada de esto se ha probado en la placa: cómo suena el murmullo por el altavoz, si el aviso de "sin internet" salta en todos los casos (por ejemplo, Wi-Fi conectado pero servidor caído no cuenta como sin internet), reconocimiento de las frases, volumen de los sonidos, fluidez real de la
 animación en el ESP32-S3 y consumo de la lámpara.

@@ -84,6 +84,7 @@ bool ChipoFun::Start(lv_obj_t* parent, Hooks hooks, const char* version, const l
         return false;
     }
     lv_timer_pause(timer_);  // nothing to animate until something is shown
+    murmur_timer_ = lv_timer_create(MurmurCallback, 1000, this);
     running_ = true;
     return true;
 }
@@ -181,6 +182,8 @@ void ChipoFun::Build(const lv_font_t* font, const char* version, int w, int h) {
 void ChipoFun::Stop() {
     if (timer_) lv_timer_delete(timer_);
     timer_ = nullptr;
+    if (murmur_timer_) lv_timer_delete(murmur_timer_);
+    murmur_timer_ = nullptr;
     if (root_) lv_obj_delete(root_);
     root_ = boot_ = lamp_ = coin_ = coin_halo_ = caption_ = boot_title_ = boot_version_ = nullptr;
     for (auto& o : boot_parts_) o = nullptr;
@@ -189,6 +192,39 @@ void ChipoFun::Stop() {
     for (auto& o : coin_face_) o = nullptr;
     running_ = false;
     mode_ = Mode::Off;
+}
+
+void ChipoFun::MurmurCallback(lv_timer_t* timer) {
+    auto* self = static_cast<ChipoFun*>(lv_timer_get_user_data(timer));
+    if (self) self->MurmurTick(self->Now());
+}
+
+void ChipoFun::SetOffline(bool offline) { offline_.store(offline); }
+
+void ChipoFun::MurmurTick(uint32_t now_ms) {
+    if (!running_) return;
+    const bool offline = offline_.load();
+    if (!offline) {
+        offline_seen_ = false;
+        return;
+    }
+    if (!offline_seen_) {  // just lost the connection: the first murmur comes a little sooner
+        offline_seen_ = true;
+        next_murmur_ms_ = now_ms + 8000u;
+        return;
+    }
+    if (static_cast<int32_t>(now_ms - next_murmur_ms_) < 0) return;
+    next_murmur_ms_ = now_ms + static_cast<uint32_t>(lv_rand(30000, 60000));
+    if (mode_ != Mode::Off) return;  // not over the lamp, dice or coin
+    // Never the same clip twice in a row.
+    int k = static_cast<int>(lv_rand(1, 4));
+    if (k == murmur_last_) k = k % 4 + 1;
+    char id[16];
+    std::snprintf(id, sizeof(id), "murmur_%d", k);
+    if (!Play(id)) return;
+    murmur_last_ = k;
+    ++murmur_count_;
+    if (hooks_.babble) hooks_.babble(1400);
 }
 
 void ChipoFun::TimerCallback(lv_timer_t* timer) {

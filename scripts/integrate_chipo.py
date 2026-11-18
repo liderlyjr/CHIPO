@@ -190,9 +190,23 @@ replace_once(
             chipo_face_->SetState(ChipoStateFromXiaoZhi(new_state));
         }
     }
+    if (chipo_fun_ && new_state == kDeviceStateWifiConfiguring) chipo_fun_->SetOffline(true);  // no Wi-Fi yet
     auto led = board.GetLed();
 """,
     "Map XiaoZhi state to CHIPO face",
+)
+
+replace_once(
+    app_cc,
+    '    ESP_LOGI(TAG, "Network connected");\n',
+    '    ESP_LOGI(TAG, "Network connected");\n    if (chipo_fun_) chipo_fun_->SetOffline(false);  // CHIPO stops murmuring\n',
+    "Tell CHIPO Fun the network is back",
+)
+replace_once(
+    app_cc,
+    "void Application::HandleNetworkDisconnectedEvent() {\n",
+    "void Application::HandleNetworkDisconnectedEvent() {\n    if (chipo_fun_) chipo_fun_->SetOffline(true);  // no internet: CHIPO murmurs now and then\n",
+    "Tell CHIPO Fun the network is gone",
 )
 
 cmake = main / "CMakeLists.txt"
@@ -357,6 +371,10 @@ replace_once(
                 return true;
             };
             hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            // Offline murmur: the face laughs while CHIPO babbles (runs on the LVGL task, display lock held).
+            hooks.babble = [this](uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Laugh, ms);
+            };
             if (!chipo_fun_->Start(lv_screen_active(), std::move(hooks), CHIPO_OS_VERSION)) {
                 chipo_fun_.reset();
                 ESP_LOGE(TAG, "Failed to initialize CHIPO Fun");
