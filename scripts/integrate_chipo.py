@@ -24,7 +24,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -161,13 +161,14 @@ replace_once(
                             if (chipo_face_) chipo_face_->SetThinking(false);
                         }
                     }
-                    // CHIPO BUDDY (timers, alarm, bedtime) and Home Assistant: same rule, a sound answers
+                    // CHIPO BUDDY (timers, alarm, bedtime), FUN (lamp, dice, coin) and Home Assistant: same rule, a sound answers
                     // and the server's spoken reply to that sentence is dropped.
-                    if ((chipo_buddy_ || chipo_ha_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                    if ((chipo_buddy_ || chipo_ha_ || chipo_fun_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
                         DisplayLockGuard lock(display);
                         if (lock) {
                             bool handled = false;
                             if (chipo_buddy_) handled = chipo_buddy_->OnVoiceText(message.c_str());
+                            if (!handled && chipo_fun_) handled = chipo_fun_->OnVoiceText(message.c_str());
                             if (!handled && chipo_ha_) handled = chipo_ha_->OnVoiceText(message.c_str());
                             if (handled) {
                                 chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
@@ -266,13 +267,13 @@ replace_once(
 replace_once(
     app_h,
     '#include "chipo_weather_controller.h"\n',
-    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_version.h"\n',
     "Application drive header include",
 )
 replace_once(
     app_h,
     "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
-    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
     "Application drive members",
 )
 replace_once(
@@ -338,6 +339,29 @@ replace_once(
             if (!chipo_ha_->Start(ha_cfg, std::move(ha_hooks))) {
                 chipo_ha_.reset();
                 ESP_LOGE(TAG, "Failed to initialize CHIPO Home Assistant");
+            }
+        }
+    }
+
+    // CHIPO FUN (AMOLED): start-up screen, colour lamp, dice, coin. Created before BUDDY so that an alarm
+    // ringing while the lamp is on is drawn above it.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_fun_ = std::make_unique<ChipoFun>();
+            ChipoFun::Hooks hooks;
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            if (!chipo_fun_->Start(lv_screen_active(), std::move(hooks), CHIPO_OS_VERSION)) {
+                chipo_fun_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Fun");
+            } else {
+                chipo_fun_->ShowBoot();
             }
         }
     }
@@ -410,7 +434,7 @@ replace_once(
 replace_once(
     cmake,
     "                        chipo_update\n",
-    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n",
+    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n",
     "Link chipo_drive component",
 )
 

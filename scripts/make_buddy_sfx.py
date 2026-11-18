@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the three BUDDY sound effects (OGG/Opus 48 kHz mono) into components/chipo_drive/clips/.
+"""Generates the BUDDY and FUN sound effects (OGG/Opus 48 kHz mono) into components/chipo_drive/clips/.
 
     python3 scripts/make_buddy_sfx.py
 
@@ -47,3 +47,43 @@ save("buddy_timer_done", np.concatenate([beep, beep, beep]))
 # alarm: rising little melody, twice
 mel = np.concatenate([tone(f, 0.16, vol=0.55) for f in (523, 659, 784, 1047)] + [silence(0.12)])
 save("buddy_alarm", np.concatenate([mel, mel]))
+
+
+# ---- CHIPO FUN ---------------------------------------------------------------------------------
+rng = np.random.default_rng(7)
+
+
+def swell_chord(freqs, dur, vol=0.35):
+    t = np.arange(int(SR * dur)) / SR
+    y = sum(np.sin(2 * np.pi * f * t) + 0.3 * np.sin(2 * np.pi * 2 * f * t) for f in freqs) / (len(freqs) * 1.3)
+    env = np.minimum(1, t / 0.08) * np.exp(-t * 1.6) * np.minimum(1, (dur - t) / 0.3)
+    return (vol * y * env).astype(np.float32)
+
+
+# start-up: a warm C major chord with a little rising arpeggio before it (original, not any real chime)
+boot = np.concatenate([tone(523, 0.10, vol=0.4), tone(659, 0.10, vol=0.4), tone(784, 0.10, vol=0.4), swell_chord([262, 330, 392, 523], 1.7)])
+save("fun_boot", boot)
+
+# dice rattle: short noise ticks (band limited by a moving average), getting sparser
+def tick(dur=0.012, vol=0.5):
+    n = int(SR * dur)
+    x = rng.standard_normal(n).astype(np.float32)
+    x = np.convolve(x, np.ones(6) / 6, mode="same")
+    return (vol * x * np.linspace(1, 0, n) ** 2).astype(np.float32)
+
+roll = np.zeros(int(SR * 1.2), dtype=np.float32)
+t0 = 0.0
+gap = 0.03
+while t0 < 1.1:
+    i = int(t0 * SR)
+    k = tick(vol=0.55 * (1.0 - t0 / 1.3))
+    roll[i:i + len(k)] += k[: len(roll) - i]
+    t0 += gap * (1 + rng.random() * 0.6)
+    gap *= 1.07
+save("fun_roll", roll)
+
+# coin: a metallic ping with two inharmonic partials
+t = np.arange(int(SR * 1.0)) / SR
+ping = 0.4 * (np.sin(2 * np.pi * 2700 * t) * np.exp(-t * 7) + 0.6 * np.sin(2 * np.pi * 4130 * t) * np.exp(-t * 11))
+ping *= np.minimum(1, t / 0.002)
+save("fun_coin", np.concatenate([tick(0.02, 0.4), silence(0.25), ping.astype(np.float32)]))

@@ -71,6 +71,7 @@ Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de 
 - **Modo DRIVE** para el coche («Chipo, vámonos»): gafas de aviador, escena de carretera y comentarios de copiloto
   según aceleración, frenada, curvas y baches.
 - **BUDDY**: temporizador, pomodoro, cronómetro, alarma y modo dormir con reloj de siete segmentos; tumbado de lado se convierte en reloj de mesita.
+- **FUN** (AMOLED): pantalla de inicio de neón, lámpara de colores, dados y moneda por voz; halo de los ojos más intenso. Ver [docs/CHIPO_FUN.md](docs/CHIPO_FUN.md).
 - **Home Assistant** por voz: luces y escenas (apagado hasta configurar la dirección y el token).
 - **Actualización automática** desde las Releases de GitHub.
 

@@ -1,0 +1,147 @@
+// CHIPO FUN on a real LVGL build: start-up screen, lamp, dice, coin. Simulated time.
+#include <cstdio>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "chipo_fun.h"
+
+static int g_failures = 0;
+#define CHECK(c, ...) do { if (!(c)) { ++g_failures; std::printf("FAIL line %d: ", __LINE__); std::printf(__VA_ARGS__); std::printf("\n"); } } while (0)
+
+static uint32_t g_now = 1000;
+static uint32_t FakeTick() { return g_now; }
+static uint8_t g_buf[368 * 40 * 4];
+static void Flush(lv_display_t* d, const lv_area_t*, uint8_t*) { lv_display_flush_ready(d); }
+
+struct Rig {
+    ChipoFun fun;
+    std::vector<std::string> clips, notes;
+    bool clips_exist = true;
+    bool Start() {
+        ChipoFun::Hooks h;
+        h.play_clip = [this](const char* id) { if (!clips_exist) return false; clips.push_back(id); return true; };
+        h.notify = [this](const char* t) { notes.push_back(t); };
+        h.clock = [] { return g_now; };
+        return fun.Start(lv_screen_active(), std::move(h), "0.6.0");
+    }
+    void Run(uint32_t ms) { for (uint32_t t = 0; t < ms; t += 50) { g_now += 50; fun.Step(g_now); lv_timer_handler(); } }
+    // Logic only, no rendering: for long simulated stretches.
+    void Skip(uint32_t ms) { for (uint32_t t = 0; t < ms; t += 50) { g_now += 50; fun.Step(g_now); } lv_timer_handler(); }
+    bool Played(const char* id) const { for (auto& c : clips) if (c == id) return true; return false; }
+};
+
+int main() {
+    lv_init();
+    lv_tick_set_cb(FakeTick);
+    lv_rand_set_seed(1234);
+    lv_display_t* d = lv_display_create(368, 448);
+    lv_display_set_buffers(d, g_buf, nullptr, sizeof(g_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_flush_cb(d, Flush);
+
+    std::printf("== start-up screen\n");
+    {
+        Rig r;
+        CHECK(r.Start(), "start");
+        CHECK(r.fun.mode() == ChipoFun::Mode::Off, "nothing at first");
+        r.fun.ShowBoot();
+        CHECK(r.fun.mode() == ChipoFun::Mode::Boot && r.Played("fun_boot"), "boot screen and sound");
+        CHECK(!r.fun.OnVoiceText("tira un dado"), "voice ignored during the start-up screen");
+        r.Run(600);
+        CHECK(r.fun.Debug().boot_alpha > 0.9f, "fully lit in the middle (%.2f)", r.fun.Debug().boot_alpha);
+        r.Run(1200);
+        CHECK(r.fun.mode() == ChipoFun::Mode::Boot, "still there at 1.8 s");
+        r.Run(1000);
+        CHECK(r.fun.mode() == ChipoFun::Mode::Off, "gone after ~2.6 s");
+        r.fun.ShowBoot();
+        r.Run(300);
+        r.fun.OnTouch();
+        CHECK(r.fun.mode() == ChipoFun::Mode::Off, "a touch skips it");
+    }
+
+    std::printf("== lamp\n");
+    {
+        Rig r;
+        r.Start();
+        CHECK(!r.fun.OnVoiceText("apaga la luz"), "no lamp on: 'apaga la luz' is left to others");
+        CHECK(r.fun.OnVoiceText("Chipo, luz cálida"), "warm lamp");
+        CHECK(r.fun.mode() == ChipoFun::Mode::Lamp && r.fun.Debug().lamp == LampColor::Warm, "lamp on, warm");
+        r.Run(500);
+        CHECK(r.fun.OnVoiceText("luz azul") && r.fun.Debug().lamp == LampColor::Cool, "switch to cool");
+        CHECK(r.fun.OnVoiceText("arcoíris") && r.fun.Debug().lamp == LampColor::Rainbow, "rainbow");
+        std::set<uint32_t> colours;
+        for (int i = 0; i < 80; ++i) { r.Run(100); colours.insert(r.fun.Debug().lamp_rgb); }
+        CHECK(colours.size() >= 10, "the rainbow keeps changing (%zu colours)", colours.size());
+        CHECK(r.fun.OnVoiceText("apaga la lámpara"), "voice off");
+        CHECK(r.fun.mode() == ChipoFun::Mode::Off, "off");
+        r.fun.OnVoiceText("luz verde");
+        r.fun.OnTouch();
+        CHECK(r.fun.mode() == ChipoFun::Mode::Off, "a touch turns it off");
+        r.fun.OnVoiceText("modo lámpara");
+        r.Skip(29u * 60u * 1000u);
+        CHECK(r.fun.mode() == ChipoFun::Mode::Lamp, "still on at 29 min");
+        r.Skip(90u * 1000u);
+        CHECK(r.fun.mode() == ChipoFun::Mode::Off && !r.notes.empty(), "switches itself off at 30 min");
+    }
+
+    std::printf("== dice\n");
+    {
+        Rig r;
+        r.Start();
+        CHECK(r.fun.OnVoiceText("tira un dado") && r.Played("fun_roll"), "roll with sound");
+        CHECK(r.fun.mode() == ChipoFun::Mode::Dice && r.fun.Debug().rolling && r.fun.Debug().dice_count == 1, "rolling one die");
+        std::set<int> seen_while_rolling;
+        for (int i = 0; i < 20; ++i) { r.Run(50); seen_while_rolling.insert(r.fun.Debug().dice_values[0]); }
+        CHECK(seen_while_rolling.size() >= 3, "the faces shuffle while rolling");
+        r.Run(600);
+        CHECK(!r.fun.Debug().rolling, "stopped");
+        const int v = r.fun.Debug().dice_values[0];
+        CHECK(v >= 1 && v <= 6, "result 1..6 (%d)", v);
+        CHECK(!r.notes.empty() && r.notes.back().find(std::to_string(v)) != std::string::npos, "text says the number (%s)", r.notes.empty() ? "-" : r.notes.back().c_str());
+        r.Run(8000);
+        CHECK(r.fun.mode() == ChipoFun::Mode::Off, "closes by itself");
+
+        r.fun.OnVoiceText("lanza dos dados");
+        r.Run(1400);
+        CHECK(r.fun.Debug().dice_count == 2, "two dice");
+        const int a = r.fun.Debug().dice_values[0], b = r.fun.Debug().dice_values[1];
+        CHECK(a >= 1 && a <= 6 && b >= 1 && b <= 6, "both in range (%d,%d)", a, b);
+        CHECK(r.notes.back().find(std::to_string(a + b)) != std::string::npos, "sum shown (%s)", r.notes.back().c_str());
+        r.fun.OnTouch();
+
+        std::set<int> all;
+        for (int i = 0; i < 300; ++i) { r.fun.OnVoiceText("tira un dado"); r.Skip(1400); all.insert(r.fun.Debug().dice_values[0]); r.fun.OnTouch(); }
+        CHECK(all.size() == 6, "all six faces come up over 300 rolls (%zu)", all.size());
+    }
+
+    std::printf("== coin\n");
+    {
+        Rig r;
+        r.Start();
+        CHECK(r.fun.OnVoiceText("cara o cruz") && r.Played("fun_coin"), "flip with sound");
+        CHECK(r.fun.mode() == ChipoFun::Mode::Coin && r.fun.Debug().rolling, "flipping");
+        r.Skip(1700);
+        CHECK(!r.fun.Debug().rolling && !r.notes.empty() && (r.notes.back() == "Cara" || r.notes.back() == "Cruz"), "result text (%s)", r.notes.empty() ? "-" : r.notes.back().c_str());
+        r.Skip(8000);
+        CHECK(r.fun.mode() == ChipoFun::Mode::Off, "closes by itself");
+        int heads = 0;
+        for (int i = 0; i < 200; ++i) { r.fun.OnVoiceText("tira una moneda"); r.Skip(1600); heads += r.fun.Debug().coin_heads; r.fun.OnTouch(); }
+        CHECK(heads > 60 && heads < 140, "fair coin: %d heads of 200", heads);
+    }
+
+    std::printf("== no clips, ordinary speech, stop\n");
+    {
+        Rig r;
+        r.clips_exist = false;
+        r.Start();
+        CHECK(!r.fun.OnVoiceText("tira un dado"), "no sound: the assistant is not silenced");
+        r.Run(1500);
+        CHECK(r.fun.mode() == ChipoFun::Mode::Dice && !r.notes.empty(), "but the die is rolled and the result shown");
+        CHECK(!r.fun.OnVoiceText("qué tiempo hace") && !r.fun.OnVoiceText(nullptr), "ordinary speech untouched");
+        r.fun.Stop();
+        r.fun.Step(g_now);  // after Stop: must not crash (ASan)
+    }
+
+    if (g_failures == 0) std::printf("ALL FUN TESTS PASSED\n");
+    return g_failures == 0 ? 0 : 1;
+}

@@ -33,6 +33,8 @@ g++ -std=c++17 -Wall -Wextra $SAN $DINC tests/host/test_drive_motion.cpp compone
 echo "== CHIPO BUDDY voice commands and time engine"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_buddy/include -Icomponents/chipo_drive/include tests/host/test_buddy_logic.cpp components/chipo_buddy/chipo_buddy_voice.cpp components/chipo_buddy/chipo_buddy_engine.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_buddy_logic"
 "$OUT/test_buddy_logic"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_fun/include -Icomponents/chipo_drive/include tests/host/test_fun_logic.cpp components/chipo_fun/chipo_fun_voice.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_fun_logic"
+"$OUT/test_fun_logic"
 
 echo "== Home Assistant requests and spoken commands"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include tests/host/test_ha_logic.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_ha_logic"
@@ -89,6 +91,12 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_buddy
     components/chipo_buddy/chipo_buddy_view.cpp components/chipo_buddy/chipo_buddy.cpp components/chipo_drive/chipo_drive_voice.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_buddy"
 "$OUT/test_buddy"
+
+echo "== chipo_fun (LVGL)"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_fun/include -Icomponents/chipo_drive/include -w \
+    tests/host/test_fun.cpp components/chipo_fun/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_fun"
+"$OUT/test_fun"
 
 echo "== Home Assistant controller (async call, result text, off when not configured)"
 g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include -w \

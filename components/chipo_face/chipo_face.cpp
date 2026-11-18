@@ -67,6 +67,8 @@ constexpr float kGlassesOutS = 0.8f;        // and off
 constexpr float kGlassesTravel = 150.0f;    // px above their place when fully off
 constexpr float kDriveLookPx = 10.0f;       // how far the eyes look into a curve
 constexpr uint32_t kEyeCore = 0xDDF8FF;
+constexpr float kAmoledGlowGain = 1.3f;  // halo width gain (px) for the AMOLED panel
+constexpr float kAmoledOpaGain = 1.25f;  // and opacity gain (capped at 100 %)
 constexpr uint32_t kPupil = 0x06121B;
 
 constexpr float kTwoPi = 6.2831853f;
@@ -940,8 +942,9 @@ void ChipoFace::Step(uint32_t now_ms) {
     layout.mouth_h = Round16(cur_.mouth_h);
     layout.mouth_x = Round16(kCenterX - cur_.mouth_w / 2.0f);
     layout.mouth_y = Round16(cur_.mouth_cy - cur_.mouth_h / 2.0f);
-    layout.glow_w = static_cast<int16_t>(2 * std::lround(cur_.glow_w / 2.0f));  // steps of 2 px
-    layout.glow_opa = Round16(Clamp(cur_.glow_opa, 0.0f, 100.0f));
+    // AMOLED: black pixels are off, so a wider and brighter halo reads as light, not as a grey haze.
+    layout.glow_w = static_cast<int16_t>(2 * std::lround(Clamp(cur_.glow_w * kAmoledGlowGain, 0.0f, 60.0f) / 2.0f));  // steps of 2 px
+    layout.glow_opa = Round16(Clamp(cur_.glow_opa * kAmoledOpaGain, 0.0f, 100.0f));
     layout.face_dx = Round16(face_x_);
     float sway = 0;  // the car rocks the face gently while driving
     if (drive_mode_) sway = glasses_t_ * (2.0f * std::sin(static_cast<float>(now_ms) * 0.0022f) + road_jolt_ * 3.0f);
