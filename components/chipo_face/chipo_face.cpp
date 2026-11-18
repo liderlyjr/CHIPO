@@ -774,9 +774,11 @@ void ChipoFace::Step(uint32_t now_ms) {
     layout.right_pupil_y = Round16(kEyeCenterY - right_pupil_h / 2.0f + right_oy);
     {
         // Glow colour in steps of 4 so a slow colour change does not repaint every step.
-        auto channel = [](float v) { return static_cast<uint32_t>(std::lround(Clamp(v, 0.0f, 255.0f) / 4.0f)) * 4u; };
-        layout.glow_rgb = (std::min(channel(cur_.glow_r), 255u) << 16) |
-                          (std::min(channel(cur_.glow_g), 255u) << 8) | std::min(channel(cur_.glow_b), 255u);
+        auto channel = [](float v) -> uint32_t {
+            const long q = std::lround(Clamp(v, 0.0f, 255.0f) / 4.0f) * 4;
+            return static_cast<uint32_t>(q > 255 ? 255 : q);
+        };
+        layout.glow_rgb = (channel(cur_.glow_r) << 16) | (channel(cur_.glow_g) << 8) | channel(cur_.glow_b);
     }
     layout.left_pupil_x = Round16(layout.left_eye_x + (cur_.eye_w - cur_.pupil_w) / 2.0f + cur_.pupil_x);
     layout.right_pupil_x = Round16(layout.right_eye_x + (cur_.eye_w - cur_.pupil_w) / 2.0f + cur_.pupil_x);
