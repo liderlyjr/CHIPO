@@ -84,3 +84,12 @@ Ajustes en `components/chipo_face/include/chipo_config.h`: `CHIPO_DESK_CLOCK_SID
 **Sin comprobar en la placa:** qué lado cuenta como «izquierdo» depende de cómo esté montado el sensor y se deduce
 de la primera vez que CHIPO queda quieto y derecho (igual que las inclinaciones). Si en la placa real el reloj sale
 al revés o en el lado contrario, basta con cambiar el signo de `CHIPO_DESK_CLOCK_SIDE`.
+
+
+## Reloj AMOLED
+
+![Reloj en neón](img/chipo_buddy_neon.png)
+
+Los dígitos de siete segmentos son tubos luminosos: núcleo claro que se funde con el color saturado, y un halo suave
+alrededor de los segmentos encendidos. Los apagados siguen tenues y sin halo, como en un display real, sobre negro
+puro (píxeles apagados). Vale igual para el temporizador, la alarma, el reloj de mesita y el reloj de mesa girado.
