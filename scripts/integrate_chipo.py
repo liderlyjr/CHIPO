@@ -24,7 +24,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -161,6 +161,20 @@ replace_once(
                             if (chipo_face_) chipo_face_->SetThinking(false);
                         }
                     }
+                    // CHIPO BUDDY (timers, alarm, bedtime) and Home Assistant: same rule, a sound answers
+                    // and the server's spoken reply to that sentence is dropped.
+                    if ((chipo_buddy_ || chipo_ha_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                        DisplayLockGuard lock(display);
+                        if (lock) {
+                            bool handled = false;
+                            if (chipo_buddy_) handled = chipo_buddy_->OnVoiceText(message.c_str());
+                            if (!handled && chipo_ha_) handled = chipo_ha_->OnVoiceText(message.c_str());
+                            if (handled) {
+                                chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                                if (chipo_face_) chipo_face_->SetThinking(false);
+                            }
+                        }
+                    }
                 });
 """,
     "Show CHIPO thinking and weather once speech is recognised",
@@ -252,19 +266,19 @@ replace_once(
 replace_once(
     app_h,
     '#include "chipo_weather_controller.h"\n',
-    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n',
     "Application drive header include",
 )
 replace_once(
     app_h,
     "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
-    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
     "Application drive members",
 )
 replace_once(
     app_cc,
     '#include "chipo_update.h"\n',
-    '#include "chipo_update.h"\n#include "chipo_drive_clips.h"\n#include "esp_timer.h"\n',
+    '#include "chipo_update.h"\n#include "chipo_drive_clips.h"\n#include "chipo_ha_client.h"\n#include "esp_timer.h"\n#include <sys/time.h>\n#include <ctime>\n',
     "Application drive includes",
 )
 replace_once(
@@ -303,6 +317,70 @@ replace_once(
             }
         }
     }
+
+    // CHIPO Home Assistant (only active when the address and token are stored in NVS; otherwise off).
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_ha_ = std::make_unique<ChipoHa>();
+            HaConfig ha_cfg;
+            ChipoHaLoadConfig(&ha_cfg);
+            ChipoHa::Hooks ha_hooks;
+            ha_hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            ha_hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            ha_hooks.post = ChipoHaPost;
+            ha_hooks.run_async = ChipoHaRunAsync;
+            if (!chipo_ha_->Start(ha_cfg, std::move(ha_hooks))) {
+                chipo_ha_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Home Assistant");
+            }
+        }
+    }
+
+    // CHIPO BUDDY: timer, pomodoro, stopwatch, alarm and bedside clock by voice.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_buddy_ = std::make_unique<ChipoBuddy>();
+            ChipoBuddy::Hooks hooks;
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
+            hooks.assistant_busy = [this]() {
+                const auto state = GetDeviceState();
+                return state == kDeviceStateListening || state == kDeviceStateSpeaking;
+            };
+            hooks.in_drive = [this]() { return chipo_drive_ && chipo_drive_->active(); };
+            // XiaoZhi stores the server time plus the time zone offset as the system time, so the
+            // "UTC" fields already are the local clock. Before the first sync the year is 1970: not valid.
+            hooks.wall_time = [](BuddyWallTime* out) {
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                if (tv.tv_sec < 1700000000) return false;
+                struct tm tm_now;
+                gmtime_r(&tv.tv_sec, &tm_now);
+                out->valid = true;
+                out->hour = tm_now.tm_hour;
+                out->minute = tm_now.tm_min;
+                out->second = tm_now.tm_sec;
+                return true;
+            };
+            hooks.scene = [this](const char* which) { if (chipo_ha_) chipo_ha_->RunScene(which); };
+            if (!chipo_buddy_->Start(lv_screen_active(), std::move(hooks))) {
+                chipo_buddy_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Buddy");
+            }
+        }
+    }
 """,
     "Create CHIPO Drive after the face",
 )
@@ -327,7 +405,7 @@ replace_once(
 replace_once(
     cmake,
     "                        chipo_update\n",
-    "                        chipo_update\n                        chipo_drive\n",
+    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n",
     "Link chipo_drive component",
 )
 

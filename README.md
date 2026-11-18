@@ -35,6 +35,12 @@ lo inclinas o se cae, y cómo ajustar el sentido de la caída.
 Consulta [docs/CHIPO_DRIVE.md](docs/CHIPO_DRIVE.md) para el modo copiloto del coche («Chipo, vámonos»: gafas de sol,
 reacciones a aceleración, frenada, curvas y baches; sin probar aún en la placa).
 
+Consulta [docs/CHIPO_BUDDY.md](docs/CHIPO_BUDDY.md) para el temporizador, pomodoro, cronómetro, alarma y modo
+dormir con reloj retro (todo por voz).
+
+Consulta [docs/CHIPO_HOME_ASSISTANT.md](docs/CHIPO_HOME_ASSISTANT.md) para controlar luces y escenas de Home
+Assistant por voz (apagado hasta configurar la dirección y el token).
+
 Consulta [docs/CHIPO_UPDATE.md](docs/CHIPO_UPDATE.md) para actualizar CHIPO subiendo `VERSION` a GitHub.
 
 Consulta [docs/CHIPO_WEATHER.md](docs/CHIPO_WEATHER.md) para la pantalla del clima (se abre al preguntar por el
@@ -55,6 +61,21 @@ Qué falta por confirmar, solo posible con la placa:
 - Que el toque abre la pantalla del clima y que la descarga funciona desde tu red.
 
 Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de CHIPO y de XiaoZhi usados.
+
+## Qué hace CHIPO hoy
+
+- **Cara expresiva** hecha de ojos y boca luminosos: estados (escucha, piensa, habla, conecta, error, dormido),
+  emociones, parpadeo, y reacciones al giroscopio (inclinar, caerse, asentir, negar, girar, marearse).
+- **Asistente de voz** de XiaoZhi, en español, con «Chipo» como palabra de activación.
+- **Pantalla del clima** (Open-Meteo) al preguntar por el tiempo o con un toque.
+- **Modo DRIVE** para el coche («Chipo, vámonos»): gafas de aviador, escena de carretera y comentarios de copiloto
+  según aceleración, frenada, curvas y baches.
+- **BUDDY**: temporizador, pomodoro, cronómetro, alarma y modo dormir con reloj de siete segmentos.
+- **Home Assistant** por voz: luces y escenas (apagado hasta configurar la dirección y el token).
+- **Actualización automática** desde las Releases de GitHub.
+
+Todo lo anterior compila en GitHub Actions y pasa sus pruebas en PC; **nada se ha probado todavía en la placa**
+(llega el 10 de diciembre de 2026).
 
 ## Compilar sin instalar nada en Windows
 

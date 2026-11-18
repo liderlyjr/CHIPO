@@ -30,6 +30,14 @@ echo "== CHIPO DRIVE motion (simulated drives, hand rotations, bumps, mountings)
 g++ -std=c++17 -Wall -Wextra $SAN $DINC tests/host/test_drive_motion.cpp components/chipo_drive/chipo_drive_motion.cpp -o "$OUT/test_drive_motion"
 "$OUT/test_drive_motion"
 
+echo "== CHIPO BUDDY voice commands and time engine"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_buddy/include -Icomponents/chipo_drive/include tests/host/test_buddy_logic.cpp components/chipo_buddy/chipo_buddy_voice.cpp components/chipo_buddy/chipo_buddy_engine.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_buddy_logic"
+"$OUT/test_buddy_logic"
+
+echo "== Home Assistant requests and spoken commands"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include tests/host/test_ha_logic.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_ha_logic"
+"$OUT/test_ha_logic"
+
 echo "== tilt maths"
 g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_tilt.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_tilt"
 "$OUT/test_tilt"
@@ -74,6 +82,19 @@ g++ -std=gnu++23 -O1 -g $SAN -DCHIPO_DEBUG_TILT_LOG=0 -DCHIPO_DRIVE_DEBUG_LOG=0 
     "$OUT"/obj/*.o -o "$OUT/test_drive"
 "$OUT/test_drive"
 "$OUT/test_face"
+
+echo "== CHIPO BUDDY screen (timer, pomodoro, alarm, bedtime)"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_buddy/include -Icomponents/chipo_drive/include -w \
+    tests/host/test_buddy.cpp components/chipo_buddy/chipo_buddy_voice.cpp components/chipo_buddy/chipo_buddy_engine.cpp \
+    components/chipo_buddy/chipo_buddy_view.cpp components/chipo_buddy/chipo_buddy.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_buddy"
+"$OUT/test_buddy"
+
+echo "== Home Assistant controller (async call, result text, off when not configured)"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include -w \
+    tests/host/test_ha.cpp components/chipo_ha/chipo_ha.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_ha"
+"$OUT/test_ha"
 
 echo "== weather screen (LVGL $(basename "$LVGL_DIR"))"
 g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w \
