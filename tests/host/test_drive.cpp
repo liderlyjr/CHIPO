@@ -243,6 +243,35 @@ int main() {
 
     // ---- missing clips: text instead, and the server keeps its answer -----------------------------------------
     {
+        std::printf("== break reminder on long trips\n");
+        g_queue.clear();
+        Harness h;
+        h.Start();
+        h.Run(1000);
+        CHECK(h.drive.OnVoiceText("Chipo, vámonos"), "car mode on");
+        const size_t before = h.notes.size();
+        // The simulated IMU stays quiet; only time passes (1 h 55 min in coarse steps).
+        for (int i = 0; i < 115 * 60 / 4; ++i) { g_now += 4000; h.drive.Step(g_now); }
+        CHECK(h.drive.break_reminders() == 0, "nothing before 2 h (%d)", h.drive.break_reminders());
+        for (int i = 0; i < 6 * 60 / 4; ++i) { g_now += 4000; h.drive.Step(g_now); }
+        CHECK(h.drive.break_reminders() == 1, "one suggestion after 2 h (%d)", h.drive.break_reminders());
+        bool said = false;
+        for (size_t i = before; i < h.notes.size(); ++i) said |= h.notes[i].find("descansar") != std::string::npos;
+        CHECK(said, "it says it in text");
+        CHECK(!h.clips.empty() && h.clips.back() == "buddy_chime", "and a chime");
+        for (int i = 0; i < 25 * 60 / 4; ++i) { g_now += 4000; h.drive.Step(g_now); }
+        CHECK(h.drive.break_reminders() == 1, "then 30 min of peace");
+        for (int i = 0; i < 6 * 60 / 4; ++i) { g_now += 4000; h.drive.Step(g_now); }
+        CHECK(h.drive.break_reminders() == 2, "and again every 30 min (%d)", h.drive.break_reminders());
+        h.busy = true;
+        for (int i = 0; i < 40 * 60 / 4; ++i) { g_now += 4000; h.drive.Step(g_now); }
+        CHECK(h.drive.break_reminders() == 2, "never while the assistant is talking");
+        h.busy = false;
+        h.drive.Step(g_now + 4000);
+        CHECK(h.drive.break_reminders() == 3, "as soon as it is quiet again");
+    }
+
+    {
         std::printf("== no clips recorded\n");
         Harness h;
         h.clip_exists = false;

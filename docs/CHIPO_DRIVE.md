@@ -135,3 +135,9 @@ horizonte cian brillante, suelo negro (píxeles apagados), líneas de carril cia
 marcador naranja del volante. Las gafas de aviador tienen cristales más saturados (azul noche a naranja) y montura
 dorada más viva. Todo aparece y desaparece con las gafas. La lógica de movimiento no ha cambiado.
 Herramienta de capturas: `tests/host/render_drive.cpp`.
+
+## Aviso de descanso (v0.6+)
+
+Con el modo coche activo, a las **2 horas** CHIPO sugiere parar ("Llevamos un buen rato conduciendo. Para a descansar"),
+con un campanilla y un bostezo en la cara; después repite cada **30 minutos**. Nunca interrumpe mientras el asistente
+está hablando (espera a que termine). Probado en PC con tiempo simulado; no probado en un coche real.

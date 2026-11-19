@@ -48,6 +48,7 @@ public:
     bool OnVoiceText(const char* text);
 
     bool active() const { return active_; }
+    int break_reminders() const { return break_reminders_; }  // "you should stop" suggestions made so far
     DriveSensitivity sensitivity() const { return sensitivity_; }
     const DriveOutput& motion() const { return motion_.output(); }
 
@@ -75,4 +76,6 @@ private:
     bool active_ = false;
     uint32_t last_event_ms_ = 0;
     uint32_t next_log_ms_ = 0;
+    uint32_t next_break_ms_ = 0;
+    int break_reminders_ = 0;
 };

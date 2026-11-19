@@ -53,6 +53,25 @@ FunCommand ParseFunCommand(const char* text) {
         return cmd;
     }
 
+    // ---- eye colour ("ojos rosas", "pon los ojos verdes", "ojos normales") ------------------------
+    const bool eye_cmd = core.size() <= 2 || In(core[0], {"pon", "ponte", "ponme", "pones", "cambia", "cambiate", "quiero", "usa", "con", "tus", "los", "vuelve", "vuelvan", "deja"});
+    if (eye_cmd && Has(core, {"ojos", "ojo"})) {
+        struct Named { const char* word; unsigned rgb; };
+        static const Named kColors[] = {
+            {"rosa", 0xFF4FA8}, {"rosas", 0xFF4FA8}, {"rosado", 0xFF4FA8}, {"rojo", 0xFF3B30}, {"rojos", 0xFF3B30},
+            {"verde", 0x39FF88}, {"verdes", 0x39FF88}, {"naranja", 0xFF9A3C}, {"naranjas", 0xFF9A3C},
+            {"morado", 0xB66BFF}, {"morados", 0xB66BFF}, {"violeta", 0xB66BFF}, {"lila", 0xB66BFF},
+            {"amarillo", 0xFFE14D}, {"amarillos", 0xFFE14D}, {"turquesa", 0x2EF2E0}, {"cian", 0x2EF2E0},
+            {"blanco", 0xF2F6FF}, {"blancos", 0xF2F6FF}};
+        for (const auto& w : core)
+            for (const auto& c : kColors)
+                if (w == c.word) { cmd.intent = FunIntent::EyeColor; cmd.rgb = c.rgb; return cmd; }
+        if (Has(core, {"normales", "normal", "azules", "azul", "originales", "siempre", "defecto"})) {
+            cmd.intent = FunIntent::EyeReset;
+            return cmd;
+        }
+    }
+
     // ---- lamp on ------------------------------------------------------------------------------
     if (lamp_word) {
         const bool on_verb = In(core[0], {"enciende", "prende", "activa", "pon", "ponme", "modo", "quiero", "luz", "luces", "lampara", "arcoiris"});

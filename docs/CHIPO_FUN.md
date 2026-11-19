@@ -60,3 +60,11 @@ por eso es texto más sonido. El aviso de error normal de XiaoZhi sigue aparecie
 
 Nada de esto se ha probado en la placa: cómo suena el murmullo por el altavoz, si el aviso de "sin internet" salta en todos los casos y qué errores de XiaoZhi disparan el «me caí», reconocimiento de las frases, volumen de los sonidos, fluidez real de la
 animación en el ESP32-S3 y consumo de la lámpara.
+
+## Color de ojos por voz
+
+"Chipo, pon los ojos rosas" (también rojo, verde, naranja, morado, amarillo, turquesa, blanco). "Ojos normales" o
+"ojos azules" vuelven al azul de CHIPO. El color se guarda en la memoria (NVS, espacio `chipo`, clave `eye_rgb`) y
+sobrevive a los reinicios. Solo sustituye el azul normal: las emociones con color propio (amor rosa, alegría dorada,
+enfado rojo...) lo conservan. Para evitar falsos positivos solo se acepta una frase corta o con verbo ("pon", "cambia"...),
+así que "me duelen los ojos" no hace nada. Probado en PC; el aspecto real en el AMOLED no está verificado.

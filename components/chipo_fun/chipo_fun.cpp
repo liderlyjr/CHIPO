@@ -348,6 +348,14 @@ bool ChipoFun::OnVoiceText(const char* text) {
     case FunIntent::Coin:
         StartCoin(now);
         return Play("fun_coin");
+    case FunIntent::EyeColor:
+        if (hooks_.set_eye_color) hooks_.set_eye_color(static_cast<int64_t>(cmd.rgb));
+        ++eye_changes_;
+        return Play("buddy_chime");
+    case FunIntent::EyeReset:
+        if (hooks_.set_eye_color) hooks_.set_eye_color(-1);
+        ++eye_changes_;
+        return Play("buddy_chime");
     }
     return false;
 }

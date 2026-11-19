@@ -34,6 +34,22 @@ int main() {
     Is("cara o cruz", FunIntent::Coin);
     Is("Chipo, tira una moneda", FunIntent::Coin);
 
+    // Eye colour.
+    {
+        FunCommand c = ParseFunCommand("Chipo, pon los ojos rosas");
+        if (c.intent != FunIntent::EyeColor || c.rgb != 0xFF4FA8) { std::printf("FAIL eyes pink\n"); ++g_fail; }
+        c = ParseFunCommand("ojos verdes");
+        if (c.intent != FunIntent::EyeColor || c.rgb != 0x39FF88) { std::printf("FAIL eyes green\n"); ++g_fail; }
+        c = ParseFunCommand("cambia los ojos a morado");
+        if (c.intent != FunIntent::EyeColor || c.rgb != 0xB66BFF) { std::printf("FAIL eyes purple\n"); ++g_fail; }
+    }
+    Is("ojos normales", FunIntent::EyeReset);
+    Is("Chipo, vuelve a los ojos azules", FunIntent::EyeReset);
+    Is("pon los ojos de siempre", FunIntent::EyeReset);
+    Is("mi hermana tiene los ojos verdes y es muy guapa", FunIntent::None);
+    Is("tengo ojos verdes", FunIntent::None);
+    Is("me duelen los ojos", FunIntent::None);
+
     // Home Assistant's phrases and ordinary speech are not ours.
     Is("enciende la luz del salón", FunIntent::None);
     Is("apaga la luz del salón", FunIntent::None);

@@ -570,8 +570,22 @@ ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, Emotion emotion, u
     const float max_y = std::max(0.0f, (p.eye_h - p.pupil_h) / 2.0f - 2.0f);
     p.pupil_x = Clamp(p.pupil_x, -max_x, max_x);
     p.pupil_y = Clamp(p.pupil_y, -max_y, max_y);
+    // The owner's eye colour only replaces the default blue, never an emotion's own colour.
+    if (has_tint_ && std::fabs(p.glow_r - 117.0f) < 24.0f && std::fabs(p.glow_g - 223.0f) < 24.0f &&
+        std::fabs(p.glow_b - 255.0f) < 24.0f) {
+        p.glow_r = static_cast<float>((tint_rgb_ >> 16) & 0xFF);
+        p.glow_g = static_cast<float>((tint_rgb_ >> 8) & 0xFF);
+        p.glow_b = static_cast<float>(tint_rgb_ & 0xFF);
+    }
     return p;
 }
+
+void ChipoFace::SetEyeTint(uint32_t rgb) {
+    has_tint_ = true;
+    tint_rgb_ = rgb & 0xFFFFFF;
+}
+
+void ChipoFace::ClearEyeTint() { has_tint_ = false; }
 
 void ChipoFace::ApplyEmotion(Pose& p, Emotion emotion, State shown, uint32_t now_ms) const {
     const float t = static_cast<float>(now_ms);

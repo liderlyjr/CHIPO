@@ -135,6 +135,27 @@ int main() {
         CHECK(all.size() == 6, "all six faces come up over 300 rolls (%zu)", all.size());
     }
 
+    std::printf("== eye colour\n");
+    {
+        int64_t last = -2;
+        int calls = 0;
+        ChipoFun fun;
+        ChipoFun::Hooks h;
+        std::vector<std::string> clips;
+        h.play_clip = [&clips](const char* id) { clips.push_back(id); return true; };
+        h.notify = [](const char*) {};
+        h.set_eye_color = [&](int64_t rgb) { last = rgb; ++calls; };
+        h.clock = [] { return g_now; };
+        fun.Start(lv_screen_active(), std::move(h), "0.6.0");
+        CHECK(fun.OnVoiceText("Chipo, pon los ojos rosas") && last == 0xFF4FA8, "pink eyes asked (%lld)", static_cast<long long>(last));
+        CHECK(!clips.empty() && clips.back() == "buddy_chime", "with a chime");
+        CHECK(fun.OnVoiceText("ojos verdes") && last == 0x39FF88, "green eyes");
+        CHECK(fun.OnVoiceText("ojos normales") && last == -1, "back to normal");
+        CHECK(calls == 3 && fun.eye_changes() == 3, "three changes (%d)", calls);
+        CHECK(!fun.OnVoiceText("me duelen los ojos") && calls == 3, "talking about eyes is not a command");
+        CHECK(fun.mode() == ChipoFun::Mode::Off, "no overlay is opened");
+    }
+
     std::printf("== coin\n");
     {
         Rig r;

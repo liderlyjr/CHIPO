@@ -112,6 +112,12 @@ public:
     // AMOLED burn-in protection: the whole face drifts a few pixels (set slowly from outside; not part of the face's own
     // position, so tilt and fall reactions are untouched).
     void SetPixelShift(int dx, int dy);
+    // Eye colour chosen by the owner ("ojos rosa"): replaces CHIPO's default blue glow. Emotions that have their
+    // own colour (love = pink, happy = gold...) keep it. ClearEyeTint() goes back to blue.
+    void SetEyeTint(uint32_t rgb);
+    void ClearEyeTint();
+    bool has_eye_tint() const { return has_tint_; }
+    uint32_t eye_tint() const { return tint_rgb_; }
     void Stop();
 
     // Base state coming from the assistant (see integration/xiaozhi/chipo_state_map.h).
@@ -165,6 +171,9 @@ private:
         int16_t face_dx, face_dy;
         bool pupils_visible;
     };
+
+    bool has_tint_ = false;
+    uint32_t tint_rgb_ = 0;
 
     uint32_t QuietMs(uint32_t now_ms) const;
     State ShownState(uint32_t now_ms) const;

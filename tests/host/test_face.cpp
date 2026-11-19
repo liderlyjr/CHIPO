@@ -466,6 +466,24 @@ int main() {
                   static_cast<unsigned>(rgb));
             CHECK(face->Debug().right_eye_h >= 60 || face->Debug().right_eye_h <= 6, "right eye not back to normal");
 
+            // The owner's eye colour replaces the blue, but never an emotion's own colour.
+            face->SetEyeTint(0xFF4FA8);
+            Advance(*face, 2500);
+            rgb = face->Debug().glow_rgb;
+            CHECK(((rgb >> 16) & 0xFF) >= 0xE0 && ((rgb >> 8) & 0xFF) <= 0x60 && (rgb & 0xFF) >= 0x80,
+                  "tinted eyes should glow pink (%06X)", static_cast<unsigned>(rgb));
+            face->ShowEmotion(Emotion::Happy, 4000);
+            Advance(*face, 1200);
+            rgb = face->Debug().glow_rgb;
+            CHECK(((rgb >> 16) & 0xFF) >= 0xE0 && ((rgb >> 8) & 0xFF) >= 0xC0 && (rgb & 0xFF) <= 0x90,
+                  "happy keeps its gold (%06X)", static_cast<unsigned>(rgb));
+            face->ShowEmotion(Emotion::None, 0);
+            face->ClearEyeTint();
+            Advance(*face, 2500);
+            rgb = face->Debug().glow_rgb;
+            CHECK(((rgb >> 16) & 0xFF) <= 0x80 && (rgb & 0xFF) >= 0xF0, "blue again without tint (%06X)",
+                  static_cast<unsigned>(rgb));
+
             // While speaking the mouth keeps following the voice.
             face->SetState(State::Speaking);
             face->ShowEmotion(Emotion::Happy, 5000);

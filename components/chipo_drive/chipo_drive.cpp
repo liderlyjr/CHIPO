@@ -15,6 +15,8 @@ namespace {
 constexpr char TAG[] = "ChipoDrive";
 constexpr uint32_t kTimerPeriodMs = 250;
 constexpr uint32_t kCalmAfterEventMs = 30000;  // calm remarks only after this long without events
+constexpr uint32_t kFirstBreakMs = 2u * 60u * 60u * 1000u;  // suggest a stop after 2 h of driving
+constexpr uint32_t kNextBreakMs = 30u * 60u * 1000u;        // and again every 30 min
 
 uint32_t RandomSeed() {
 #ifdef ESP_PLATFORM
@@ -95,6 +97,7 @@ void ChipoDrive::Activate() {
     personality_.SetSensitivity(sensitivity_);
     personality_.Begin(Now());
     last_event_ms_ = Now();
+    next_break_ms_ = Now() + kFirstBreakMs;
     face_->SetFastSampling(true);
     face_->SetDriveMode(true);  // the sunglasses start sliding down
     ESP_LOGI(TAG, "CHIPO DRIVE on (sensitivity %d)", static_cast<int>(sensitivity_));
@@ -186,4 +189,12 @@ void ChipoDrive::Step(uint32_t now_ms) {
     const bool calm = now_ms - last_event_ms_ > kCalmAfterEventMs && !motion_.output().in_curve;
     const DriveReaction r = personality_.Tick(now_ms, calm, !busy);
     Say(r.say);
+    // Long trip: suggest a stop (only when the assistant is not talking; otherwise a little later).
+    if (static_cast<int32_t>(now_ms - next_break_ms_) >= 0 && !busy) {
+        next_break_ms_ = now_ms + kNextBreakMs;
+        ++break_reminders_;
+        if (hooks_.notify) hooks_.notify("Llevamos un buen rato conduciendo. Para a descansar");
+        if (hooks_.play_clip) hooks_.play_clip("buddy_chime");
+        face_->ShowEmotion(ChipoFace::Emotion::Tired, 4000);  // a yawn: time for a rest
+    }
 }

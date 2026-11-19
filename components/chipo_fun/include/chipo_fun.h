@@ -26,6 +26,7 @@ public:
         std::function<void()> boot_done;                      // the start-up screen ended: the face can wake up happy
         std::function<void()> oops;                           // face reacts to a fall (server error)
         std::function<void(uint32_t ms)> babble;             // face laughs while the murmur plays
+        std::function<void(int64_t rgb)> set_eye_color;      // owner chose the eye colour (rgb >= 0) or reset it (-1)
         std::function<uint32_t()> clock;                      // ms, defaults to lv_tick_get
     };
 
@@ -45,6 +46,7 @@ public:
 
     enum class Mode : uint8_t { Off, Boot, Lamp, Dice, Coin };
     Mode mode() const { return mode_; }
+    int eye_changes() const { return eye_changes_; }
 
     struct DebugInfo {
         Mode mode;
@@ -97,6 +99,7 @@ private:
     int murmur_count_ = 0;
     int murmur_last_ = 0;
     int oops_count_ = 0;
+    int eye_changes_ = 0;
     uint32_t last_oops_ms_ = 0;
     bool had_oops_ = false;
     int w_ = 368, h_ = 448;  // screen size, kept from Start (object sizes read 0 before the first layout)

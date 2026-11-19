@@ -396,6 +396,19 @@ replace_once(
             hooks.babble = [this](uint32_t ms) {
                 if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Laugh, ms);
             };
+            // Eye colour chosen by voice ("ojos rosas"): applied now and kept across reboots.
+            hooks.set_eye_color = [this](int64_t rgb) {
+                if (!chipo_face_) return;
+                if (rgb < 0) chipo_face_->ClearEyeTint();
+                else chipo_face_->SetEyeTint(static_cast<uint32_t>(rgb));
+                Settings settings("chipo", true);
+                settings.SetInt("eye_rgb", static_cast<int32_t>(rgb));
+            };
+            {
+                Settings saved("chipo", false);
+                const int32_t eye_rgb = saved.GetInt("eye_rgb", -1);
+                if (eye_rgb >= 0 && chipo_face_) chipo_face_->SetEyeTint(static_cast<uint32_t>(eye_rgb));
+            }
             if (!chipo_fun_->Start(lv_screen_active(), std::move(hooks), CHIPO_OS_VERSION)) {
                 chipo_fun_.reset();
                 ESP_LOGE(TAG, "Failed to initialize CHIPO Fun");
