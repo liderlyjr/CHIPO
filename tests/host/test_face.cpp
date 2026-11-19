@@ -133,16 +133,18 @@ int main() {
         int biggest_jump = 0;
         bool grew = false;
         int blink_cooldown = 0;
+        int tallest = 0;
         Advance(*face, 800, [&] {
             const int h = face->Debug().eye_h;
+            tallest = std::max(tallest, h);
             if (h < 68) blink_cooldown = 8;  // a blink: ignore it and the 8 steps (320 ms) while the eyes reopen
             if (blink_cooldown > 0) { --blink_cooldown; prev = h; return; }
             if (prev < 68) { prev = h; return; }  // open eyes are 70+
             biggest_jump = std::max(biggest_jump, std::abs(h - prev));
             prev = h;
         });
-        grew = face->Debug().eye_h >= 76;
-        CHECK(grew, "listening eyes did not grow (%d)", face->Debug().eye_h);
+        grew = tallest >= 76;  // (a blink may land on the last step, so look at the tallest the eyes got)
+        CHECK(grew, "listening eyes did not grow (%d)", tallest);
         CHECK(biggest_jump <= 6, "expression snapped: %d px in one step", biggest_jump);
 
         // ---- thinking is driven by SetThinking, and cleared by Speaking -----------------------
@@ -618,6 +620,215 @@ int main() {
             CHECK(q.Debug().shown_state == State::Sleep, "idle quirks kept CHIPO awake");
             q.Stop();
         }
+    }
+
+    // ---- Lote A: finger gaze, hearts and sparkles, slow loving blink, yawn and stretch ---------------------------------
+    {
+        std::printf("== gaze, hearts, sparkles, slow blink, stretch\n");
+        g_now += 1000;
+        ChipoFace f;
+        f.SetIdleQuirks(false);
+        CHECK(f.Start(lv_screen_active()), "fx face did not start");
+        Advance(f, 400);
+        CHECK(!f.Debug().gaze_active, "gaze active without a finger");
+        Advance(f, 800, [&] { f.LookAt(1.0f, 0.0f); });
+        CHECK(f.Debug().gaze_active, "gaze not active while touched");
+        CHECK(f.Debug().gaze_px_x > 10.0f, "pupils did not follow the finger: %.1f", f.Debug().gaze_px_x);
+        Advance(f, 600, [&] { f.LookAt(-1.0f, -1.0f); });
+        CHECK(f.Debug().gaze_px_x < -10.0f && f.Debug().gaze_px_y < -6.0f, "gaze did not move to the other corner");
+        f.LookAt(5.0f, 5.0f);  // out of range is clamped
+        Advance(f, 400);
+        CHECK(f.Debug().gaze_px_x <= 14.5f && f.Debug().gaze_px_y <= 9.5f, "gaze not clamped");
+        Advance(f, 1500);
+        CHECK(!f.Debug().gaze_active, "gaze kept following after the finger left");
+        CHECK(std::fabs(f.Debug().gaze_px_x) < 1.0f, "pupils did not come back: %.1f", f.Debug().gaze_px_x);
+        // StopLookAt lets go at once.
+        f.LookAt(1, 0);
+        Advance(f, 80);
+        f.StopLookAt();
+        Advance(f, 80);
+        CHECK(!f.Debug().gaze_active, "StopLookAt did not let go");
+        // Not while startled: the fright wins.
+        // Hearts and sparkles fade out by themselves.
+        f.Celebrate(ChipoFace::Burst::Hearts, 5);
+        Advance(f, 120);
+        CHECK(f.Debug().fx_hearts >= 3, "hearts did not appear: %d", f.Debug().fx_hearts);
+        Advance(f, 1200);
+        CHECK(f.Debug().slow_blinks >= 1, "hearts did not bring a slow loving blink");
+        Advance(f, 3500);
+        CHECK(f.Debug().fx_hearts == 0, "hearts never faded: %d", f.Debug().fx_hearts);
+        f.Celebrate(ChipoFace::Burst::Sparkles, 6);
+        Advance(f, 120);
+        CHECK(f.Debug().fx_sparkles >= 3, "sparkles did not appear: %d", f.Debug().fx_sparkles);
+        Advance(f, 3000);
+        CHECK(f.Debug().fx_sparkles == 0, "sparkles never faded");
+        f.Celebrate(ChipoFace::Burst::Hearts, 50);  // more than the pool: just fills it
+        Advance(f, 40);
+        CHECK(f.Debug().fx_hearts <= FxEngine::kMax, "pool overflow");
+        // Yawn and stretch: once at the start of the tired look and again at every yawn.
+        Advance(f, 5000);
+        const int before = f.Debug().stretches;
+        f.ShowEmotion(Emotion::Tired, 11000);
+        Advance(f, 200);
+        CHECK(f.Debug().stretches == before + 1, "no stretch at the first yawn (%d -> %d)", before, f.Debug().stretches);
+        Advance(f, 5400);
+        CHECK(f.Debug().stretches == before + 2, "no stretch at the second yawn (%d)", f.Debug().stretches);
+        f.Stop();
+        f.Celebrate(ChipoFace::Burst::Hearts);  // after Stop: harmless
+        f.LookAt(0, 0);
+    }
+    {
+        // Idle slow blinks appear by themselves (and are only blinks, not emotions).
+        g_now += 1000;
+        ChipoFace q;
+        CHECK(q.Start(lv_screen_active()), "slow blink face did not start");
+        q.SetIdleQuirks(true);
+        Advance(q, 95000);
+        CHECK(q.Debug().slow_blinks >= 1, "no slow loving blink in 95 s of idle");
+        CHECK(q.Debug().slow_blinks <= 3, "too many slow blinks: %d", q.Debug().slow_blinks);
+        q.Stop();
+    }
+
+    // ---- Lote B: tears, sleep with Zzz, costumes, tantrum -----------------------------------------------------------
+    {
+        std::printf("== tears, tantrum, zzz, costumes\n");
+        g_now += 1000;
+        ChipoFace f;
+        f.SetIdleQuirks(false);
+        CHECK(f.Start(lv_screen_active()), "lote B face did not start");
+        Advance(f, 400);
+        CHECK(!f.Debug().crying, "crying by itself");
+        f.Cry(3000);
+        Advance(f, 1500);
+        CHECK(f.Debug().crying && f.Debug().emotion == Emotion::Sad, "no sad face while crying");
+        CHECK(f.Debug().fx_tears >= 1, "no tears running");
+        Advance(f, 2500);
+        CHECK(!f.Debug().crying && f.Debug().fx_tears == 0, "tears never stopped");
+        // Sore loser: angry first, then tears.
+        f.SoreLoser();
+        Advance(f, 400);
+        CHECK(f.Debug().tantrum && f.Debug().emotion == Emotion::Grumpy, "no tantrum");
+        bool shook = false;
+        for (int i = 0; i < 40; ++i) { Advance(f, 40); shook = shook || std::abs(f.Debug().face_dx) >= 3; }
+        CHECK(shook, "the face did not shake during the tantrum");
+        Advance(f, 1800);
+        CHECK(!f.Debug().tantrum && f.Debug().crying, "the tantrum did not end in tears");
+        Advance(f, 4000);
+        CHECK(!f.Debug().crying, "tears after the tantrum never ended");
+        // Costumes by voice and by date.
+        Advance(f, 2000);
+        CHECK(f.Debug().costume == Costume::None, "costume out of nowhere");
+        f.SetCostume(Costume::SantaHat);
+        Advance(f, 100);
+        CHECK(f.Debug().costume == Costume::SantaHat && f.Debug().fx_sparkles >= 1, "hat not put on with sparkles");
+        f.SetCostume(Costume::Sunglasses);
+        Advance(f, 1500);
+        CHECK(f.Debug().glasses_progress > 0.9f && !f.Debug().drive_mode, "sunglasses did not slide on as a costume");
+        f.SetCostume(Costume::None);
+        Advance(f, 1500);
+        CHECK(f.Debug().glasses_progress < 0.05f && f.Debug().costume == Costume::None, "costume not taken off");
+        f.Stop();
+    }
+    {
+        // The calendar: Santa hat in December unless the owner took it off.
+        g_now += 1000;
+        ChipoFace f;
+        f.SetIdleQuirks(false);
+        int month = 12, day = 24;
+        bool clock_ok = false;
+        f.SetDateSource([&](int* m, int* d) { if (!clock_ok) return false; *m = month; *d = day; return true; });
+        CHECK(f.Start(lv_screen_active()), "date face did not start");
+        Advance(f, 1000);
+        CHECK(f.Debug().costume == Costume::None, "hat before the clock is set");
+        clock_ok = true;
+        Advance(f, 61000);
+        CHECK(f.Debug().costume == Costume::SantaHat, "no Santa hat on 24 Dec");
+        month = 3; day = 3;
+        Advance(f, 61000);
+        CHECK(f.Debug().costume == Costume::None, "hat kept in March");
+        month = 12; day = 25;
+        Advance(f, 61000);
+        CHECK(f.Debug().costume == Costume::SantaHat, "hat missing on 25 Dec");
+        f.SetCostume(Costume::None);  // "quitate el gorro": stays off
+        Advance(f, 61000);
+        CHECK(f.Debug().costume == Costume::None, "the owner's choice was overridden by the date");
+        f.Stop();
+    }
+    {
+        // Asleep: Zzz float up, breathing moves the face a little, they stop when CHIPO wakes up.
+        g_now += 1000;
+        ChipoFace f;
+        CHECK(f.Start(lv_screen_active()), "sleep face did not start");
+        f.SetIdleQuirks(false);
+        Advance(f, 130000);
+        CHECK(f.Debug().shown_state == State::Sleep, "did not fall asleep");
+        Advance(f, 3000);
+        CHECK(f.Debug().fx_zzz >= 1 && f.Debug().fx_zzz <= 3, "no Zzz while asleep: %d", f.Debug().fx_zzz);
+        int lo = 99, hi = -99;
+        Advance(f, 4200, [&] { lo = std::min(lo, f.Debug().face_dy); hi = std::max(hi, f.Debug().face_dy); });
+        CHECK(hi - lo >= 2, "no breathing movement (%d..%d)", lo, hi);
+        CHECK(hi - lo <= 6, "breathing too big (%d..%d)", lo, hi);
+        f.SetState(State::Listening);
+        Advance(f, 6000);
+        CHECK(f.Debug().shown_state == State::Listening && f.Debug().fx_zzz == 0, "Zzz kept floating after waking up");
+        f.Stop();
+    }
+
+    // ---- Lote C: dance ---------------------------------------------------------------------------------------------
+    {
+        std::printf("== dance\n");
+        g_now += 1000;
+        ChipoFace f;
+        f.SetIdleQuirks(false);
+        float level = 0;
+        f.SetLevelSource([&] { return level; });
+        CHECK(f.Start(lv_screen_active()), "dance face did not start");
+        Advance(f, 400);
+        CHECK(!f.dancing() && !f.Debug().dancing, "dancing by itself");
+        f.SetDance(true);
+        Advance(f, 300);
+        CHECK(f.dancing() && f.Debug().emotion == Emotion::Dance, "no dance face");
+        // Silence: sways gently, no beat hops.
+        int lo = 999, hi = -999;
+        Advance(f, 4000, [&] { lo = std::min(lo, f.Debug().face_dx); hi = std::max(hi, f.Debug().face_dx); });
+        CHECK(hi - lo >= 20, "no sway in silence (%d..%d)", lo, hi);
+        CHECK(f.Debug().dance_hops == 0, "hopped without sound (%d)", f.Debug().dance_hops);
+        const int mouth_quiet = f.Debug().mouth_h;
+        // A beat: loud bursts 500 ms apart.
+        int hops0 = f.Debug().dance_hops;
+        for (int beat = 0; beat < 8; ++beat) {
+            level = 0.9f; Advance(f, 160);
+            level = 0.05f; Advance(f, 360);
+        }
+        CHECK(f.Debug().dance_hops - hops0 >= 5, "hops follow the beat (%d)", f.Debug().dance_hops - hops0);
+        level = 0.9f;
+        Advance(f, 400);
+        CHECK(f.Debug().mouth_h > mouth_quiet + 8, "mouth did not open with the sound (%d -> %d)", mouth_quiet, f.Debug().mouth_h);
+        CHECK(f.Debug().dance_level > 0.6f, "level not followed");
+        // Steady loud sound is not a beat: at most the first hop.
+        level = 0.9f;
+        Advance(f, 6000);
+        hops0 = f.Debug().dance_hops;
+        Advance(f, 3000);
+        CHECK(f.Debug().dance_hops - hops0 <= 1, "hopped on a steady sound (%d)", f.Debug().dance_hops - hops0);
+        // Glow colour cycles.
+        uint32_t c0 = f.Debug().glow_rgb, c1 = c0;
+        Advance(f, 1200);
+        c1 = f.Debug().glow_rgb;
+        CHECK(c0 != c1, "glow colour does not change while dancing");
+        // Stops on command and CHIPO goes back to its normal face.
+        f.SetDance(false);
+        level = 0;
+        Advance(f, 1500);
+        CHECK(!f.dancing() && f.Debug().emotion == Emotion::None, "still dancing after stop");
+        // Stays awake while dancing, ends by itself after 3 minutes.
+        f.SetDance(true);
+        Advance(f, 150000);
+        CHECK(f.Debug().shown_state != State::Sleep && f.dancing(), "fell asleep dancing");
+        Advance(f, 40000);
+        CHECK(!f.dancing(), "dance did not end after 3 minutes");
+        f.Stop();
+        f.SetDance(true);  // after Stop: harmless
     }
 
     if (g_failures == 0) std::printf("ALL FACE TESTS PASSED\n");

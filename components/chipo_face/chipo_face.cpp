@@ -109,9 +109,30 @@ void StylePupil(lv_obj_t* object) {
 }
 
 int16_t Round16(float v) { return static_cast<int16_t>(std::lround(v)); }
+
+// Hue 0..1 (full turn), saturation and value 0..1 -> 0xRRGGBB.
+uint32_t HsvToRgb(float h, float sat, float val) {
+    h = h - std::floor(h);
+    const float k = h * 6.0f;
+    const int i = static_cast<int>(k);
+    const float f = k - static_cast<float>(i);
+    const float p = val * (1.0f - sat), q = val * (1.0f - sat * f), t = val * (1.0f - sat * (1.0f - f));
+    float r = val, g = t, b = p;
+    switch (i % 6) {
+    case 0: r = val; g = t; b = p; break;
+    case 1: r = q; g = val; b = p; break;
+    case 2: r = p; g = val; b = t; break;
+    case 3: r = p; g = q; b = val; break;
+    case 4: r = t; g = p; b = val; break;
+    default: r = val; g = p; b = q; break;
+    }
+    return (static_cast<uint32_t>(r * 255.0f) << 16) | (static_cast<uint32_t>(g * 255.0f) << 8) | static_cast<uint32_t>(b * 255.0f);
+}
 }  // namespace
 
-ChipoFace::ChipoFace() : tilt_(CHIPO_TILT_MIRROR_X != 0) {
+ChipoFace::ChipoFace()
+    : tilt_(CHIPO_TILT_MIRROR_X != 0),
+      fx_([](int lo, int hi) { return static_cast<int>(lv_rand(static_cast<uint32_t>(lo), static_cast<uint32_t>(hi))); }) {
     idle_quirks_ = CHIPO_IDLE_QUIRKS != 0;
 }
 
@@ -228,6 +249,28 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     wheel_rot_applied_ = wheel_y_applied_ = -9999;
     wheel_opa_applied_ = -1;
 
+    {
+        int32_t pw = lv_obj_get_width(parent), ph = lv_obj_get_height(parent);
+        fx_w_ = pw > 0 ? pw : 368;
+        fx_h_ = ph > 0 ? ph : 448;
+        fx_.Clear();
+        fx_view_.Start(parent, fx_w_, fx_h_);  // above the face; without it the decorations just do not show
+    }
+    CreateCostumes();
+    tears_until_ms_ = tantrum_until_ms_ = next_zzz_ms_ = next_date_check_ms_ = 0;
+    dance_on_ = false;
+    dance_level_ = dance_avg_ = 0;
+    dance_hops_ = 0;
+    costume_ = Costume::None;
+    costume_manual_ = false;
+    gaze_on_ = false;
+    gaze_until_ms_ = 0;
+    gaze_px_x_ = gaze_px_y_ = gaze_lean_ = 0;
+    yawn_index_ = 0xFFFFFFFFu;
+    stretches_ = slow_blinks_ = 0;
+    slow_blink_pending_ = blink_slow_ = false;
+    next_slow_blink_ms_ = 0;
+
     const uint32_t now = lv_tick_get();
     cur_ = Pose{62, 70, 22, 30, 0, 0, 42, 8, kMouthCenterY, 20, 60};
     pose_initialised_ = true;
@@ -282,6 +325,8 @@ void ChipoFace::Stop() {
     tilt_source_ = nullptr;
     imu_.reset();
 #endif
+    fx_view_.Stop();
+    fx_.Clear();
     if (root_) lv_obj_delete(root_);
     if (road_) lv_obj_delete(road_);
     road_ = wheel_ = sun_ = sun_mask_ = horizon_ = nullptr;
@@ -291,6 +336,9 @@ void ChipoFace::Stop() {
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
     for (auto& dot : dots_) dot = nullptr;
     for (auto& piece : glasses_) piece = nullptr;
+    for (auto& piece : hat_) piece = nullptr;
+    for (auto& piece : moustache_) piece = nullptr;
+    hat_shown_ = moustache_shown_ = false;
     dots_visible_ = false;
     for (int& o : dots_opa_) o = -1;
 }
@@ -401,6 +449,7 @@ ChipoFace::Emotion ChipoFace::ActiveEmotion(State shown, Mood mood, uint32_t now
         return Emotion::None;
     }
     if (emotion_ != Emotion::None && now_ms < emotion_until_ms_) return emotion_;
+    if (dance_on_) return Emotion::Dance;
     // Shortly before falling asleep CHIPO looks sleepy and yawns.
     if (shown == State::Idle && state_ == State::Idle && QuietMs(now_ms) >= kTiredStartMs) {
         return Emotion::Tired;
@@ -458,22 +507,34 @@ float ChipoFace::BlinkAmount(uint32_t now_ms) {
         if (now_ms < next_blink_ms_) return 0.0f;
         blink_phase_ = 1;
         blink_t0_ = now_ms;
+        blink_slow_ = slow_blink_pending_;  // the affectionate blink: slow, held, slow
+        slow_blink_pending_ = false;
+        if (blink_slow_) ++slow_blinks_;
     }
+    const float close_ms = blink_slow_ ? 380.0f : kBlinkCloseMs;
+    const float hold_ms = blink_slow_ ? 320.0f : kBlinkHoldMs;
+    const float open_ms = blink_slow_ ? 460.0f : kBlinkOpenMs;
     const float elapsed = static_cast<float>(now_ms - blink_t0_);
     if (blink_phase_ == 1) {
-        if (elapsed < kBlinkCloseMs) return elapsed / kBlinkCloseMs;
+        if (elapsed < close_ms) return elapsed / close_ms;
         blink_phase_ = 2;
         blink_t0_ = now_ms;
         return 1.0f;
     }
     if (blink_phase_ == 2) {
-        if (elapsed < kBlinkHoldMs) return 1.0f;
+        if (elapsed < hold_ms) return 1.0f;
         blink_phase_ = 3;
         blink_t0_ = now_ms;
         return 1.0f;
     }
-    if (elapsed < kBlinkOpenMs) return 1.0f - elapsed / kBlinkOpenMs;
+    if (elapsed < open_ms) return 1.0f - elapsed / open_ms;
     blink_phase_ = 0;
+    if (blink_slow_) {
+        blink_slow_ = false;
+        blink_was_double_ = false;
+        next_blink_ms_ = now_ms + kBlinkMinMs + lv_rand(0, kBlinkJitterMs);
+        return 0.0f;
+    }
     // Now and then blink twice in a row, otherwise wait a random while.
     if (!blink_was_double_ && lv_rand(0, 4) == 0) {
         blink_was_double_ = true;
@@ -528,13 +589,21 @@ ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, Emotion emotion, u
         break;
     case State::Sleep:
         p.eye_h = 4; p.pupil_h = 2;
-        p.mouth_w = 16; p.mouth_h = 5; p.mouth_cy = 164;
+        p.mouth_w = 16; p.mouth_h = 5 + 2.5f * (0.5f + 0.5f * std::sin(kTwoPi * t / 4000.0f)); p.mouth_cy = 164;  // breathing
         p.glow_w = 10;
         p.glow_opa = 28 + 10 * std::sin(kTwoPi * t / 4000.0f);  // slow breathing
         break;
     }
 
     if (emotion != Emotion::None) ApplyEmotion(p, emotion, shown, now_ms);
+
+    // A finger on the screen: the eyes follow it (not while they spin or swing on purpose).
+    if (gaze_on_ && mood == Mood::Normal && emotion != Emotion::Whee && emotion != Emotion::No &&
+        (shown == State::Idle || shown == State::Listening || shown == State::Speaking ||
+         shown == State::Connecting)) {
+        p.pupil_x = gaze_px_x_;
+        p.pupil_y = gaze_px_y_;
+    }
 
     switch (mood) {
     case Mood::Startled:
@@ -637,7 +706,7 @@ void ChipoFace::ApplyEmotion(Pose& p, Emotion emotion, State shown, uint32_t now
         break;
     case Emotion::Tired: {
         // A yawn every 5 s: the eyes squeeze shut while the mouth opens wide.
-        const float cycle = std::fmod(t, 5200.0f) / 5200.0f;
+        const float cycle = std::fmod(t - static_cast<float>(tired_t0_), 5200.0f) / 5200.0f;
         const float yawn = cycle < 0.4f ? std::sin(cycle / 0.4f * 3.14159265f) : 0.0f;
         p.eye_w = 62; p.eye_h = 30 - 10 * yawn;
         p.pupil_w = 22; p.pupil_h = 14; p.pupil_x = 0; p.pupil_y = 3;
@@ -679,6 +748,13 @@ void ChipoFace::ApplyEmotion(Pose& p, Emotion emotion, State shown, uint32_t now
         mouth(40, 6, 171);
         glow(0xFF5B4A, 20, 70);
         break;
+    case Emotion::Dance: {
+        const float lv = dance_level_;
+        p.eye_w = 66; p.eye_h = 36 + 14 * lv; p.pupil_h = 0;
+        mouth(52, 10 + 26 * lv, 164);
+        glow(HsvToRgb(t / 3000.0f, 0.55f, 1.0f), 20 + 16 * lv, 68 + 28 * lv);
+        break;
+    }
     }
 }
 
@@ -839,7 +915,71 @@ void ChipoFace::Step(uint32_t now_ms) {
         }
     }
     const Emotion emotion = ActiveEmotion(shown, mood, now_ms);
+    if (emotion == Emotion::Tired && shown_emotion_ != Emotion::Tired) {
+        tired_t0_ = now_ms;  // the yawn starts right away
+        yawn_index_ = 0xFFFFFFFFu;
+    }
     shown_emotion_ = emotion;
+    // Yawn and stretch: at every yawn the face rises a little, like arms going up.
+    if (emotion == Emotion::Tired) {
+        const uint32_t idx = (now_ms - tired_t0_) / 5200u;
+        if (idx != yawn_index_) {
+            yawn_index_ = idx;
+            vel_y_ -= 150.0f;
+            ++stretches_;
+        }
+    }
+    // Sore loser: angry shaking, then tears.
+    if (tantrum_until_ms_ != 0) {
+        if (now_ms < tantrum_until_ms_) {
+            if (now_ms >= next_kick_ms_) {
+                vel_x_ += static_cast<float>(kick_dir_) * 240.0f;
+                kick_dir_ = -kick_dir_;
+                next_kick_ms_ = now_ms + 200;
+            }
+        } else {
+            tantrum_until_ms_ = 0;
+            Cry(3000);
+        }
+    }
+    // The finger: gaze target eased, face leans a little towards it. Lets go ~0.5 s after the last touch move.
+    gaze_on_ = now_ms < gaze_until_ms_;
+    {
+        const float tgt_x = gaze_on_ ? gaze_nx_ * 14.0f : 0.0f;
+        const float tgt_y = gaze_on_ ? gaze_ny_ * 9.0f : 0.0f;
+        Ease(gaze_px_x_, tgt_x, dt, 0.06f);
+        Ease(gaze_px_y_, tgt_y, dt, 0.06f);
+        Ease(gaze_lean_, gaze_on_ ? gaze_nx_ * 9.0f : 0.0f, dt, 0.12f);
+    }
+    // Dance: loudness drives the mouth; peaks make the face hop to the beat. Awake and for 3 minutes at most.
+    if (dance_on_) {
+        if (now_ms >= dance_until_ms_) {
+            dance_on_ = false;
+        } else {
+            idle_since_ms_ = now_ms;
+            const float raw = level_source_ ? Clamp(level_source_(), 0.0f, 1.0f) : 0.0f;
+            Ease(dance_level_, raw, dt, raw > dance_level_ ? 0.04f : 0.18f);
+            const bool onset = raw > 0.16f && raw > dance_avg_ * 1.35f;
+            Ease(dance_avg_, raw, dt, 0.5f);
+            if (onset && now_ms >= next_hop_ms_ && mood == Mood::Normal) {
+                vel_y_ -= 130.0f + 140.0f * raw;
+                vel_x_ += static_cast<float>(hop_dir_) * 150.0f;
+                hop_dir_ = -hop_dir_;
+                next_hop_ms_ = now_ms + 240;
+                ++dance_hops_;
+            }
+        }
+    } else {
+        dance_level_ = dance_avg_ = 0;
+    }
+    // A slow loving blink now and then (idle only).
+    if (shown == State::Idle && mood == Mood::Normal && !emotion_running && idle_quirks_) {
+        if (next_slow_blink_ms_ == 0) next_slow_blink_ms_ = now_ms + 40000 + lv_rand(0, 40000);
+        else if (now_ms >= next_slow_blink_ms_ && blink_phase_ == 0) {
+            SlowBlink();
+            next_slow_blink_ms_ = now_ms + 50000 + lv_rand(0, 60000);
+        }
+    }
 
     // ---- small timed behaviours ------------------------------------------------------------
     if (shown == State::Speaking && now_ms >= speak_step_ms_) {
@@ -897,6 +1037,13 @@ void ChipoFace::Step(uint32_t now_ms) {
         ty = Clamp(tilt.lean_z * 46.0f, 0.0f, 46.0f);
         if (mood == Mood::Startled) tx = Clamp(tx * 1.2f, -72.0f, 72.0f);
     }
+    if (dance_on_ && !falling && mood == Mood::Normal) {  // gentle sway and bounce even without a beat
+        const float tt = static_cast<float>(now_ms - dance_t0_);
+        tx += 20.0f * std::sin(kTwoPi * tt / 1800.0f);
+        ty -= 5.0f * (0.5f + 0.5f * std::sin(kTwoPi * tt / 900.0f)) + 14.0f * dance_level_;
+    }
+    if (shown == State::Sleep && !falling) ty += 2.5f * std::sin(kTwoPi * static_cast<float>(now_ms) / 4000.0f);  // soft breathing
+    if (!falling && gaze_on_ && !tilt.lying) tx += gaze_lean_;
     const bool flying_in = !falling && std::fabs(face_x_) > kNormalRangeX;
     if (falling) {
         vel_x_ += static_cast<float>(fall_dir_) * kFallAccelX * dt;
@@ -984,6 +1131,10 @@ void ChipoFace::Step(uint32_t now_ms) {
     ApplyLayout(layout);
 
     UpdateDots(now_ms, shown == State::Thinking && mood == Mood::Normal);
+    EmitStateFx(shown, mood, now_ms);
+    UpdateCostumes(now_ms);
+    fx_.Step(dt);
+    fx_view_.Render(fx_);
 
 #if CHIPO_DEBUG_TILT_LOG
     if (tilt_source_ && now_ms >= next_debug_log_ms_) {
@@ -998,7 +1149,7 @@ void ChipoFace::Step(uint32_t now_ms) {
 }
 
 void ChipoFace::UpdateGlasses(const Layout& l, float dt) {
-    const float target = drive_mode_ ? 1.0f : 0.0f;
+    const float target = (drive_mode_ || costume_ == Costume::Sunglasses) ? 1.0f : 0.0f;
     const float speed = dt / (drive_mode_ ? kGlassesInS : kGlassesOutS);
     if (glasses_t_ < target) glasses_t_ = std::min(target, glasses_t_ + speed);
     else if (glasses_t_ > target) glasses_t_ = std::max(target, glasses_t_ - speed);
@@ -1144,7 +1295,7 @@ void ChipoFace::UpdateRoad(float dt, uint32_t now_ms) {
     Ease(road_boost_, 0.0f, dt, 1.8f);
     Ease(road_speed_, target, dt, 0.5f);
     Ease(road_jolt_, 0.0f, dt, 0.25f);
-    const bool visible = glasses_t_ > 0.02f;
+    const bool visible = glasses_t_ > 0.02f && (drive_mode_ || road_speed_ > 0.02f);  // costume sunglasses bring no road
     if (visible != road_shown_) {
         if (visible) lv_obj_remove_flag(road_, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(road_, LV_OBJ_FLAG_HIDDEN);
@@ -1314,6 +1465,178 @@ void ChipoFace::ApplyLayout(const Layout& l) {
     layout_applied_ = true;
 }
 
+void ChipoFace::FaceCentre(float* x, float* y) const {
+    *x = static_cast<float>(fx_w_) / 2.0f + static_cast<float>(applied_.face_dx + shift_x_);
+    *y = static_cast<float>(fx_h_) / 2.0f + static_cast<float>(applied_.face_dy + shift_y_);
+}
+
+void ChipoFace::LookAt(float nx, float ny) {
+    if (!root_) return;
+    gaze_nx_ = Clamp(nx, -1.0f, 1.0f);
+    gaze_ny_ = Clamp(ny, -1.0f, 1.0f);
+    gaze_until_ms_ = lv_tick_get() + 500;
+}
+
+void ChipoFace::StopLookAt() { gaze_until_ms_ = 0; }
+
+void ChipoFace::SlowBlink() {
+    if (!root_) return;
+    slow_blink_pending_ = true;
+    if (blink_phase_ == 0) next_blink_ms_ = lv_tick_get();
+}
+
+void ChipoFace::Celebrate(Burst burst, int count) {
+    if (!root_) return;
+    float cx, cy;
+    FaceCentre(&cx, &cy);
+    if (count < 1) count = 1;
+    if (burst == Burst::Hearts) {
+        fx_.Burst(FxKind::Heart, count, cx, cy - 10.0f, 88.0f);
+        SlowBlink();
+    } else {
+        fx_.Burst(FxKind::Sparkle, count, cx, cy - 10.0f, 82.0f);
+    }
+}
+
+void ChipoFace::Cry(uint32_t ms) {
+    if (!root_) return;
+    const uint32_t now = lv_tick_get();
+    StartEmotion(Emotion::Sad, now, ms);
+    tears_until_ms_ = now + ms;
+    next_tear_ms_ = now;
+}
+
+void ChipoFace::SoreLoser() {
+    if (!root_) return;
+    const uint32_t now = lv_tick_get();
+    tantrum_until_ms_ = now + 1800;
+    next_kick_ms_ = now;
+    kick_dir_ = 1;
+    StartEmotion(Emotion::Grumpy, now, 1800);
+}
+
+void ChipoFace::SetDance(bool on) {
+    if (!root_) return;
+    if (on == dance_on_) return;
+    dance_on_ = on;
+    if (on) {
+        const uint32_t now = lv_tick_get();
+        dance_t0_ = now;
+        dance_until_ms_ = now + 180000;
+        next_hop_ms_ = now;
+        dance_hops_ = 0;
+        hop_dir_ = 1;
+        idle_since_ms_ = now;
+        Celebrate(Burst::Sparkles, 4);
+    }
+}
+
+void ChipoFace::SetCostume(Costume costume) {
+    costume_manual_ = true;
+    if (costume == costume_) return;
+    costume_ = costume;
+    if (root_ && costume != Costume::None) Celebrate(Burst::Sparkles, 5);
+}
+
+void ChipoFace::EmitStateFx(State shown, Mood mood, uint32_t now_ms) {
+    float cx, cy;
+    FaceCentre(&cx, &cy);
+    // Tears run from the lower rim of the eyes.
+    if (now_ms < tears_until_ms_ && mood == Mood::Normal && shown != State::Sleep && shown != State::Error &&
+        now_ms >= next_tear_ms_) {
+        const float eye_w = static_cast<float>(applied_.eye_w);
+        const float eye_h = static_cast<float>(applied_.eye_h);
+        const float rx = (tear_side_ == 0) ? kCenterX - kEyeGap / 2.0f - eye_w * 0.5f : kCenterX + kEyeGap / 2.0f + eye_w * 0.5f;
+        fx_.Spawn(FxKind::Tear, cx - kCanvasWidth / 2.0f + rx + (tear_side_ == 0 ? -6.0f : 6.0f),
+                  cy - kCanvasHeight / 2.0f + kEyeCenterY + eye_h * 0.5f - 2.0f, 12.0f, 0x8FD0FF);
+        tear_side_ ^= 1;
+        next_tear_ms_ = now_ms + 420;
+    }
+    // Asleep: a Z floats up now and then.
+    if (shown == State::Sleep) {
+        if (next_zzz_ms_ == 0) next_zzz_ms_ = now_ms + 700;
+        if (now_ms >= next_zzz_ms_ && fx_.alive(FxKind::Zzz) < 3) {
+            fx_.Spawn(FxKind::Zzz, cx + 74.0f, cy - 52.0f, 24.0f, 0xBFD9FF);
+            next_zzz_ms_ = now_ms + 1500;
+        }
+    } else {
+        next_zzz_ms_ = 0;
+    }
+}
+
+void ChipoFace::CreateCostumes() {
+    auto flat = [](lv_obj_t* o, uint32_t color, int radius) {
+        lv_obj_remove_style_all(o);
+        lv_obj_set_style_bg_color(o, lv_color_hex(color), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(o, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(o, radius, LV_PART_MAIN);
+        MakeInert(o);
+        lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+    };
+    for (auto& o : hat_) o = lv_obj_create(root_);
+    for (auto& o : moustache_) o = lv_obj_create(root_);
+    // Santa hat above the eyes (inside the 300 x 220 face canvas).
+    if (hat_[0]) { flat(hat_[0], 0xE0262B, 40); lv_obj_set_size(hat_[0], 130, 36); lv_obj_set_pos(hat_[0], 85, 2); }
+    if (hat_[1]) { flat(hat_[1], 0xF4F4F4, 9); lv_obj_set_size(hat_[1], 146, 18); lv_obj_set_pos(hat_[1], 77, 30); }
+    if (hat_[2]) {
+        flat(hat_[2], 0xE0262B, 11);
+        lv_obj_set_size(hat_[2], 52, 22);
+        lv_obj_set_pos(hat_[2], 176, 8);
+        lv_obj_set_style_transform_pivot_x(hat_[2], 26, LV_PART_MAIN);
+        lv_obj_set_style_transform_pivot_y(hat_[2], 11, LV_PART_MAIN);
+        lv_obj_set_style_transform_rotation(hat_[2], 200, LV_PART_MAIN);
+    }
+    if (hat_[3]) { flat(hat_[3], 0xF4F4F4, LV_RADIUS_CIRCLE); lv_obj_set_size(hat_[3], 26, 26); lv_obj_set_pos(hat_[3], 218, 16); }
+    // Moustache between the eyes and the mouth: two curls turned a little.
+    for (int i = 0; i < kMoustachePieces; ++i) {
+        lv_obj_t* o = moustache_[i];
+        if (!o) continue;
+        flat(o, 0xC98A4B, 10);
+        lv_obj_set_size(o, 60, 20);
+        lv_obj_set_pos(o, i == 0 ? 90 : 150, 132);
+        lv_obj_set_style_transform_pivot_x(o, 30, LV_PART_MAIN);
+        lv_obj_set_style_transform_pivot_y(o, 10, LV_PART_MAIN);
+        lv_obj_set_style_transform_rotation(o, i == 0 ? 120 : -120, LV_PART_MAIN);  // tips curl up
+    }
+    hat_shown_ = moustache_shown_ = false;
+    hat_bob_applied_ = -9999;
+}
+
+void ChipoFace::UpdateCostumes(uint32_t now_ms) {
+    // The calendar picks the costume unless the owner chose one.
+    if (!costume_manual_ && date_source_ && now_ms >= next_date_check_ms_) {
+        next_date_check_ms_ = now_ms + 60000;
+        int month = 0, day = 0;
+        if (date_source_(&month, &day)) costume_ = CostumeForDate(month, day);
+    }
+    const bool want_hat = costume_ == Costume::SantaHat && shown_ != State::Sleep;
+    const bool want_moustache = costume_ == Costume::Mustache;
+    if (want_hat != hat_shown_) {
+        for (auto* o : hat_) {
+            if (!o) continue;
+            if (want_hat) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+        }
+        hat_shown_ = want_hat;
+        hat_bob_applied_ = -9999;
+    }
+    if (want_moustache != moustache_shown_) {
+        for (auto* o : moustache_) {
+            if (!o) continue;
+            if (want_moustache) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+        }
+        moustache_shown_ = want_moustache;
+    }
+    if (hat_shown_ && hat_[3]) {  // the pompom bobs
+        const int bob = Round16(2.0f * std::sin(static_cast<float>(now_ms) * 0.004f));
+        if (bob != hat_bob_applied_) {
+            hat_bob_applied_ = bob;
+            lv_obj_set_pos(hat_[3], 218, 16 + bob);
+        }
+    }
+}
+
 void ChipoFace::SetPixelShift(int dx, int dy) {
     if (dx == shift_x_ && dy == shift_y_) return;
     shift_x_ = dx;
@@ -1348,5 +1671,20 @@ ChipoFace::DebugInfo ChipoFace::Debug() const {
     d.road_visible = road_shown_;
     d.road_speed = road_speed_;
     d.wheel_angle_deg = wheel_angle_;
+    d.gaze_active = gaze_on_;
+    d.gaze_px_x = gaze_px_x_;
+    d.gaze_px_y = gaze_px_y_;
+    d.stretches = stretches_;
+    d.slow_blinks = slow_blinks_;
+    d.fx_hearts = fx_.alive(FxKind::Heart);
+    d.fx_sparkles = fx_.alive(FxKind::Sparkle);
+    d.fx_tears = fx_.alive(FxKind::Tear);
+    d.fx_zzz = fx_.alive(FxKind::Zzz);
+    d.crying = tears_until_ms_ != 0 && lv_tick_get() < tears_until_ms_;
+    d.tantrum = tantrum_until_ms_ != 0;
+    d.costume = costume_;
+    d.dancing = dance_on_;
+    d.dance_hops = dance_hops_;
+    d.dance_level = dance_level_;
     return d;
 }

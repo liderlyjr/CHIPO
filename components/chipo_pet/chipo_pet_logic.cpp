@@ -175,7 +175,7 @@ GameReply PetGames::Handle(const PetCommand& cmd, uint32_t now_ms) {
         r.handled = true;
         r.text = std::string("Yo: ") + kNames[mine] + ". ";
         if (diff == 0) { r.text += "¡Empate!"; r.emotion = "winking"; }
-        else if (diff == 1) { ++score_user_; r.text += "¡Ganas tú!"; r.emotion = "surprised"; }
+        else if (diff == 1) { ++score_user_; r.text += "¡Ganas tú!"; r.emotion = "surprised"; r.lost = true; }
         else { ++score_chipo_; r.text += "¡Gano yo!"; r.emotion = "laughing"; }
         r.text += " (" + std::to_string(score_user_) + "-" + std::to_string(score_chipo_) + ")";
         r.clip = "fun_coin";
@@ -190,6 +190,7 @@ GameReply PetGames::Handle(const PetCommand& cmd, uint32_t now_ms) {
         if (cmd.value == secret_) {
             r.text = "¡Acertaste en " + std::to_string(tries_) + (tries_ == 1 ? " intento!" : " intentos!");
             r.emotion = "surprised";
+            r.lost = true;
             game_ = Game::None;
         } else if (tries_ >= 5) {
             r.text = "¡Se acabaron los intentos! Era el " + std::to_string(secret_);

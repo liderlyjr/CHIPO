@@ -131,3 +131,7 @@ GitHub Actions las ejecuta antes de compilar el firmware.
 Lo que estas pruebas **no** pueden confirmar: la lectura real del sensor (acelerómetro y giroscopio), hacia qué lado cae en la placa
 (el ajuste de espejo), si los umbrales de los gestos (200 °/s para girar, 90 °/s para asentir y negar) son cómodos con la
 placa en la mano, y la fluidez en la pantalla AMOLED. Eso solo se ve con la placa.
+
+## Animaciones extra (corazones, lágrimas, disfraces, baile…)
+Ver [CHIPO_ANIMACIONES.md](CHIPO_ANIMACIONES.md). API nueva de `ChipoFace`: `LookAt/StopLookAt`, `Celebrate(Burst)`, `SlowBlink`, `Cry`,
+`SoreLoser`, `SetCostume/SetDateSource`, `SetDance/SetLevelSource`; emoción nueva `Emotion::Dance`.

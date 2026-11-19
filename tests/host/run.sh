@@ -71,13 +71,13 @@ sort -u "$OUT/sources.txt" -o "$OUT/sources.txt"
 JOBS="$(nproc 2>/dev/null || echo 2)"
 xargs -a "$OUT/sources.txt" -P "$JOBS" -I{} sh -c 'gcc -w -O1 '"$SAN"' '"$LVFLAGS"' -c "$1" -o "'"$OUT"'/obj/$(echo "$1" | md5sum | cut -c1-12).o"' _ {}
 g++ -std=gnu++23 -O1 -g $SAN -DCHIPO_DEBUG_TILT_LOG=0 $LVFLAGS -Itests/host/stub $INC -w \
-    tests/host/test_face.cpp components/chipo_face/chipo_face.cpp components/chipo_face/chipo_tilt.cpp \
+    tests/host/test_face.cpp components/chipo_face/chipo_face.cpp components/chipo_face/chipo_fx.cpp components/chipo_face/chipo_fx_logic.cpp components/chipo_face/chipo_audio_level.cpp components/chipo_face/chipo_tilt.cpp \
     components/chipo_face/chipo_gyro.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_face"
 
 echo "== CHIPO DRIVE on the face (voice on/off, sunglasses, reactions only in the mode)"
 g++ -std=gnu++23 -O1 -g $SAN -DCHIPO_DEBUG_TILT_LOG=0 -DCHIPO_DRIVE_DEBUG_LOG=0 $LVFLAGS -Itests/host/stub $DINC -w \
-    tests/host/test_drive.cpp components/chipo_face/chipo_face.cpp components/chipo_face/chipo_tilt.cpp \
+    tests/host/test_drive.cpp components/chipo_face/chipo_face.cpp components/chipo_face/chipo_fx.cpp components/chipo_face/chipo_fx_logic.cpp components/chipo_face/chipo_audio_level.cpp components/chipo_face/chipo_tilt.cpp \
     components/chipo_face/chipo_gyro.cpp components/chipo_drive/chipo_drive.cpp \
     components/chipo_drive/chipo_drive_motion.cpp components/chipo_drive/chipo_drive_voice.cpp \
     components/chipo_drive/chipo_drive_personality.cpp \
@@ -151,6 +151,24 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_remin
 echo "== chipo_settings logic"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_settings/include tests/host/test_settings_logic.cpp components/chipo_settings/chipo_settings_logic.cpp -o "$OUT/test_settings_logic"
 "$OUT/test_settings_logic"
+
+echo "== CHIPO FX logic (particles, costumes, thanks)"
+g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_fx_logic.cpp components/chipo_face/chipo_fx_logic.cpp -o "$OUT/test_fx_logic"
+"$OUT/test_fx_logic"
+
+echo "== audio level and spectrum (dance, visualizer)"
+g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_audio_level.cpp components/chipo_face/chipo_audio_level.cpp -o "$OUT/test_audio_level"
+"$OUT/test_audio_level"
+
+echo "== CHIPO SCENES logic (voice, bars, fish, lava)"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_scenes/include -Icomponents/chipo_drive/include tests/host/test_scenes_logic.cpp components/chipo_scenes/chipo_scenes_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_scenes_logic"
+"$OUT/test_scenes_logic"
+
+echo "== CHIPO SCENES screens (LVGL)"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_scenes/include -Icomponents/chipo_drive/include -w \
+    tests/host/test_scenes.cpp components/chipo_scenes/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_scenes"
+"$OUT/test_scenes"
 
 echo "== chipo_settings (LVGL)"
 g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_settings/include -w \

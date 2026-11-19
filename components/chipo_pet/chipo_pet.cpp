@@ -45,7 +45,9 @@ void ChipoPet::Step(uint32_t now_ms) {
     if (mood_.ShouldPout(now_ms)) {
         ++pouts_;
         // Quiet sulk: only the face (no sound, nobody is bothered).
-        if (hooks_.emotion) hooks_.emotion(mood_.Level(now_ms) == PetLevel::Neglected ? "sleepy" : "sad", 5000);
+        const bool neglected = mood_.Level(now_ms) == PetLevel::Neglected;
+        if (neglected && hooks_.cry) hooks_.cry(8000);  // tears
+        else if (hooks_.emotion) hooks_.emotion(neglected ? "sleepy" : "sad", 5000);
     }
 }
 
@@ -65,6 +67,7 @@ bool ChipoPet::OnVoiceText(const char* text) {
     const char* clip = "buddy_chime";
     const char* emotion = nullptr;
     std::string say;
+    bool lost = false;
     if (cmd.intent == PetIntent::HowAreYou) {
         const PetLevel level = mood_.Level(now);
         say = PetMood::Describe(level);
@@ -76,9 +79,11 @@ bool ChipoPet::OnVoiceText(const char* text) {
         say = r.text;
         emotion = r.emotion;
         clip = r.clip;
+        lost = r.lost;
         mood_.Attention(now, 4);
     }
     if (hooks_.notify) hooks_.notify(say.c_str());
-    if (emotion && hooks_.emotion) hooks_.emotion(emotion, 2500);
+    if (lost && hooks_.sore_loser) hooks_.sore_loser();  // a bad loser: angry, then tears
+    else if (emotion && hooks_.emotion) hooks_.emotion(emotion, 2500);
     return hooks_.play_clip && hooks_.play_clip(clip);
 }

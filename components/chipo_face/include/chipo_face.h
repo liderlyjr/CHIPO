@@ -4,6 +4,9 @@
 #include <functional>
 #include <memory>
 
+#include "chipo_audio_level.h"
+#include "chipo_fx.h"
+#include "chipo_fx_logic.h"
 #include "chipo_gyro.h"
 #include "chipo_tilt.h"
 #include "lvgl.h"
@@ -56,7 +59,8 @@ public:
         Surprised,   // wide eyes, round mouth
         Whee,        // pupils circling fast (shown while spinning)
         No,          // pupils swinging left and right (shown after shaking "no")
-        Grumpy       // flat eyes, red glow, flat mouth
+        Grumpy,      // flat eyes, red glow, flat mouth
+        Dance        // happy squint, mouth follows the music, colours cycle (shown while dancing)
     };
 
     // CHIPO DRIVE (car mode) -----------------------------------------------------------------
@@ -100,6 +104,17 @@ public:
         bool road_visible;       // car scene shown behind the face
         float road_speed;        // decorative scroll speed 0..1.4
         float wheel_angle_deg;   // steering wheel marker, + = clockwise
+        bool gaze_active;        // the eyes follow a finger on the screen
+        float gaze_px_x, gaze_px_y;  // where the pupils are told to look (px from the centre)
+        int stretches;           // yawn-and-stretch moves since start
+        int slow_blinks;         // slow loving blinks since start
+        int fx_hearts, fx_sparkles, fx_tears, fx_zzz;  // live decorations
+        bool crying;             // tears are running
+        bool tantrum;            // sore-loser tantrum in progress
+        Costume costume;         // costume currently worn (date or voice)
+        bool dancing;
+        int dance_hops;          // beat hops since the dance started
+        float dance_level;       // 0..1 loudness the dance reacts to
     };
 
     ChipoFace();
@@ -140,6 +155,33 @@ public:
     void ShowEmotionByName(const char* name, uint32_t duration_ms = 2500);
     // Winks and smiles by themselves now and then while idle (default: CHIPO_IDLE_QUIRKS).
     void SetIdleQuirks(bool enabled) { idle_quirks_ = enabled; }
+
+    // The finger is on the screen: the eyes follow it (nx, ny in -1..1 from the screen centre). Call it on every touch
+    // move; it lets go by itself ~0.5 s after the last call. StopLookAt() lets go at once.
+    void LookAt(float nx, float ny);
+    void StopLookAt();
+    // A shower of hearts or sparkles around the face (petting, "gracias", a win...). Hearts also give a slow loving blink.
+    enum class Burst : uint8_t { Hearts, Sparkles };
+    void Celebrate(Burst burst, int count = 5);
+    // Sad face with tears for `ms` (a very neglected CHIPO, or after losing a game).
+    void Cry(uint32_t ms);
+    // Sore loser: a short angry tantrum (face shaking, red glow) that ends in tears.
+    void SoreLoser();
+    // Costumes: Santa hat (by date: 1 Dec - 6 Jan), sunglasses, moustache. SetCostume is the owner's choice (by voice)
+    // and wins over the date; Costume::None takes everything off and keeps it off until the next start.
+    using DateSource = std::function<bool(int* month, int* day)>;  // false: the clock is not set yet
+    void SetDateSource(DateSource source) { date_source_ = std::move(source); }
+    void SetCostume(Costume costume);
+    Costume costume() const { return costume_; }
+    // Dance: the face bounces and sways, the mouth follows the loudness and the glow cycles through colours. The beat hops
+    // come from loudness peaks of the level source (see chipo_audio_level.h); with no sound it just sways gently.
+    // Ends by itself after 3 minutes. It keeps CHIPO awake while it lasts.
+    using LevelSource = std::function<float()>;  // 0..1
+    void SetLevelSource(LevelSource source) { level_source_ = std::move(source); }
+    void SetDance(bool on);
+    bool dancing() const { return dance_on_; }
+    // One slow, affectionate blink (like a cat) instead of the quick one.
+    void SlowBlink();
 
     bool IsRunning() const { return root_ != nullptr; }
 
@@ -281,6 +323,51 @@ private:
     int wheel_rot_applied_ = -9999, wheel_opa_applied_ = -1, wheel_y_applied_ = -9999;
     void CreateRoad(lv_obj_t* parent);
     void UpdateRoad(float dt, uint32_t now_ms);
+
+    // Decorations and small behaviours (see chipo_fx_logic.h).
+    FxEngine fx_;
+    ChipoFx fx_view_;
+    int fx_w_ = 368, fx_h_ = 448;
+    void FaceCentre(float* x, float* y) const;
+    float gaze_nx_ = 0, gaze_ny_ = 0;     // finger position, -1..1
+    uint32_t gaze_until_ms_ = 0;
+    bool gaze_on_ = false;
+    float gaze_px_x_ = 0, gaze_px_y_ = 0;  // eased pupil target
+    float gaze_lean_ = 0;                  // eased lean of the face towards the finger
+    uint32_t tired_t0_ = 0;
+    uint32_t yawn_index_ = 0xFFFFFFFFu;
+    int stretches_ = 0;
+    bool slow_blink_pending_ = false, blink_slow_ = false;
+    int slow_blinks_ = 0;
+    uint32_t next_slow_blink_ms_ = 0;
+
+    // Dance.
+    LevelSource level_source_;
+    bool dance_on_ = false;
+    uint32_t dance_until_ms_ = 0, dance_t0_ = 0, next_hop_ms_ = 0;
+    float dance_level_ = 0, dance_avg_ = 0;
+    int dance_hops_ = 0, hop_dir_ = 1;
+
+    // Tears, tantrum, sleep, costumes.
+    uint32_t tears_until_ms_ = 0, next_tear_ms_ = 0;
+    int tear_side_ = 0;
+    uint32_t tantrum_until_ms_ = 0, next_kick_ms_ = 0;
+    int kick_dir_ = 1;
+    uint32_t next_zzz_ms_ = 0;
+    DateSource date_source_;
+    Costume costume_ = Costume::None;
+    bool costume_manual_ = false;
+    uint32_t next_date_check_ms_ = 0;
+    // Hat: dome, band, tip, pompom. Moustache: two curls.
+    static constexpr int kHatPieces = 4;
+    static constexpr int kMoustachePieces = 2;
+    lv_obj_t* hat_[kHatPieces] = {};
+    lv_obj_t* moustache_[kMoustachePieces] = {};
+    int hat_bob_applied_ = -9999;
+    bool hat_shown_ = false, moustache_shown_ = false;
+    void CreateCostumes();
+    void UpdateCostumes(uint32_t now_ms);
+    void EmitStateFx(State shown, Mood mood, uint32_t now_ms);
 
     uint32_t speak_step_ms_ = 0;
     uint32_t speak_index_ = 0;

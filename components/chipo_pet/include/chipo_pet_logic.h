@@ -52,6 +52,7 @@ struct GameReply {
     std::string text;           // shown as a notification
     const char* emotion = nullptr;  // ChipoFace::ShowEmotionByName name, or nullptr
     const char* clip = "buddy_chime";
+    bool lost = false;          // CHIPO lost the round (sore-loser tantrum)
 };
 
 class PetGames {

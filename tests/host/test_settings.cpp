@@ -1,4 +1,5 @@
 // CHIPO SETTINGS on a real LVGL build: menu, battery, screen saver, burn-in shift, taps. Simulated time.
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -21,6 +22,8 @@ struct Rig {
     std::vector<std::string> notes, clips;
     std::vector<TapKind> reactions;
     int shifts = 0, sdx = 0, sdy = 0;
+    int gazes = 0, lifts = 0;
+    float gnx = 9, gny = 9;
     bool Start() {
         ChipoSettings::Hooks h;
         h.get_volume = [this] { return volume; };
@@ -33,6 +36,7 @@ struct Rig {
         h.notify = [this](const char* t) { notes.push_back(t); };
         h.play_clip = [this](const char* id) { clips.push_back(id); return true; };
         h.react = [this](TapKind k) { reactions.push_back(k); };
+        h.gaze = [this](float nx, float ny, bool down) { if (down) { ++gazes; gnx = nx; gny = ny; } else ++lifts; };
         h.shift = [this](int dx, int dy) { ++shifts; sdx = dx; sdy = dy; };
         h.keep_awake = [this] { return awake; };
         h.overlay_active = [this] { return overlay; };
@@ -112,6 +116,27 @@ int main() {
         const size_t n = r.reactions.size();
         r.s.OnTap(180, 200);
         CHECK(r.reactions.size() == n, "no face reactions under the menu");
+    }
+
+    std::printf("== finger gaze\n");
+    {
+        Rig r; r.Start();
+        r.s.OnTouchMove(368, 224);
+        CHECK(r.gazes == 1 && r.gnx > 0.99f && std::fabs(r.gny) < 0.01f, "right edge: gaze (%.2f, %.2f)", r.gnx, r.gny);
+        r.s.OnTouchMove(0, 0);
+        CHECK(r.gnx < -0.99f && r.gny < -0.99f, "top left corner");
+        r.s.OnTouchMove(9999, 9999);
+        CHECK(r.gnx <= 1.0f && r.gny <= 1.0f, "clamped");
+        r.s.OnTouchEnd();
+        CHECK(r.lifts == 1, "finger lifted");
+        r.overlay = true;
+        const int n = r.gazes;
+        r.s.OnTouchMove(100, 100);
+        CHECK(r.gazes == n, "no gaze over other screens");
+        r.overlay = false;
+        r.s.OnLongPress();
+        r.s.OnTouchMove(100, 100);
+        CHECK(r.gazes == n, "no gaze under the menu");
     }
 
     std::printf("== battery\n");

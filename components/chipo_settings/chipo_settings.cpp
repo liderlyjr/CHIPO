@@ -112,6 +112,8 @@ bool ChipoSettings::Start(lv_obj_t* parent, Hooks hooks, const char* version, co
             lv_indev_add_event_cb(in, IndevCallback, LV_EVENT_PRESSED, this);
             lv_indev_add_event_cb(in, IndevCallback, LV_EVENT_LONG_PRESSED, this);
             lv_indev_add_event_cb(in, IndevCallback, LV_EVENT_CLICKED, this);
+            lv_indev_add_event_cb(in, IndevCallback, LV_EVENT_PRESSING, this);
+            lv_indev_add_event_cb(in, IndevCallback, LV_EVENT_RELEASED, this);
         }
     }
     start_ms_ = last_activity_ms_ = last_battery_ms_ = Now();
@@ -267,6 +269,22 @@ void ChipoSettings::OnTap(int x, int y) {
     if (hooks_.react) hooks_.react(kind);
 }
 
+void ChipoSettings::OnTouchMove(int x, int y) {
+    if (!running_ || open_ || !hooks_.gaze) return;
+    if (hooks_.overlay_active && hooks_.overlay_active()) return;
+    int32_t w = lv_display_get_horizontal_resolution(nullptr);
+    int32_t h = lv_display_get_vertical_resolution(nullptr);
+    if (w <= 0) w = 368;
+    if (h <= 0) h = 448;
+    float nx = (static_cast<float>(x) - static_cast<float>(w) / 2.0f) / (static_cast<float>(w) / 2.0f);
+    float ny = (static_cast<float>(y) - static_cast<float>(h) / 2.0f) / (static_cast<float>(h) / 2.0f);
+    hooks_.gaze(nx < -1 ? -1 : (nx > 1 ? 1 : nx), ny < -1 ? -1 : (ny > 1 ? 1 : ny), true);
+}
+
+void ChipoSettings::OnTouchEnd() {
+    if (running_ && hooks_.gaze) hooks_.gaze(0, 0, false);
+}
+
 void ChipoSettings::Press(int action) {
     if (!running_ || !open_) return;
     opened_ms_ = Now();
@@ -409,6 +427,14 @@ void ChipoSettings::IndevCallback(lv_event_t* e) {
     switch (lv_event_get_code(e)) {
     case LV_EVENT_PRESSED: self->OnPressed(); break;
     case LV_EVENT_LONG_PRESSED: self->OnLongPress(); break;
+    case LV_EVENT_PRESSING: {
+        lv_point_t p{0, 0};
+        lv_indev_t* in = lv_event_get_indev(e);
+        if (in) lv_indev_get_point(in, &p);
+        self->OnTouchMove(p.x, p.y);
+        break;
+    }
+    case LV_EVENT_RELEASED: self->OnTouchEnd(); break;
     case LV_EVENT_CLICKED: {
         lv_point_t p{0, 0};
         lv_indev_t* in = lv_event_get_indev(e);

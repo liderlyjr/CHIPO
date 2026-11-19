@@ -31,6 +31,7 @@ public:
         std::function<bool(const char*)> play_clip;
         std::function<void(TapKind)> react;            // the face reacts to a poke or a tickle
         std::function<void(int dx, int dy)> shift;     // burn-in drift of the face
+        std::function<void(float nx, float ny, bool down)> gaze;  // finger position -1..1 (down=false: finger lifted)
         std::function<bool()> keep_awake;              // something is on screen or being said: do not dim
         std::function<bool()> overlay_active;          // weather, clock, dice... on screen
         std::function<uint32_t()> clock;               // ms, defaults to lv_tick_get
@@ -54,6 +55,8 @@ public:
     void OnPressed();                   // finger down: counts as activity
     void OnLongPress();                 // opens the menu
     void OnTap(int x, int y);           // a tap that was not a long press
+    void OnTouchMove(int x, int y);     // finger down and moving: the eyes follow it
+    void OnTouchEnd();
     bool BlocksWeatherTap(int y) const; // the weather screen must not open for this tap
     void Press(int action);             // a menu button
 

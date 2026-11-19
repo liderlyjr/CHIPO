@@ -18,6 +18,8 @@ public:
         std::function<bool(const char* clip_id)> play_clip;           // false if the clip does not exist
         std::function<void(const char* text)> notify;
         std::function<void(const char* emotion, uint32_t ms)> emotion;  // ChipoFace::ShowEmotionByName
+        std::function<void(uint32_t ms)> cry;                          // very neglected: tears (ChipoFace::Cry)
+        std::function<void()> sore_loser;                              // lost a game: tantrum, then tears
         std::function<int(int lo, int hi)> rand;                       // default: lv_rand
         std::function<uint32_t()> clock;                               // ms, defaults to lv_tick_get
     };

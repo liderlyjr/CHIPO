@@ -17,12 +17,19 @@ struct Rig {
     ChipoPet pet;
     std::vector<std::string> clips, notes, emotions;
     int next_rand = 0;
+    bool with_face_hooks = false;
+    int cries = 0, tantrums = 0;
+    uint32_t cry_ms = 0;
     bool clips_exist = true;
     bool Start() {
         ChipoPet::Hooks h;
         h.play_clip = [this](const char* id) { if (!clips_exist) return false; clips.push_back(id); return true; };
         h.notify = [this](const char* t) { notes.push_back(t); };
         h.emotion = [this](const char* e, uint32_t) { emotions.push_back(e); };
+        if (with_face_hooks) {
+            h.cry = [this](uint32_t ms) { ++cries; cry_ms = ms; };
+            h.sore_loser = [this]() { ++tantrums; };
+        }
         h.rand = [this](int, int) { return next_rand; };
         h.clock = [] { return g_now; };
         return pet.Start(std::move(h));
@@ -81,6 +88,38 @@ int main() {
         const size_t before = r.notes.size();
         r.Skip(90000);
         CHECK(r.pet.game() == PetGames::Game::None && r.notes.size() == before + 1, "an abandoned game ends by itself");
+    }
+
+    std::printf("== tears and tantrum\n");
+    {
+        Rig r;
+        r.with_face_hooks = true;
+        r.Start();
+        r.Skip(20u * 60u * 60u * 1000u);  // a whole day alone
+        CHECK(r.pet.level() == PetLevel::Neglected, "neglected after a day (%d)", r.pet.mood());
+        CHECK(r.cries >= 1 && r.cry_ms >= 5000, "tears when very neglected (%d)", r.cries);
+        // Losing makes it throw a tantrum (and no plain emotion on top).
+        r.pet.OnTouch(ChipoPet::Touch::Tickle);
+        r.next_rand = 2;  // scissors
+        r.pet.OnVoiceText("juguemos a piedra papel o tijera");
+        const size_t emo = r.emotions.size();
+        r.pet.OnVoiceText("piedra");  // rock beats scissors: the owner wins
+        CHECK(r.tantrums == 1 && r.emotions.size() == emo, "sore loser (%d)", r.tantrums);
+        r.next_rand = 1;  // paper: CHIPO wins this time
+        r.pet.OnVoiceText("piedra");
+        CHECK(r.tantrums == 1, "no tantrum when it wins");
+        r.pet.OnVoiceText("ya no quiero jugar");
+        r.next_rand = 7;
+        r.pet.OnVoiceText("adivina el número");
+        r.pet.OnVoiceText("siete");
+        CHECK(r.tantrums == 2, "and when the number is guessed (%d)", r.tantrums);
+    }
+    {
+        // Without the face hooks the old behaviour stays (sleepy face when neglected).
+        Rig r;
+        r.Start();
+        r.Skip(20u * 60u * 60u * 1000u);
+        CHECK(!r.emotions.empty() && r.emotions.back() == "sleepy", "fallback to the sleepy face");
     }
 
     std::printf("== no sounds available\n");
