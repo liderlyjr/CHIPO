@@ -2,6 +2,8 @@
 
 #include <utility>
 
+#include "chipo_ha_media.h"
+
 ChipoHa::ChipoHa() = default;
 ChipoHa::~ChipoHa() { Stop(); }
 
@@ -93,6 +95,17 @@ bool ChipoHa::OnVoiceText(const char* text) {
     bool started = false;
     switch (in.kind) {
     case HaIntentKind::None: {
+        // Music through the configured media_player ("pon música", "siguiente canción").
+        if (HaValidMediaPlayer(cfg_.media_player)) {
+            const HaMediaCommand media = ParseHaMediaCommand(text);
+            if (media.action != HaMediaAction::None) {
+                if (!Launch("media_player", media.service, cfg_.media_player, media.ok_text, "Home Assistant: no responde el reproductor")) {
+                    if (hooks_.notify) hooks_.notify("Home Assistant ocupado");
+                    return false;
+                }
+                return hooks_.play_clip && hooks_.play_clip("buddy_chime");
+            }
+        }
         HaSensor sensor;
         if (sensors_.empty() || !ParseHaSensorQuery(text, sensors_, &sensor)) return false;
         if (!LaunchRead(sensor)) {

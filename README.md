@@ -75,6 +75,7 @@ Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de 
 - **AJUSTES**: menú táctil en neón (pulsación larga) con volumen, brillo, batería, Wi-Fi, versión y reinicio; indicador de batería, protector de pantalla AMOLED y toques en la cara. Ver [docs/CHIPO_SETTINGS.md](docs/CHIPO_SETTINGS.md).
 - **MASCOTA**: ánimo que sube con tu atención y baja si lo ignoras; "¿cómo estás?", piedra-papel-tijera y adivina el número por voz. Ver [docs/CHIPO_PET.md](docs/CHIPO_PET.md).
 - **RECORDATORIOS**: "recuérdame a las 18:30 sacar al perro" (una vez o a diario), guardados en la memoria del dispositivo; y lectura de sensores de Home Assistant. Ver [docs/CHIPO_REMIND.md](docs/CHIPO_REMIND.md) y [docs/CHIPO_HOME_ASSISTANT.md](docs/CHIPO_HOME_ASSISTANT.md).
+- **AMBIENTE**: lluvia, fuego o ruido suave de fondo por voz (se apaga a los 30 min) y música a través de un reproductor de Home Assistant. Ver [docs/CHIPO_AMBIENT.md](docs/CHIPO_AMBIENT.md).
 - **Home Assistant** por voz: luces y escenas (apagado hasta configurar la dirección y el token).
 - **Actualización automática** desde las Releases de GitHub.
 

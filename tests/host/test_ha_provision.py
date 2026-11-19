@@ -42,15 +42,22 @@ check(raises(p.build_values, "http://ha.local", "", [], None, None, None), "empt
 check(raises(p.build_values, "http://ha.local", "t", ["s%d=sensor.s%d" % (i, i) for i in range(13)], None, None, None), "13 sensors refused")
 
 print("== image")
+try:
+    import esp_idf_nvs_partition_gen  # noqa: F401
+    have_gen = True
+except ImportError:
+    have_gen = False
+    print("SKIP image generation: 'pip install esp-idf-nvs-partition-gen' to run it")
 with tempfile.TemporaryDirectory() as tmp:
     out = Path(tmp) / "nvs.bin"
     os.environ["CHIPO_HA_TOKEN"] = "FAKE-TOKEN-FOR-TEST"
-    code = p.main(["--url", "http://ha.local:8123", "--sensor", "temperatura=sensor.t", "--out", str(out)])
-    check(code == 0 and out.exists(), "image generated")
-    data = out.read_bytes() if out.exists() else b""
-    check(len(data) == p.NVS_SIZE, f"image is exactly the partition size ({len(data)})")
-    check(b"chipo_ha" in data and b"http://ha.local:8123" in data and b"temperatura=sensor.t" in data, "namespace, url and sensors inside")
-    check(b"FAKE-TOKEN-FOR-TEST" in data, "token inside (clear text, as documented)")
+    if have_gen:
+        code = p.main(["--url", "http://ha.local:8123", "--sensor", "temperatura=sensor.t", "--out", str(out)])
+        check(code == 0 and out.exists(), "image generated")
+        data = out.read_bytes() if out.exists() else b""
+        check(len(data) == p.NVS_SIZE, f"image is exactly the partition size ({len(data)})")
+        check(b"chipo_ha" in data and b"http://ha.local:8123" in data and b"temperatura=sensor.t" in data, "namespace, url and sensors inside")
+        check(b"FAKE-TOKEN-FOR-TEST" in data, "token inside (clear text, as documented)")
     check(p.main(["--url", "nope", "--out", str(out)]) == 2, "bad url exits with 2")
     try:
         p.main(["--url", "http://ha.local", "--flash", "--out", str(out)])

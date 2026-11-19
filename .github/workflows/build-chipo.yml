@@ -38,6 +38,9 @@ jobs:
       - name: Get LVGL (same 9.5 series XiaoZhi uses)
         run: git clone --depth 1 --branch v9.5.0 https://github.com/lvgl/lvgl.git "$RUNNER_TEMP/lvgl"
 
+      - name: Tools for the Home Assistant provisioning test
+        run: python3 -m pip install --break-system-packages esp-idf-nvs-partition-gen || echo "not installed - the image test will be skipped"
+
       - name: Run tests (AddressSanitizer + UBSan)
         run: LVGL_DIR="$RUNNER_TEMP/lvgl" tests/host/run.sh
 

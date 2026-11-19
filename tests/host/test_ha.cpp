@@ -136,6 +136,39 @@ int main() {
         CHECK(!r2.ha.OnVoiceText("qué temperatura hay en el salón"), "no GET hook: not handled");
     }
 
+    std::printf("== music through a media_player\n");
+    {
+        HaConfig c3 = cfg;
+        c3.media_player = "media_player.salon";
+        Rig r;
+        r.ha.Start(c3, r.Hooks());
+        CHECK(r.ha.OnVoiceText("Chipo, pon música"), "play handled");
+        r.RunWorker();
+        CHECK(r.urls.back() == "http://ha.local:8123/api/services/media_player/media_play" && r.bodies.back() == "{\"entity_id\":\"media_player.salon\"}", "play request (%s)", r.urls.back().c_str());
+        r.Tick();
+        CHECK(r.notes.back() == "Música", "result text (%s)", r.notes.back().c_str());
+        CHECK(r.ha.OnVoiceText("siguiente canción"), "next");
+        r.RunWorker(); r.Tick();
+        CHECK(r.urls.back().find("media_next_track") != std::string::npos, "next url");
+        CHECK(r.ha.OnVoiceText("sube el volumen de la música"), "volume");
+        r.RunWorker(); r.Tick();
+        CHECK(r.urls.back().find("volume_up") != std::string::npos, "volume_up url");
+        CHECK(!r.ha.OnVoiceText("sube el volumen"), "CHIPO's own volume is left to the assistant");
+        r.post_ok = false;
+        r.ha.OnVoiceText("pausa la música");
+        r.RunWorker(); r.Tick();
+        CHECK(r.notes.back() == "Home Assistant: no responde el reproductor", "failure text (%s)", r.notes.back().c_str());
+
+        Rig n;  // no media player configured: music phrases go to the assistant
+        n.ha.Start(cfg, n.Hooks());
+        CHECK(!n.ha.OnVoiceText("pon música") && n.pending.empty(), "no media_player: not handled");
+        HaConfig bad = cfg;
+        bad.media_player = "light.salon";
+        Rig b;
+        b.ha.Start(bad, b.Hooks());
+        CHECK(!b.ha.OnVoiceText("pon música") && b.pending.empty(), "a non-media entity is ignored");
+    }
+
     std::printf("== stopped while a call is running\n");
     {
         Rig r;

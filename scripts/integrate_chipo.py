@@ -24,7 +24,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_settings"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_settings"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -163,7 +163,7 @@ replace_once(
                     }
                     // CHIPO BUDDY (timers, alarm, bedtime), FUN (lamp, dice, coin) and Home Assistant: same rule, a sound answers
                     // and the server's spoken reply to that sentence is dropped.
-                    if ((chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_ || chipo_remind_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                    if ((chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_ || chipo_remind_ || chipo_ambient_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
                         DisplayLockGuard lock(display);
                         if (lock) {
                             bool handled = false;
@@ -174,6 +174,7 @@ replace_once(
                                 const bool pet_handled = chipo_pet_->OnVoiceText(message.c_str());
                                 if (!handled) handled = pet_handled;
                             }
+                            if (!handled && chipo_ambient_) handled = chipo_ambient_->OnVoiceText(message.c_str());  // rain, fire, noise
                             if (!handled && chipo_ha_) handled = chipo_ha_->OnVoiceText(message.c_str());
                             if (handled) {
                                 chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
@@ -299,13 +300,13 @@ replace_once(
 replace_once(
     app_h,
     '#include "chipo_weather_controller.h"\n',
-    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_remind.h"\n#include "chipo_settings.h"\n#include "chipo_version.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_remind.h"\n#include "chipo_ambient.h"\n#include "chipo_settings.h"\n#include "chipo_version.h"\n',
     "Application drive header include",
 )
 replace_once(
     app_h,
     "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
-    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoRemind> chipo_remind_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoRemind> chipo_remind_;\n    std::unique_ptr<ChipoAmbient> chipo_ambient_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
     "Application drive members",
 )
 replace_once(
@@ -495,6 +496,34 @@ replace_once(
         }
     }
 
+    // CHIPO AMBIENT: rain / fire / soft noise in the background (one 0.96 s piece queued about every second).
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_ambient_ = std::make_unique<ChipoAmbient>();
+            ChipoAmbient::Hooks hooks;
+            hooks.clip_exists = [](const char* id) { return !ChipoDriveClip(id).empty(); };
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            hooks.emotion = [this](const char* name, uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
+            };
+            hooks.assistant_busy = [this]() {
+                const auto state = GetDeviceState();
+                return state == kDeviceStateListening || state == kDeviceStateSpeaking;
+            };
+            if (!chipo_ambient_->Start(std::move(hooks))) {
+                chipo_ambient_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Ambient");
+            }
+        }
+    }
+
     // CHIPO BUDDY: timer, pomodoro, stopwatch, alarm and bedside clock by voice.
     {
         DisplayLockGuard lock(display);
@@ -623,7 +652,7 @@ replace_once(
 replace_once(
     cmake,
     "                        chipo_update\n",
-    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n                        chipo_pet\n                        chipo_remind\n                        chipo_settings\n",
+    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n                        chipo_pet\n                        chipo_remind\n                        chipo_ambient\n                        chipo_settings\n",
     "Link chipo_drive component",
 )
 

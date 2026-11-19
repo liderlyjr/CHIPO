@@ -26,6 +26,23 @@ La llamada de red se hace en una tarea aparte (nunca en la del interfaz) con un 
 el token en la cabecera `Authorization: Bearer`, nunca se escribe en el registro ni en pantalla. Con `https://` se
 valida el certificado con el paquete de certificados de ESP-IDF.
 
+## Música (media_player)
+
+Con la clave `media_player` (por ejemplo `media_player.salon`) CHIPO controla el reproductor de Home Assistant:
+
+| Frase | Servicio (`POST /api/services/media_player/…`) |
+| --- | --- |
+| «pon música», «continúa la música» | `media_play` |
+| «pausa la música», «para la música» | `media_pause` |
+| «siguiente canción» | `media_next_track` |
+| «canción anterior» | `media_previous_track` |
+| «sube / baja el volumen de la música» | `volume_up` / `volume_down` |
+
+Siempre hace falta decir «música», «canción», «tema» o «reproductor»: «sube el volumen» a secas sigue siendo del asistente.
+CHIPO no reproduce la música ni elige qué suena (eso lo decide lo que ya tengas en ese reproductor); solo manda
+el servicio. Sin `media_player` válido no hace nada. Script: `--media-player media_player.salon`. Probado en PC con
+un cliente simulado; no contra un Home Assistant real.
+
 ## Leer sensores
 
 CHIPO solo lee los sensores que le des de alta, cada uno con el nombre con el que lo dirás en voz alta

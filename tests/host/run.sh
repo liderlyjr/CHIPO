@@ -100,7 +100,7 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_fun/i
 
 echo "== Home Assistant controller (async call, result text, off when not configured)"
 g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include -w \
-    tests/host/test_ha.cpp components/chipo_ha/chipo_ha.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_ha/chipo_ha_state.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    tests/host/test_ha.cpp components/chipo_ha/chipo_ha.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_ha/chipo_ha_state.cpp components/chipo_ha/chipo_ha_media.cpp components/chipo_drive/chipo_drive_voice.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_ha"
 "$OUT/test_ha"
 
@@ -114,6 +114,16 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w
 echo "== chipo_ha sensors (state JSON, voice)"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include tests/host/test_ha_state.cpp components/chipo_ha/chipo_ha_state.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_ha_state"
 "$OUT/test_ha_state"
+
+echo "== chipo_ha media (voice)"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include tests/host/test_ha_media.cpp components/chipo_ha/chipo_ha_media.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_ha_media"
+"$OUT/test_ha_media"
+
+echo "== chipo_ambient (LVGL)"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_ambient/include -Icomponents/chipo_drive/include -w \
+    tests/host/test_ambient.cpp components/chipo_ambient/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_ambient"
+"$OUT/test_ambient"
 
 echo "== chipo_pet logic"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_pet/include -Icomponents/chipo_drive/include tests/host/test_pet_logic.cpp components/chipo_pet/chipo_pet_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_pet_logic"
