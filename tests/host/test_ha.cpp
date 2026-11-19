@@ -17,6 +17,9 @@ struct Rig {
     ChipoHa ha;
     std::vector<std::string> clips, notes, urls, bodies, tokens;
     bool post_ok = true;
+    bool get_ok = true;
+    std::string get_body = "{\"state\":\"21.5\",\"attributes\":{\"unit_of_measurement\":\"\\u00b0C\"}}";
+    std::vector<std::string> get_urls;
     std::vector<std::function<void()>> pending;  // deferred jobs: the worker "runs" when the test says so
 
     ChipoHa::Hooks Hooks() {
@@ -24,6 +27,7 @@ struct Rig {
         h.play_clip = [this](const char* id) { clips.push_back(id); return true; };
         h.notify = [this](const char* t) { notes.push_back(t); };
         h.post = [this](const HaRequest& r, const std::string& token) { urls.push_back(r.url); bodies.push_back(r.body); tokens.push_back(token); return post_ok; };
+        h.get = [this](const HaRequest& r, const std::string& token, std::string* body) { get_urls.push_back(r.url); tokens.push_back(token); *body = get_body; return get_ok; };
         h.run_async = [this](std::function<void()> job) { pending.push_back(std::move(job)); };
         return h;
     }
@@ -93,6 +97,43 @@ int main() {
         const size_t calls = r.urls.size();
         r.ha.RunScene("morning");  // no morning scene configured
         CHECK(r.pending.empty() && r.urls.size() == calls, "no morning scene: nothing happens");
+    }
+
+    std::printf("== reading a sensor\n");
+    {
+        HaConfig c2 = cfg;
+        c2.sensors = "temperatura salon=sensor.salon_temp;puerta=binary_sensor.puerta";
+        Rig r;
+        r.ha.Start(c2, r.Hooks());
+        CHECK(r.ha.OnVoiceText("Chipo, ¿qué temperatura hay en el salón?"), "handled with a chime");
+        CHECK(r.pending.size() == 1 && r.get_urls.empty(), "read is queued for the worker");
+        r.RunWorker();
+        CHECK(r.get_urls.size() == 1 && r.get_urls[0] == "http://ha.local:8123/api/states/sensor.salon_temp", "GET url (%s)", r.get_urls.empty() ? "-" : r.get_urls[0].c_str());
+        r.Tick();
+        CHECK(r.notes.size() == 1 && r.notes[0] == "Temperatura salon: 21.5 grados", "value shown (%s)", r.notes.empty() ? "-" : r.notes[0].c_str());
+        CHECK(!r.ha.OnVoiceText("qué tiempo hace"), "weather is left to the weather module");
+        CHECK(!r.ha.OnVoiceText("dime la presión"), "unknown sensor: the assistant answers");
+
+        r.get_ok = false;
+        r.ha.OnVoiceText("está abierta la puerta");
+        r.RunWorker();
+        r.Tick();
+        CHECK(r.notes.back() == "Home Assistant: no puedo leer puerta", "failure text (%s)", r.notes.back().c_str());
+
+        r.get_ok = true;
+        r.get_body = "{\"message\":\"Entity not found.\"}";
+        r.ha.OnVoiceText("está abierta la puerta");
+        r.RunWorker();
+        r.Tick();
+        CHECK(r.notes.back() == "Home Assistant: no puedo leer puerta", "unknown entity text");
+        for (const auto& n : r.notes) CHECK(n.find("secret") == std::string::npos, "token leaked in text");
+
+        // Without a GET hook (older glue) nothing is read.
+        Rig r2;
+        auto h = r2.Hooks();
+        h.get = nullptr;
+        r2.ha.Start(c2, std::move(h));
+        CHECK(!r2.ha.OnVoiceText("qué temperatura hay en el salón"), "no GET hook: not handled");
     }
 
     std::printf("== stopped while a call is running\n");

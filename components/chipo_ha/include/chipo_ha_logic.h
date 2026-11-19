@@ -16,6 +16,8 @@ struct HaConfig {
     std::string token;          // long-lived access token
     std::string scene_night;    // entity id, e.g. "scene.buenas_noches" ("" = none)
     std::string scene_morning;  // e.g. "scene.buenos_dias"
+    std::string sensors;        // readable sensors by spoken name: "temperatura salon=sensor.salon_temp;humedad=sensor.hum"
+    std::string media_player;   // entity id of the music player, e.g. "media_player.salon" ("" = none)
     bool usable() const;        // address valid and token present
 };
 

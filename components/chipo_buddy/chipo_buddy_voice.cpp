@@ -134,7 +134,7 @@ uint32_t ParseDuration(const Tokens& t) {
     return total;
 }
 
-bool ParseAlarmTime(const Tokens& t, int* hour, int* minute) {
+bool ParseAlarmTime(const Tokens& t, int* hour, int* minute, size_t* end = nullptr) {
     for (size_t i = 0; i + 1 < t.size(); ++i) {
         if (t[i] != "las" && t[i] != "la") continue;
         int h = 0;
@@ -173,12 +173,17 @@ bool ParseAlarmTime(const Tokens& t, int* hour, int* minute) {
         if (h == 24) h = 0;
         *hour = h;
         *minute = m;
+        if (end) *end = j;
         return true;
     }
     return false;
 }
 
 }  // namespace
+
+bool BuddyParseClockTime(const std::vector<std::string>& tokens, int* hour, int* minute, size_t* end) {
+    return ParseAlarmTime(tokens, hour, minute, end);
+}
 
 BuddyCommand ParseBuddyCommand(const char* text) {
     BuddyCommand cmd;

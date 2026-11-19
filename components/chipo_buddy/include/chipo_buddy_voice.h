@@ -1,6 +1,9 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 /**
  * Spoken commands of CHIPO BUDDY (timers, pomodoro, stopwatch, alarm, bedtime), matched on the text
@@ -30,3 +33,7 @@ struct BuddyCommand {
 };
 
 BuddyCommand ParseBuddyCommand(const char* text);
+
+// "a las 18:30", "a las seis y media", "a las 7 de la tarde" in already normalised tokens (DriveNormalizeText, split on
+// spaces). On success `*end` is the index of the first token after the time itself ("de la tarde" may still follow).
+bool BuddyParseClockTime(const std::vector<std::string>& tokens, int* hour, int* minute, size_t* end);

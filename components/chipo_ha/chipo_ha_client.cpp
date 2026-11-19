@@ -1,6 +1,7 @@
 // ESP32 only: HTTP POST to Home Assistant and reading its settings from NVS.
 #include "chipo_ha_client.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "esp_crt_bundle.h"
@@ -32,6 +33,44 @@ bool ChipoHaPost(const HaRequest& req, const std::string& token) {
         if (!ok) ESP_LOGW(TAG, "Home Assistant answered HTTP %d", status);  // never log the token
     } else {
         ESP_LOGW(TAG, "Home Assistant request failed: %s", esp_err_to_name(err));
+    }
+    esp_http_client_cleanup(client);
+    return ok;
+}
+
+namespace {
+constexpr size_t kMaxBody = 8192;
+esp_err_t CollectBody(esp_http_client_event_t* evt) {
+    if (evt->event_id == HTTP_EVENT_ON_DATA && evt->user_data && evt->data_len > 0) {
+        auto* body = static_cast<std::string*>(evt->user_data);
+        if (body->size() < kMaxBody) {
+            body->append(static_cast<const char*>(evt->data), std::min<size_t>(evt->data_len, kMaxBody - body->size()));
+        }
+    }
+    return ESP_OK;
+}
+}  // namespace
+
+bool ChipoHaGet(const HaRequest& req, const std::string& token, std::string* body) {
+    esp_http_client_config_t cfg = {};
+    cfg.url = req.url.c_str();
+    cfg.method = HTTP_METHOD_GET;
+    cfg.timeout_ms = 6000;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    cfg.event_handler = CollectBody;
+    cfg.user_data = body;
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client) return false;
+    const std::string auth = "Bearer " + token;
+    esp_http_client_set_header(client, "Authorization", auth.c_str());
+    bool ok = false;
+    const esp_err_t err = esp_http_client_perform(client);
+    if (err == ESP_OK) {
+        const int status = esp_http_client_get_status_code(client);
+        ok = status >= 200 && status < 300;
+        if (!ok) ESP_LOGW(TAG, "Home Assistant answered HTTP %d", status);  // never log the token
+    } else {
+        ESP_LOGW(TAG, "Home Assistant read failed: %s", esp_err_to_name(err));
     }
     esp_http_client_cleanup(client);
     return ok;
@@ -74,6 +113,8 @@ bool ChipoHaLoadConfig(HaConfig* out) {
     read("token", &out->token);
     read("scene_night", &out->scene_night);
     read("scene_morning", &out->scene_morning);
+    read("sensors", &out->sensors);
+    read("media_player", &out->media_player);
     nvs_close(h);
     return out->usable();
 }

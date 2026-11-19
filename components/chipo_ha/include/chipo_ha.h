@@ -6,6 +6,7 @@
 #include <string>
 
 #include "chipo_ha_logic.h"
+#include "chipo_ha_state.h"
 #include "lvgl.h"
 
 /**
@@ -23,6 +24,8 @@ public:
         std::function<void(const char* text)> notify;
         // Blocking HTTP POST with the bearer token; true on a 2xx answer. Default: esp_http_client.
         std::function<bool(const HaRequest&, const std::string& token)> post;
+        // Blocking HTTP GET with the bearer token; fills `body` (at most ~8 KB) and returns true on a 2xx answer.
+        std::function<bool(const HaRequest&, const std::string& token, std::string* body)> get;
         // Runs `job` off the LVGL task. Default: a FreeRTOS task (host tests: inline).
         std::function<void(std::function<void()> job)> run_async;
     };
@@ -50,10 +53,12 @@ private:
         std::string ok_text, fail_text;
     };
     static void TimerCallback(lv_timer_t* timer);
+    bool LaunchRead(const HaSensor& sensor);
     bool Launch(const std::string& domain, const std::string& service, const std::string& entity,
                 const std::string& ok_text, const std::string& fail_text);
 
     HaConfig cfg_;
+    std::vector<HaSensor> sensors_;
     Hooks hooks_;
     lv_timer_t* timer_ = nullptr;
     bool configured_ = false;

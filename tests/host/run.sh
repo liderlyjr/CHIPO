@@ -100,7 +100,7 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_fun/i
 
 echo "== Home Assistant controller (async call, result text, off when not configured)"
 g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include -w \
-    tests/host/test_ha.cpp components/chipo_ha/chipo_ha.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    tests/host/test_ha.cpp components/chipo_ha/chipo_ha.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_ha/chipo_ha_state.cpp components/chipo_drive/chipo_drive_voice.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_ha"
 "$OUT/test_ha"
 
@@ -111,6 +111,10 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w
     "$OUT"/obj/*.o -o "$OUT/test_weather_ui"
 "$OUT/test_weather_ui"
 
+echo "== chipo_ha sensors (state JSON, voice)"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include tests/host/test_ha_state.cpp components/chipo_ha/chipo_ha_state.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_ha_state"
+"$OUT/test_ha_state"
+
 echo "== chipo_pet logic"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_pet/include -Icomponents/chipo_drive/include tests/host/test_pet_logic.cpp components/chipo_pet/chipo_pet_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_pet_logic"
 "$OUT/test_pet_logic"
@@ -120,6 +124,19 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_pet/i
     tests/host/test_pet.cpp components/chipo_pet/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_pet"
 "$OUT/test_pet"
+
+echo "== chipo_ha_provision.py"
+python3 tests/host/test_ha_provision.py
+
+echo "== chipo_remind logic"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_remind/include -Icomponents/chipo_buddy/include -Icomponents/chipo_drive/include tests/host/test_remind_logic.cpp components/chipo_remind/chipo_remind_logic.cpp components/chipo_buddy/chipo_buddy_voice.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_remind_logic"
+"$OUT/test_remind_logic"
+
+echo "== chipo_remind (LVGL)"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_remind/include -Icomponents/chipo_buddy/include -Icomponents/chipo_drive/include -w \
+    tests/host/test_remind.cpp components/chipo_remind/*.cpp components/chipo_buddy/chipo_buddy_voice.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_remind"
+"$OUT/test_remind"
 
 echo "== chipo_settings logic"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_settings/include tests/host/test_settings_logic.cpp components/chipo_settings/chipo_settings_logic.cpp -o "$OUT/test_settings_logic"

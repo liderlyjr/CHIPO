@@ -24,7 +24,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_settings"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_settings"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -163,11 +163,12 @@ replace_once(
                     }
                     // CHIPO BUDDY (timers, alarm, bedtime), FUN (lamp, dice, coin) and Home Assistant: same rule, a sound answers
                     // and the server's spoken reply to that sentence is dropped.
-                    if ((chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                    if ((chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_ || chipo_remind_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
                         DisplayLockGuard lock(display);
                         if (lock) {
                             bool handled = false;
-                            if (chipo_buddy_) handled = chipo_buddy_->OnVoiceText(message.c_str());
+                            if (chipo_remind_) handled = chipo_remind_->OnVoiceText(message.c_str());  // "recuérdame a las 18:30 ..."
+                            if (!handled && chipo_buddy_) handled = chipo_buddy_->OnVoiceText(message.c_str());
                             if (!handled && chipo_fun_) handled = chipo_fun_->OnVoiceText(message.c_str());
                             if (chipo_pet_) {  // mood and games: every sentence counts as attention
                                 const bool pet_handled = chipo_pet_->OnVoiceText(message.c_str());
@@ -298,13 +299,13 @@ replace_once(
 replace_once(
     app_h,
     '#include "chipo_weather_controller.h"\n',
-    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_settings.h"\n#include "chipo_version.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_remind.h"\n#include "chipo_settings.h"\n#include "chipo_version.h"\n',
     "Application drive header include",
 )
 replace_once(
     app_h,
     "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
-    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoRemind> chipo_remind_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
     "Application drive members",
 )
 replace_once(
@@ -366,6 +367,7 @@ replace_once(
             };
             ha_hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
             ha_hooks.post = ChipoHaPost;
+            ha_hooks.get = ChipoHaGet;
             ha_hooks.run_async = ChipoHaRunAsync;
             if (!chipo_ha_->Start(ha_cfg, std::move(ha_hooks))) {
                 chipo_ha_.reset();
@@ -441,6 +443,54 @@ replace_once(
             if (!chipo_pet_->Start(std::move(hooks))) {
                 chipo_pet_.reset();
                 ESP_LOGE(TAG, "Failed to initialize CHIPO Pet");
+            }
+        }
+    }
+
+    // CHIPO REMIND: spoken reminders at a time of day, kept in the device's NVS so they survive a reboot.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_remind_ = std::make_unique<ChipoRemind>();
+            ChipoRemind::Hooks hooks;
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            hooks.emotion = [this](const char* name, uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
+            };
+            hooks.assistant_busy = [this]() {
+                const auto state = GetDeviceState();
+                return state == kDeviceStateListening || state == kDeviceStateSpeaking;
+            };
+            // XiaoZhi stores the server time plus the time zone offset as the system time (see BUDDY below).
+            hooks.wall_time = [](ChipoRemind::Wall* out) {
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                if (tv.tv_sec < 1700000000) return false;
+                struct tm tm_now;
+                gmtime_r(&tv.tv_sec, &tm_now);
+                out->valid = true;
+                out->hour = tm_now.tm_hour;
+                out->minute = tm_now.tm_min;
+                return true;
+            };
+            hooks.load = []() {
+                Settings saved("chipo", false);
+                return saved.GetString("reminders", "");
+            };
+            hooks.save = [](const std::string& data) {
+                Settings settings("chipo", true);
+                if (data.empty()) settings.EraseKey("reminders");
+                else settings.SetString("reminders", data);
+            };
+            if (!chipo_remind_->Start(std::move(hooks))) {
+                chipo_remind_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Remind");
             }
         }
     }
@@ -573,7 +623,7 @@ replace_once(
 replace_once(
     cmake,
     "                        chipo_update\n",
-    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n                        chipo_pet\n                        chipo_settings\n",
+    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n                        chipo_pet\n                        chipo_remind\n                        chipo_settings\n",
     "Link chipo_drive component",
 )
 
