@@ -111,6 +111,16 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w
     "$OUT"/obj/*.o -o "$OUT/test_weather_ui"
 "$OUT/test_weather_ui"
 
+echo "== chipo_pet logic"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_pet/include -Icomponents/chipo_drive/include tests/host/test_pet_logic.cpp components/chipo_pet/chipo_pet_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_pet_logic"
+"$OUT/test_pet_logic"
+
+echo "== chipo_pet (LVGL)"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_pet/include -Icomponents/chipo_drive/include -w \
+    tests/host/test_pet.cpp components/chipo_pet/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_pet"
+"$OUT/test_pet"
+
 echo "== chipo_settings logic"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_settings/include tests/host/test_settings_logic.cpp components/chipo_settings/chipo_settings_logic.cpp -o "$OUT/test_settings_logic"
 "$OUT/test_settings_logic"
