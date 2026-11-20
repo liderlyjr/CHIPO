@@ -162,3 +162,11 @@ El color del estado (escuchando, error, amor…) sigue tiñendo ojos y boca. Ima
 - Drive: la cara sube un poco y el sol es más pequeño y más bajo; la sonrisa queda cerrada (sin lengua).
 - Ajustes: en pantallas anchas las barras y botones se alargan (hasta 440 px). Clima: márgenes mayores para
   no tocar las esquinas redondeadas de la 2.16".
+- Reloj de mesa en la 2.16": GIF `docs/img/chipo_216_anim_desk_clock.gif` (CHIPO tumbado 90° a la izquierda →
+  la cara se cae → a los 10 s sale la hora en grande, legible con la pantalla de lado → al levantarlo, mareo).
+  En el GIF la espera de 10 s va acelerada. Arreglado: mientras la cara está fuera de la pantalla ya no aparece
+  una barra de desplazamiento gris en el borde.
+- Sensor (QMI8658) en la 2.16": Waveshare lo pone en el mismo bus I2C (GPIO15 SDA / GPIO14 SCL, puerto 0 que abre
+  XiaoZhi). La dirección no está documentada; CHIPO prueba 0x6B y 0x6A, las dos únicas que admite el chip. El eje
+  vertical se detecta solo. Sin probar en la placa: si cae hacia el lado contrario, CHIPO_TILT_MIRROR_X=1; si el
+  reloj sale con el lado equivocado, cambiar el signo de CHIPO_DESK_CLOCK_SIDE.

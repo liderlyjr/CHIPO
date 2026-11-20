@@ -186,6 +186,9 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         fs_ = std::min(static_cast<float>(pw) / 368.0f, static_cast<float>(ph) / 340.0f);
         fs_ = Clamp(fs_, 1.0f, 1.6f);
     }
+    // The face slides off the screen when CHIPO falls over: without this the parent (the screen) grows a grey
+    // scrollbar on its edge while the face is out of bounds.
+    lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_OFF);
     CreateRoad(parent);  // below the face, above XiaoZhi's own screen
 
     root_ = lv_obj_create(parent);
