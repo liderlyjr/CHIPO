@@ -142,7 +142,13 @@ void ChipoSettings::Stop() {
 }
 
 void ChipoSettings::Build(const lv_font_t* font, const char* version) {
-    const int w = 368, h = 448;
+    // The menu layout was drawn for 368 x 448; on a bigger screen (2.16": 480 x 480) it is centred in
+    // a full-screen black menu_, so nothing else shows through and the content stays clear of the corners.
+    constexpr int kLayoutW = 368, kLayoutH = 448;
+    int w = static_cast<int>(lv_display_get_horizontal_resolution(nullptr));
+    int h = static_cast<int>(lv_display_get_vertical_resolution(nullptr));
+    if (w <= 0) w = kLayoutW;
+    if (h <= 0) h = kLayoutH;
     // ---- battery indicator (top centre, only while charging or low) ----------------------------
     indicator_ = Box(lv_screen_active(), (w - 120) / 2, 8, 120, 34, 8, 0x000000, 0);
     lv_obj_set_style_border_width(indicator_, 3, 0);
@@ -158,34 +164,38 @@ void ChipoSettings::Build(const lv_font_t* font, const char* version) {
     menu_ = Box(lv_screen_active(), 0, 0, w, h, 0, 0x000000);
     lv_obj_add_flag(menu_, LV_OBJ_FLAG_CLICKABLE);  // swallows the taps: nothing under the menu reacts
     lv_obj_add_flag(menu_, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_t* title = Text(menu_, font, 0, 18, w, kCyan, LV_TEXT_ALIGN_CENTER);
+    const int ox = w > kLayoutW ? (w - kLayoutW) / 2 : 0;
+    const int oy = h > kLayoutH ? (h - kLayoutH) / 2 : 0;
+    lv_obj_t* content = Box(menu_, ox, oy, kLayoutW, kLayoutH, 0, 0x000000, 0);
+    lv_obj_set_style_bg_opa(content, LV_OPA_TRANSP, 0);
+    lv_obj_t* title = Text(content, font, 0, 18, kLayoutW, kCyan, LV_TEXT_ALIGN_CENTER);
     lv_label_set_text(title, "AJUSTES");
     lv_obj_set_style_text_letter_space(title, 4, 0);
 
-    lv_obj_t* l_vol = Text(menu_, font, 24, 68, 160, 0xFFFFFF, LV_TEXT_ALIGN_LEFT);
+    lv_obj_t* l_vol = Text(content, font, 24, 68, 160, 0xFFFFFF, LV_TEXT_ALIGN_LEFT);
     lv_label_set_text(l_vol, "Volumen");
-    val_vol_ = Text(menu_, font, 204, 68, 140, kCyan, LV_TEXT_ALIGN_RIGHT);
-    lv_obj_t* b0 = Button(menu_, font, 24, 104, 64, 50, "-", kCyan);
-    bar_vol_ = Bar(menu_, 102, 121, 164);
-    lv_obj_t* b1 = Button(menu_, font, 280, 104, 64, 50, "+", kCyan);
+    val_vol_ = Text(content, font, 204, 68, 140, kCyan, LV_TEXT_ALIGN_RIGHT);
+    lv_obj_t* b0 = Button(content, font, 24, 104, 64, 50, "-", kCyan);
+    bar_vol_ = Bar(content, 102, 121, 164);
+    lv_obj_t* b1 = Button(content, font, 280, 104, 64, 50, "+", kCyan);
 
-    lv_obj_t* l_bri = Text(menu_, font, 24, 176, 160, 0xFFFFFF, LV_TEXT_ALIGN_LEFT);
+    lv_obj_t* l_bri = Text(content, font, 24, 176, 160, 0xFFFFFF, LV_TEXT_ALIGN_LEFT);
     lv_label_set_text(l_bri, "Brillo");
-    val_bri_ = Text(menu_, font, 204, 176, 140, kPink, LV_TEXT_ALIGN_RIGHT);
-    lv_obj_t* b2 = Button(menu_, font, 24, 212, 64, 50, "-", kPink);
-    bar_bri_ = Bar(menu_, 102, 229, 164);
-    lv_obj_t* b3 = Button(menu_, font, 280, 212, 64, 50, "+", kPink);
+    val_bri_ = Text(content, font, 204, 176, 140, kPink, LV_TEXT_ALIGN_RIGHT);
+    lv_obj_t* b2 = Button(content, font, 24, 212, 64, 50, "-", kPink);
+    bar_bri_ = Bar(content, 102, 229, 164);
+    lv_obj_t* b3 = Button(content, font, 280, 212, 64, 50, "+", kPink);
 
-    info_bat_ = Text(menu_, font, 24, 292, 320, kGreen, LV_TEXT_ALIGN_LEFT);
-    info_wifi_ = Text(menu_, font, 24, 326, 320, kCyan, LV_TEXT_ALIGN_LEFT);
-    info_ver_ = Text(menu_, font, 24, 360, 320, 0x9AA7B2, LV_TEXT_ALIGN_LEFT);
+    info_bat_ = Text(content, font, 24, 292, 320, kGreen, LV_TEXT_ALIGN_LEFT);
+    info_wifi_ = Text(content, font, 24, 326, 320, kCyan, LV_TEXT_ALIGN_LEFT);
+    info_ver_ = Text(content, font, 24, 360, 320, 0x9AA7B2, LV_TEXT_ALIGN_LEFT);
     char buf[64];
     std::snprintf(buf, sizeof(buf), "CHIPO OS %s", version);
     lv_label_set_text(info_ver_, buf);
 
-    lv_obj_t* b4 = Button(menu_, font, 24, 394, 152, 46, "Reiniciar", kPink);
+    lv_obj_t* b4 = Button(content, font, 24, 394, 152, 46, "Reiniciar", kPink);
     restart_label_ = lv_obj_get_child(b4, 0);
-    lv_obj_t* b5 = Button(menu_, font, 192, 394, 152, 46, "Cerrar", kCyan);
+    lv_obj_t* b5 = Button(content, font, 192, 394, 152, 46, "Cerrar", kCyan);
 
     lv_obj_t* buttons[kActionCount] = {b0, b1, b2, b3, b4, b5};
     for (int i = 0; i < kActionCount; ++i) {

@@ -5,10 +5,17 @@ import re
 import shutil
 import sys
 
-if len(sys.argv) != 3:
-    raise SystemExit("Usage: integrate_chipo.py <CHIPO repo root> <xiaozhi checkout>")
-chipo = Path(sys.argv[1]).resolve()
-xiaozhi = Path(sys.argv[2]).resolve()
+BOARDS = {
+    "1.8-v2": ("CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2=y", "Waveshare ESP32-S3 Touch AMOLED 1.8 V2"),
+    "2.16": ("CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16=y", "Waveshare ESP32-S3 Touch AMOLED 2.16"),
+}
+args = [a for a in sys.argv[1:] if not a.startswith("--board=")]
+board_args = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--board=")]
+board = board_args[0] if board_args else "1.8-v2"
+if len(args) != 2 or board not in BOARDS:
+    raise SystemExit("Usage: integrate_chipo.py <CHIPO repo root> <xiaozhi checkout> [--board=1.8-v2|2.16]")
+chipo = Path(args[0]).resolve()
+xiaozhi = Path(args[1]).resolve()
 main = xiaozhi / "main"
 if not (main / "application.h").is_file() or not (main / "application.cc").is_file():
     raise SystemExit(f"Not a XiaoZhi source checkout: {xiaozhi}")
@@ -805,7 +812,7 @@ else:
 defaults = xiaozhi / "sdkconfig.defaults"
 defaults_text = defaults.read_text(encoding="utf-8") if defaults.exists() else ""
 settings = [
-    "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2=y",
+    BOARDS[board][0],
     "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
     # Wake word "Chipo": custom wake word through ESP-SR MultiNet (English model, written
     # phonetically). Needs tuning on the real board; see docs/WAKE_WORD.md.
@@ -825,5 +832,5 @@ if missing:
         if defaults_text and not defaults_text.endswith("\n"):
             f.write("\n")
         f.write("\n".join(missing) + "\n")
-print("[configured] Waveshare ESP32-S3 Touch AMOLED 1.8 V2")
+print(f"[configured] {BOARDS[board][1]}")
 print("[done] CHIPO overlay integrated. Build with: idf.py set-target esp32s3 && idf.py build")

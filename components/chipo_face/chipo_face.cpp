@@ -40,7 +40,7 @@ constexpr uint32_t kReliefMs = 900;
 constexpr float kFallAccelX = 1600.0f;
 constexpr float kFallAccelY = 500.0f;
 constexpr float kFallMaxDropY = 110.0f;
-constexpr float kGoneX = 330.0f;
+constexpr float kGoneMargin = 146.0f;  // half the face canvas plus glow; gone_x = screen width / 2 + this (330 on 368 px)
 constexpr float kFallMinPush = 0.15f;  // less sideways pull than this: nothing to slide towards
 constexpr float kNormalRangeX = 90.0f; // beyond this the face is flying in from the edge
 
@@ -1050,8 +1050,8 @@ void ChipoFace::Step(uint32_t now_ms) {
         vel_y_ += kFallAccelY * dt;
         face_x_ += vel_x_ * dt;
         face_y_ += vel_y_ * dt;
-        if (std::fabs(face_x_) >= kGoneX) {  // gone: park it out of sight
-            face_x_ = static_cast<float>(fall_dir_) * kGoneX;
+        if (std::fabs(face_x_) >= (static_cast<float>(fx_w_) * 0.5f + kGoneMargin)) {  // gone: park it out of sight
+            face_x_ = static_cast<float>(fall_dir_) * (static_cast<float>(fx_w_) * 0.5f + kGoneMargin);
             vel_x_ = 0;
         }
         if (face_y_ >= kFallMaxDropY) {

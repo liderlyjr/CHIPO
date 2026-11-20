@@ -21,7 +21,13 @@ No se deben inventar pines ni sustituir controladores de la placa.
 ## Base de firmware
 
 - Proyecto original: https://github.com/78/xiaozhi-esp32
-- Perfil de placa: esp32-s3-touch-amoled-1.8-v2
+- Perfil de placa: esp32-s3-touch-amoled-1.8-v2 (por defecto)
+- **También 2,16" (480×480)**: perfil `esp32-s3-touch-amoled-2.16`. Se elige al integrar:
+  `python scripts/integrate_chipo.py <CHIPO> <xiaozhi> --board=2.16` (sin `--board` = 1,8" V2).
+  El CI compila las dos placas (artefacto `CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16`).
+  Diferencias que absorbe XiaoZhi: pantalla 480×480 con margen de esquinas, táctil CST9220, ES8311 + ES7210
+  (doble micro). Los ajustes se centran en pantallas mayores y la caída de la cara usa el ancho real.
+  **Sin probar en la placa física.** La cara sigue en un lienzo de 300×220 centrado, aún sin escalar.
 - Compilación recomendada: GitHub Actions con ESP-IDF 6.1
 - Grabación posterior: Espressif ESPTool-JS en el navegador
 
