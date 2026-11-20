@@ -132,12 +132,19 @@ void ChipoBuddyView::BuildGeometry() {
 
 void ChipoBuddyView::SetRotation(int rotation) {
     if (rotation < 0 || rotation > 2) rotation = 0;
+    if (root_ && fx_ == Fx::Out) {  // do not turn the digits that are fading out
+        pending_rotation_ = rotation == rotation_ ? -1 : rotation;
+        return;
+    }
     if (!root_ || rotation == rotation_) return;
     rotation_ = rotation;
     BuildGeometry();
 }
 
 void ChipoBuddyView::Destroy() {
+    if (fx_timer_) { lv_timer_delete(fx_timer_); fx_timer_ = nullptr; }
+    fx_ = Fx::None;
+    pending_rotation_ = -1;
     if (root_) lv_obj_delete(root_);
     root_ = caption_ = footer_ = nullptr;
     for (auto& row : seg_) for (auto& s : row) s = nullptr;
@@ -150,9 +157,16 @@ void ChipoBuddyView::Destroy() {
 void ChipoBuddyView::Show(const BuddyScreen& s) {
     if (!root_) return;
     if (!shown_) {
+        const bool was_leaving = fx_ == Fx::Out;
         lv_obj_remove_flag(root_, LV_OBJ_FLAG_HIDDEN);
         shown_ = true;
         have_applied_ = false;
+        if (was_leaving) {  // came back mid fade-out: just show it (turned the way it was last asked)
+            StartFx(Fx::None);
+            if (pending_rotation_ >= 0) { rotation_ = pending_rotation_; BuildGeometry(); }
+            pending_rotation_ = -1;
+        }
+        else StartFx(Fx::In);
     }
     const bool restyle = !have_applied_ || s.color != applied_.color || s.brightness != applied_.brightness;
     for (int d = 0; d < 4; ++d) {
@@ -190,9 +204,86 @@ void ChipoBuddyView::Show(const BuddyScreen& s) {
 }
 
 void ChipoBuddyView::Hide() {
-    if (root_ && shown_) lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
+    if (root_ && shown_) StartFx(Fx::Out);  // hidden for real when the switch-off animation ends
     shown_ = false;
     have_applied_ = false;
+}
+
+namespace {
+constexpr uint32_t kFxTickMs = 30;
+constexpr int kInDigitMs = 110, kInSegMs = 22, kInPieceMs = 170;   // appear: per digit, per segment, each piece
+constexpr int kOutDigitMs = 70, kOutSegMs = 14, kOutPieceMs = 140; // disappear
+constexpr int kSegRank[7] = {0, 1, 3, 6, 4, 2, 5};  // a, b, c, d, e, f, g: top first, then round the digit
+// A neon tube striking: quick rise, a dip (flicker), then full.
+int StrikeOpa(int t) {
+    if (t <= 0) return 0;
+    if (t < 45) return 255 * t / 45;
+    if (t < 80) return 90;
+    if (t < kInPieceMs) return 90 + 165 * (t - 80) / (kInPieceMs - 80);
+    return 255;
+}
+}  // namespace
+
+void ChipoBuddyView::SetPieceOpa(lv_obj_t* o, int opa) {
+    if (o) lv_obj_set_style_opa(o, static_cast<lv_opa_t>(opa < 0 ? 0 : (opa > 255 ? 255 : opa)), LV_PART_MAIN);
+}
+
+void ChipoBuddyView::StartFx(Fx fx) {
+    fx_ = fx;
+    fx_t0_ = lv_tick_get();
+    if (fx == Fx::None) {
+        if (fx_timer_) { lv_timer_delete(fx_timer_); fx_timer_ = nullptr; }
+        for (auto& row : seg_) for (auto* o : row) SetPieceOpa(o, 255);
+        for (auto* o : dot_) SetPieceOpa(o, 255);
+        SetPieceOpa(caption_, 255);
+        SetPieceOpa(footer_, 255);
+        return;
+    }
+    if (!fx_timer_) fx_timer_ = lv_timer_create(FxTimerCallback, kFxTickMs, this);
+    StepFx();
+}
+
+void ChipoBuddyView::FxTimerCallback(lv_timer_t* t) {
+    auto* self = static_cast<ChipoBuddyView*>(lv_timer_get_user_data(t));
+    if (self) self->StepFx();
+}
+
+void ChipoBuddyView::StepFx() {
+    if (!root_ || fx_ == Fx::None) return;
+    const int t = static_cast<int>(lv_tick_get() - fx_t0_);
+    int last = 0;
+    if (fx_ == Fx::In) {
+        for (int d = 0; d < 4; ++d)
+            for (int k = 0; k < 7; ++k) {
+                const int delay = d * kInDigitMs + kSegRank[k] * kInSegMs;
+                SetPieceOpa(seg_[d][k], StrikeOpa(t - delay));
+                last = delay + kInPieceMs > last ? delay + kInPieceMs : last;
+            }
+        for (auto* o : dot_) SetPieceOpa(o, StrikeOpa(t - (2 * kInDigitMs - 40)));
+        SetPieceOpa(caption_, 255 * (t > 300 ? 300 : t) / 300);
+        SetPieceOpa(footer_, 255 * (t < 200 ? 0 : (t > 500 ? 300 : t - 200)) / 300);
+        if (t >= last && t >= 500) StartFx(Fx::None);
+        return;
+    }
+    // Out: right-most digit first, each segment fading in reverse order; the colon goes last.
+    for (int d = 0; d < 4; ++d)
+        for (int k = 0; k < 7; ++k) {
+            const int delay = (3 - d) * kOutDigitMs + (6 - kSegRank[k]) * kOutSegMs;
+            const int u = t - delay;
+            SetPieceOpa(seg_[d][k], u <= 0 ? 255 : 255 - 255 * (u > kOutPieceMs ? kOutPieceMs : u) / kOutPieceMs);
+            last = delay + kOutPieceMs > last ? delay + kOutPieceMs : last;
+        }
+    const int colon_delay = 4 * kOutDigitMs;
+    const int uc = t - colon_delay;
+    for (auto* o : dot_) SetPieceOpa(o, uc <= 0 ? 255 : 255 - 255 * (uc > kOutPieceMs ? kOutPieceMs : uc) / kOutPieceMs);
+    SetPieceOpa(caption_, 255 - 255 * (t > 200 ? 200 : t) / 200);
+    SetPieceOpa(footer_, 255 - 255 * (t > 200 ? 200 : t) / 200);
+    if (t >= last && t >= colon_delay + kOutPieceMs) {
+        lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
+        StartFx(Fx::None);  // back to full opacity for the next time it shows
+        if (pending_rotation_ >= 0) { rotation_ = pending_rotation_; BuildGeometry(); }
+        pending_rotation_ = -1;
+    }
 }
 
 void ChipoBuddyView::EventCallback(lv_event_t* e) {
@@ -206,6 +297,8 @@ ChipoBuddyView::DebugInfo ChipoBuddyView::Debug() const {
     d.color = applied_.color;
     d.rotation = rotation_;
     d.brightness = have_applied_ ? applied_.brightness : 0;
+    d.fx = static_cast<int>(fx_);
+    d.root_visible = root_ && !lv_obj_has_flag(root_, LV_OBJ_FLAG_HIDDEN);
     d.colon_on = have_applied_ && applied_.colon;
     for (int i = 0; i < 4; ++i) {
         d.digits[i] = have_applied_ ? applied_.digits[i] : ' ';

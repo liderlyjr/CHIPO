@@ -170,3 +170,8 @@ El color del estado (escuchando, error, amor…) sigue tiñendo ojos y boca. Ima
   XiaoZhi). La dirección no está documentada; CHIPO prueba 0x6B y 0x6A, las dos únicas que admite el chip. El eje
   vertical se detecta solo. Sin probar en la placa: si cae hacia el lado contrario, CHIPO_TILT_MIRROR_X=1; si el
   reloj sale con el lado equivocado, cambiar el signo de CHIPO_DESK_CLOCK_SIDE.
+- Reloj (y demás pantallas BUDDY: despertador, temporizador, noche): al aparecer, los segmentos se encienden
+  dígito a dígito como tubos de neón (subida rápida, parpadeo y encendido completo, ~0,6 s); al desaparecer se
+  apagan en orden inverso, de derecha a izquierda, con los dos puntos al final (~0,4 s). Solo cambia la opacidad
+  de cada pieza (sin capas), barato para el ESP32. Al levantar CHIPO el reloj se apaga todavía girado y después
+  la vista vuelve a vertical.

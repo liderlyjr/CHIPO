@@ -45,12 +45,25 @@ public:
         uint32_t color;
         int rotation;
         uint8_t brightness;
+        int fx;               // 0 none, 1 appearing, 2 disappearing
+        bool root_visible;    // still drawn (true while the disappear animation runs)
     };
     DebugInfo Debug() const;
 
 private:
     static void EventCallback(lv_event_t* e);
+    static void FxTimerCallback(lv_timer_t* t);
     void BuildGeometry();
+    // Appear / disappear: the segments "strike" one digit after another like neon tubes (with a flicker),
+    // and switch off in reverse order. Only the overall opacity of each piece changes (no layers, cheap).
+    enum class Fx : uint8_t { None, In, Out };
+    void StartFx(Fx fx);
+    void StepFx();
+    void SetPieceOpa(lv_obj_t* o, int opa);
+    lv_timer_t* fx_timer_ = nullptr;
+    Fx fx_ = Fx::None;
+    uint32_t fx_t0_ = 0;
+    int pending_rotation_ = -1;  // asked while the digits were switching off: applied when they are gone
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* seg_[4][7] = {};

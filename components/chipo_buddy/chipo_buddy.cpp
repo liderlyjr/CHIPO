@@ -122,8 +122,12 @@ void ChipoBuddy::StopRinging(bool snooze) {
 void ChipoBuddy::SetDeskClock(bool on, int side) {
     if (!running_) return;
     desk_clock_ = on;
+    if (!on && !bedtime_ && ring_ == Ring::None && !peeking_) {
+        view_.Hide();          // the digits switch off still turned, as they were read...
+        view_.SetRotation(0);  // ...and the view goes upright once they are gone
+        return;
+    }
     view_.SetRotation(on ? (side > 0 ? 2 : 1) : 0);
-    if (!on && !bedtime_ && ring_ == Ring::None && !peeking_) view_.Hide();
 }
 
 void ChipoBuddy::EnterBedtime() {

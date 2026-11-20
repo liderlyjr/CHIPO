@@ -212,7 +212,9 @@ int main() {
         h.Start();
         h.SetWall(9, 41);
         h.buddy.SetDeskClock(true, -1);
-        h.Run(500);
+        h.Run(60);
+        CHECK(h.buddy.Debug().fx == 1, "the clock lights up with an animation (fx %d)", h.buddy.Debug().fx);
+        h.Run(440);
         auto dbg = h.buddy.Debug();
         CHECK(h.buddy.desk_clock() && dbg.shown && dbg.rotation == 1, "clock up, turned for the left side (rot %d)", dbg.rotation);
         CHECK(std::string(dbg.digits) == "0941" && dbg.brightness >= 200, "bright time (%s, %d)", dbg.digits, dbg.brightness);
@@ -227,9 +229,15 @@ int main() {
         h.buddy.OnTouch(false);
         h.Run(500);
         CHECK(h.buddy.Debug().shown, "after the ring the clock is still there");
+        h.Run(1000);
+        CHECK(h.buddy.Debug().fx == 0, "the appear animation ends");
         h.buddy.SetDeskClock(false, -1);
-        h.Run(500);
-        CHECK(!h.buddy.Debug().shown && h.buddy.Debug().rotation == 0, "stood up: clock gone, upright again");
+        h.Run(60);
+        CHECK(!h.buddy.Debug().shown && h.buddy.Debug().fx == 2 && h.buddy.Debug().root_visible,
+              "stood up: the digits switch off with an animation first");
+        h.Run(700);
+        CHECK(!h.buddy.Debug().shown && !h.buddy.Debug().root_visible && h.buddy.Debug().fx == 0 &&
+              h.buddy.Debug().rotation == 0, "stood up: clock gone, upright again");
         h.buddy.SetDeskClock(true, +1);
         h.Run(500);
         CHECK(h.buddy.Debug().rotation == 2, "right side down turns the other way");

@@ -89,7 +89,7 @@ int main(int argc, char** argv) {
     shot(1800, 1, "upright", 0, 0);
     shot(700, 1, "tipping", 0, 90);
     shot(2500, 2, "lying", 90, 90);
-    shot(8000, 20, "waiting", 90, 90);   // up to ~10 s lying; the clock appears inside this stretch
+    shot(8000, 2, "waiting", 90, 90);    // up to ~10 s lying; the clock appears (animated) inside this stretch
     shot(2500, 5, "clock", 90, 90);
     shot(900, 1, "standing", 90, 0);
     shot(3200, 2, "dizzy", 0, 0);
