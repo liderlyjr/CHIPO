@@ -142,3 +142,15 @@ Pensado para aprovechar el negro real del AMOLED: fondo negro, ojos lilas con pu
 boca de media luna rosa con lengua roja (la boca es una ventana que recorta la mitad inferior de una elipse).
 El color del estado (escuchando, error, amor…) sigue tiñendo ojos y boca. Imagen: `docs/img/chipo_cute_skin.png`
 (simulación en PC, 368×448). **Sin ver en la pantalla real.** Las mejillas se probaron y se quitaron.
+
+## Revisión de diseño (2.16", 480×480)
+
+- Bocas según la expresión: sonrisa de media luna (con interior y lengua si está abierta), mueca hacia abajo
+  (triste, enfadado, error, "no"), "o" (sorpresa, bostezo, mareo, susto, dormido) y línea (pensando, conectando,
+  sospecha).
+- Ojos cerrados en arco: ^ ^ al estar feliz o reír (melocotón) y u u al dormir (lila).
+- Rubor rosa solo cuando le gusta algo (feliz, risa, amor, guiño, baile).
+- Paleta unificada: lila/violeta como color principal y rosa suave de acento (cara, arranque, ajustes);
+  el rojo queda para avisos. El arranque muestra los ojos de CHIPO.
+- Animaciones revisadas en GIF a 480×480: `docs/img/chipo_216_anim_*.gif` (simulación en PC).
+- Límite conocido: el halo de brillo de los ojos no se escala con la cara (sombras grandes colgaban el render).

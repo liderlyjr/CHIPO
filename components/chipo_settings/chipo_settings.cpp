@@ -9,8 +9,8 @@ constexpr uint32_t kTickMs = 1000;
 constexpr uint32_t kMenuIdleCloseMs = 30000;
 constexpr uint32_t kBatteryEveryMs = 5000;
 constexpr uint32_t kRestartArmMs = 3000;
-constexpr uint32_t kCyan = 0x00E5FF;
-constexpr uint32_t kPink = 0xFF2E93;
+constexpr uint32_t kCyan = 0xC9A6FF;   // CHIPO lilac (the name stays: it is the main accent)
+constexpr uint32_t kPink = 0xFF6FB5;   // soft pink, second accent
 constexpr uint32_t kGreen = 0x39FF88;
 constexpr uint32_t kAmber = 0xFFB000;
 constexpr uint32_t kRed = 0xFF3B30;
@@ -150,13 +150,13 @@ void ChipoSettings::Build(const lv_font_t* font, const char* version) {
     if (w <= 0) w = kLayoutW;
     if (h <= 0) h = kLayoutH;
     // ---- battery indicator (top centre, only while charging or low) ----------------------------
-    indicator_ = Box(lv_screen_active(), (w - 120) / 2, 8, 120, 34, 8, 0x000000, 0);
+    indicator_ = Box(lv_screen_active(), (w - 134) / 2, 8, 134, 34, 8, 0x000000, 0);
     lv_obj_set_style_border_width(indicator_, 3, 0);
     lv_obj_set_style_border_color(indicator_, lv_color_hex(kGreen), 0);
     lv_obj_set_style_border_opa(indicator_, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_opa(indicator_, LV_OPA_TRANSP, 0);
     indicator_fill_ = Box(indicator_, 3, 3, 10, 22, 4, kGreen);
-    indicator_text_ = Text(indicator_, font, 18, 0, 96, kGreen, LV_TEXT_ALIGN_RIGHT);
+    indicator_text_ = Text(indicator_, font, 18, 0, 104, kGreen, LV_TEXT_ALIGN_RIGHT);
     lv_obj_set_height(indicator_text_, 28);
     lv_obj_add_flag(indicator_, LV_OBJ_FLAG_HIDDEN);
 

@@ -11,8 +11,8 @@ constexpr uint32_t kRollMs = 1300;
 constexpr uint32_t kCoinMs = 1500;
 constexpr uint32_t kResultMs = 7000;
 constexpr uint32_t kLampMaxMs = 30u * 60u * 1000u;  // the lamp switches itself off: it is the most power-hungry thing here
-constexpr uint32_t kNeonCyan = 0x00E5FF;
-constexpr uint32_t kNeonPink = 0xFF2E93;
+constexpr uint32_t kNeonCyan = 0xC9A6FF;  // CHIPO lilac (same palette as the face)
+constexpr uint32_t kNeonPink = 0xFF6FB5;
 constexpr float kPi = 3.14159265f;
 
 lv_obj_t* Box(lv_obj_t* parent, int x, int y, int w, int h, int radius, uint32_t color, int opa = 255) {
@@ -96,19 +96,23 @@ void ChipoFun::Build(const lv_font_t* font, const char* version, int w, int h) {
     // ---- start-up screen: a neon "happy Mac" ---------------------------------------------------
     boot_ = Box(root_, 0, 0, w, h, 0, 0x000000, 0);
     const int bw = 168, bh = 190, bx = cx - bw / 2, by = h / 2 - 150;
-    lv_obj_t* body = Box(boot_, bx, by, bw, bh, 30, 0x001018);
+    lv_obj_t* body = Box(boot_, bx, by, bw, bh, 30, 0x120A1F);
     lv_obj_set_style_border_color(body, lv_color_hex(kNeonCyan), 0);
     lv_obj_set_style_border_width(body, 6, 0);
     Glow(body, kNeonCyan, 36, 200);
-    lv_obj_t* screen = Box(boot_, bx + 22, by + 24, bw - 44, bh - 78, 14, 0x00323C);
-    lv_obj_set_style_border_color(screen, lv_color_hex(0x00B8D0), 0);
+    lv_obj_t* screen = Box(boot_, bx + 22, by + 24, bw - 44, bh - 78, 14, 0x24143F);
+    lv_obj_set_style_border_color(screen, lv_color_hex(0xA27CF0), 0);
     lv_obj_set_style_border_width(screen, 3, 0);
     boot_parts_[0] = body;
     boot_parts_[1] = screen;
-    boot_parts_[2] = Box(boot_, cx - 28, by + 52, 9, 26, 4, kNeonCyan);   // left eye
-    boot_parts_[3] = Box(boot_, cx + 19, by + 52, 9, 26, 4, kNeonCyan);   // right eye
-    Glow(boot_parts_[2], kNeonCyan, 18, 220);
-    Glow(boot_parts_[3], kNeonCyan, 18, 220);
+    // CHIPO's own eyes in the little Mac: lilac with a violet pupil and a glint, like the face.
+    boot_parts_[2] = Box(boot_, cx - 34, by + 46, 24, 26, LV_RADIUS_CIRCLE, 0xE2C8FF);  // left eye
+    boot_parts_[3] = Box(boot_, cx + 10, by + 46, 24, 26, LV_RADIUS_CIRCLE, 0xE2C8FF);  // right eye
+    for (int e = 2; e <= 3; ++e) {
+        lv_obj_t* pupil = Box(boot_parts_[e], 6, 7, 12, 14, LV_RADIUS_CIRCLE, 0x2B0F52);
+        Box(pupil, 2, 2, 5, 5, LV_RADIUS_CIRCLE, 0xFFFFFF);
+        Glow(boot_parts_[e], kNeonCyan, 14, 160);
+    }
     lv_obj_t* smile = lv_arc_create(boot_);                                // smile
     lv_obj_remove_style_all(smile);
     lv_obj_set_size(smile, 64, 64);
@@ -117,12 +121,12 @@ void ChipoFun::Build(const lv_font_t* font, const char* version, int w, int h) {
     lv_arc_set_angles(smile, 28, 152);
     lv_obj_set_style_arc_opa(smile, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_arc_width(smile, 7, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(smile, lv_color_hex(kNeonCyan), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(smile, lv_color_hex(0xF0828C), LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(smile, true, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(smile, LV_OPA_TRANSP, LV_PART_KNOB);
     lv_obj_remove_flag(smile, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
     boot_parts_[4] = smile;
-    boot_parts_[5] = Box(boot_, bx + 30, by + bh - 36, 70, 8, 4, 0x00B8D0);     // floppy slot
+    boot_parts_[5] = Box(boot_, bx + 30, by + bh - 36, 70, 8, 4, 0xA27CF0);     // floppy slot
     boot_parts_[6] = Box(boot_, bx + bw - 52, by + bh - 36, 16, 8, 4, kNeonPink);  // power light
     Glow(boot_parts_[6], kNeonPink, 16, 230);
     boot_title_ = lv_label_create(boot_);
