@@ -1,6 +1,6 @@
 # CHIPO OS
 
-CHIPO es un asistente de voz DIY basado en el firmware de XiaoZhi y adaptado a la placa **Waveshare ESP32-S3 Touch AMOLED 1.8 V2**.
+CHIPO es un asistente de voz DIY basado en el firmware de XiaoZhi y adaptado a las placas **Waveshare ESP32-S3 Touch AMOLED 2.16** (480 × 480, la que se está usando ahora) y **1.8 V2** (368 × 448).
 
 ## Objetivo
 
@@ -8,26 +8,29 @@ Construir una experiencia e interfaz propia llamada CHIPO OS aprovechando los co
 
 ## Hardware objetivo
 
-- Waveshare ESP32-S3 Touch AMOLED 1.8 V2
-- ESP32-S3
-- AMOLED 368 × 448
-- Controlador de pantalla CO5300
-- Audio ES8311
-- Gestión de energía AXP2101
-- Micrófono integrado
+| | 2.16" (480 × 480) | 1.8" V2 (368 × 448) |
+|---|---|---|
+| Microcontrolador | ESP32-S3 | ESP32-S3 |
+| Pantalla AMOLED | 480 × 480, controlador CO5300 | 368 × 448, controlador CO5300 |
+| Táctil | CST9220 | CST820 |
+| Audio | ES8311 + ES7210 (dos micrófonos), altavoz integrado | ES8311, micrófono integrado |
+| Gestión de energía | AXP2101 | AXP2101 |
+| Sensor de movimiento | QMI8658 | QMI8658 |
+
+Hardware de la 2,16" con caja, altavoz y batería: [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md).
 
 No se deben inventar pines ni sustituir controladores de la placa.
 
 ## Base de firmware
 
 - Proyecto original: https://github.com/78/xiaozhi-esp32
-- Perfil de placa: esp32-s3-touch-amoled-1.8-v2 (por defecto)
-- **También 2,16" (480×480)**: perfil `esp32-s3-touch-amoled-2.16`. Se elige al integrar:
+- Perfiles de placa: `esp32-s3-touch-amoled-1.8-v2` (por defecto al integrar con el script) y `esp32-s3-touch-amoled-2.16`
+- **Elegir la 2,16" (480×480)** al integrar:
   `python scripts/integrate_chipo.py <CHIPO> <xiaozhi> --board=2.16` (sin `--board` = 1,8" V2). En Windows: `build_chipo.ps1 -Board 2.16` (por defecto) o `-Board 1.8-v2`.
   El CI compila las dos placas (artefacto `CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16`).
   Diferencias que absorbe XiaoZhi: pantalla 480×480 con margen de esquinas, táctil CST9220, ES8311 + ES7210
   (doble micro). Los ajustes se centran en pantallas mayores y la caída de la cara usa el ancho real.
-  **Sin probar en la placa física.** La cara sigue en un lienzo de 300×220 centrado, aún sin escalar.
+  **Sin probar en la placa física.** La cara, los ajustes, el clima, las escenas, el drive y el reloj de mesa se escalan a la pantalla (ver `docs/CHIPO_FACE.md`).
 - Compilación recomendada: GitHub Actions con ESP-IDF 6.1
 - Grabación posterior: Espressif ESPTool-JS en el navegador
 
