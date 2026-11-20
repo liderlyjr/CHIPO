@@ -48,6 +48,14 @@ bool BatteryCrossedWarning(int previous_percent, int percent, int* threshold) {
     return false;
 }
 
+uint32_t TiredFaceIntervalMs(BatteryState state) {
+    switch (state) {
+    case BatteryState::Low: return 120000;
+    case BatteryState::Critical: return 45000;
+    default: return 0;
+    }
+}
+
 bool BatteryIndicatorVisible(const BatteryView& v) {
     return v.state == BatteryState::Charging || v.state == BatteryState::Low || v.state == BatteryState::Critical;
 }

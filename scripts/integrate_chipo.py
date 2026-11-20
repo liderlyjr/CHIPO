@@ -836,6 +836,7 @@ replace_once(
                        (chipo_tools_ && chipo_tools_->screen_shown());
             };
             hooks.overlay_active = overlay;
+            hooks.emotion = [this](const char* name, uint32_t ms) { if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms); };
             hooks.keep_awake = [this, overlay]() { return GetDeviceState() != kDeviceStateIdle || overlay(); };
             if (!chipo_settings_->Start(lv_screen_active(), std::move(hooks), CHIPO_OS_VERSION)) {
                 chipo_settings_.reset();

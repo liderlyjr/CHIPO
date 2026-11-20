@@ -50,3 +50,6 @@ cualquier otro sitio (arriba o abajo) o por voz, y un toque cierra el clima dond
 Nada se ha probado en la placa: si la pulsación larga se siente bien en el CST820, el ajuste real del brillo y del volumen,
 la lectura de batería del AXP2101 en esta revisión, el consumo del protector, y que la fuente de XiaoZhi muestre bien los
 avisos con tildes.
+
+## Cara cansada con poca batería
+Con la batería baja (≤15 %) la cara pone ojos cansados 7 s cada 2 min; en crítica (≤5 %), cada 45 s. Solo cuando no hay nada más en marcha (conversación, pantallas), nunca cargando y nunca sin lectura válida. No sustituye al aviso de batería baja. Sin probar en la placa.

@@ -347,6 +347,16 @@ void ChipoSettings::UpdateBattery(uint32_t now_ms) {
         if (hooks_.play_clip) hooks_.play_clip("buddy_timer_done");
     }
     last_level_ = battery_.percent;
+    // Low battery: now and then the face looks tired (only when nothing else is going on; never while charging).
+    const uint32_t tired_every = TiredFaceIntervalMs(battery_.state);
+    if (tired_every == 0 || charging) {
+        tired_seen_ = false;
+    } else if (hooks_.emotion && !(hooks_.keep_awake && hooks_.keep_awake()) &&
+               (!tired_seen_ || now_ms - last_tired_ms_ >= tired_every)) {
+        tired_seen_ = true;
+        last_tired_ms_ = now_ms;
+        hooks_.emotion("tired", 7000);
+    }
     const bool show = BatteryIndicatorVisible(battery_);
     if (show != indicator_visible_) {
         indicator_visible_ = show;

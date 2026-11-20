@@ -19,7 +19,7 @@ struct Rig {
     int volume = 70, brightness = 80, applied_brightness = 80;
     int level = 60;
     bool charging = false, battery_ok = true, overlay = false, awake = false, restarted = false;
-    std::vector<std::string> notes, clips;
+    std::vector<std::string> notes, clips, emotions;
     std::vector<TapKind> reactions;
     int shifts = 0, sdx = 0, sdy = 0;
     int gazes = 0, lifts = 0;
@@ -35,6 +35,7 @@ struct Rig {
         h.restart = [this] { restarted = true; };
         h.notify = [this](const char* t) { notes.push_back(t); };
         h.play_clip = [this](const char* id) { clips.push_back(id); return true; };
+        h.emotion = [this](const char* e, uint32_t) { emotions.push_back(e); };
         h.react = [this](TapKind k) { reactions.push_back(k); };
         h.gaze = [this](float nx, float ny, bool down) { if (down) { ++gazes; gnx = nx; gny = ny; } else ++lifts; };
         h.shift = [this](int dx, int dy) { ++shifts; sdx = dx; sdy = dy; };
@@ -161,6 +162,27 @@ int main() {
         for (int i = 0; i < 4; ++i) r.Run(1000);  // blinking: must not crash
         r.battery_ok = false; r.Run(6000);
         CHECK(!r.s.Debug().indicator_visible && r.s.Debug().battery_state == BatteryState::Unknown, "no reading: no indicator, nothing invented");
+    }
+
+    std::printf("== tired face on low battery\n");
+    {
+        Rig r; r.Start();
+        r.level = 60; r.Run(6000);
+        CHECK(r.emotions.empty(), "normal battery: never tired");
+        r.level = 15; r.Run(6000);
+        CHECK(r.emotions.size() == 1 && r.emotions[0] == "tired", "low: tired once (%zu)", r.emotions.size());
+        r.Run(60000);
+        CHECK(r.emotions.size() == 1, "not again before 2 min");
+        r.Run(70000);
+        CHECK(r.emotions.size() == 2, "again after 2 min");
+        r.awake = true; r.Run(130000);
+        CHECK(r.emotions.size() == 2, "not while something is going on");
+        r.awake = false; r.charging = true; r.level = 10; r.Run(130000);
+        CHECK(r.emotions.size() == 2, "never while charging");
+        r.charging = false; r.level = 5; r.Run(6000);
+        CHECK(r.emotions.size() == 3, "critical: right away");
+        r.battery_ok = false; r.Run(130000);
+        CHECK(r.emotions.size() == 3, "no reading: nothing invented");
     }
 
     std::printf("== screen saver and burn-in shift\n");
