@@ -52,6 +52,8 @@ public:
     void Close();
     Tool tool() const { return tool_; }
     bool screen_shown() const { return tool_ != Tool::None; }
+    // Hardware user key (click): cycles none -> level -> 8-ball -> canvas -> none.
+    void OnKey();
 
     // Every recognised sentence. True when CHIPO answered with a sound, so the server's spoken reply must be dropped.
     bool OnVoiceText(const char* text);

@@ -212,6 +212,21 @@ int main() {
         r.tools.Stop();
     }
 
+    std::printf("== hardware key cycles the tools\n");
+    {
+        Rig r;
+        r.Start();
+        r.tools.OnKey();
+        CHECK(r.tools.tool() == ChipoTools::Tool::Level, "key 1: level");
+        r.tools.OnKey();
+        CHECK(r.tools.tool() == ChipoTools::Tool::Ball, "key 2: 8-ball");
+        r.tools.OnKey();
+        CHECK(r.tools.tool() == ChipoTools::Tool::Canvas, "key 3: canvas");
+        r.tools.OnKey();
+        CHECK(r.tools.tool() == ChipoTools::Tool::None, "key 4: closed");
+        r.tools.Stop();
+    }
+
     std::printf("== subtitles\n");
     {
         Rig r;

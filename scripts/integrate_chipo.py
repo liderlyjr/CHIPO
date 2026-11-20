@@ -755,7 +755,19 @@ replace_once(
             if (!chipo_tools_->Start(lv_screen_active(), std::move(hooks))) {
                 chipo_tools_.reset();
                 ESP_LOGE(TAG, "Failed to initialize CHIPO Tools");
-            } else if (chipo_face_) {
+            } else {
+#ifdef CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16
+                // Waveshare documents GPIO18 on the 2.16" as a user key (10k pull-up, pressed = GND, "custom functions");
+                // XiaoZhi leaves it unused. One click cycles the tools. Lives as long as the firmware.
+                static Button* chipo_key = new Button(GPIO_NUM_18);
+                chipo_key->OnClick([this]() {
+                    auto display = Board::GetInstance().GetDisplay();
+                    DisplayLockGuard key_lock(display);
+                    if (key_lock && chipo_tools_) chipo_tools_->OnKey();
+                });
+#endif
+            }
+            if (chipo_tools_ && chipo_face_) {
                 // Shaking (accelerometer): the face keeps the car mode's own listener, this one is separate.
                 chipo_face_->SetExtraSampleObserver([this](const ImuSample& sample, uint32_t now_ms) {
                     if (chipo_tools_) chipo_tools_->OnSample(sample, now_ms);
@@ -874,6 +886,12 @@ replace_once(
     '#include "settings.h"\n',
     '#include "settings.h"\n#include "lvgl_font.h"\n',
     "Application font header include (subtitles use the display's own text font)",
+)
+replace_once(
+    app_cc,
+    '#include "lvgl_font.h"\n',
+    '#include "lvgl_font.h"\n#include "button.h"\n',
+    "Application button header include (user key on the 2.16\")",
 )
 replace_once(
     app_cc,

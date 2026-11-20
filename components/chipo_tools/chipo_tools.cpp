@@ -316,6 +316,15 @@ void ChipoTools::Open(Tool tool) {
     }
 }
 
+void ChipoTools::OnKey() {
+    switch (tool_) {
+    case Tool::None: Open(Tool::Level); break;
+    case Tool::Level: Close(); Open(Tool::Ball); break;
+    case Tool::Ball: Close(); Open(Tool::Canvas); break;
+    case Tool::Canvas: Close(); break;
+    }
+}
+
 void ChipoTools::Close() {
     if (tool_ == Tool::None && !canvas_) return;
     if (canvas_) {  // the canvas must not outlive its buffer
