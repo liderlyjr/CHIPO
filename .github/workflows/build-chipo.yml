@@ -38,6 +38,9 @@ jobs:
       - name: Get LVGL (same 9.5 series XiaoZhi uses)
         run: git clone --depth 1 --branch v9.5.0 https://github.com/lvgl/lvgl.git "$RUNNER_TEMP/lvgl"
 
+      - name: Tools for the Home Assistant provisioning test
+        run: python3 -m pip install --break-system-packages esp-idf-nvs-partition-gen || echo "not installed - the image test will be skipped"
+
       - name: Run tests (AddressSanitizer + UBSan)
         run: LVGL_DIR="$RUNNER_TEMP/lvgl" tests/host/run.sh
 
@@ -90,6 +93,68 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2
+          path: |
+            build/xiaozhi-esp32/build/bootloader/bootloader.bin
+            build/xiaozhi-esp32/build/partition_table/partition-table.bin
+            build/xiaozhi-esp32/build/ota_data_initial.bin
+            build/xiaozhi-esp32/build/xiaozhi.bin
+            build/xiaozhi-esp32/build/generated_assets.bin
+            build/xiaozhi-esp32/build/flash_args
+            build/xiaozhi-esp32/build/flasher_args.json
+            build/xiaozhi-esp32/build/flash_project_args
+            build/BUILD_INFO.txt
+          if-no-files-found: error
+          compression-level: 6
+
+  build-2-16:
+    name: Compile CHIPO for Waveshare 2.16 (480x480)
+    needs: host-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - name: Checkout CHIPO
+        uses: actions/checkout@v4
+
+      - name: Get XiaoZhi firmware base
+        env:
+          XIAOZHI_REF: ${{ github.event.inputs.xiaozhi_ref }}
+        run: |
+          if [ -n "$XIAOZHI_REF" ]; then
+            git clone --depth 1 --branch "$XIAOZHI_REF" https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
+          else
+            git clone --depth 1 https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
+          fi
+
+      - name: Record exact versions used
+        run: |
+          {
+            echo "CHIPO_COMMIT=$GITHUB_SHA"
+            echo "CHIPO_VERSION=$(grep '^CHIPO_OS_VERSION=' VERSION | cut -d= -f2)"
+            echo "XIAOZHI_COMMIT=$(git -C build/xiaozhi-esp32 rev-parse HEAD)"
+          } | tee build/BUILD_INFO.txt
+
+      - name: Apply CHIPO integration
+        run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32" --board=2.16
+
+      - name: Show ESP-IDF version
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py --version
+
+      - name: Compile for Waveshare ESP32-S3 AMOLED 2.16
+        working-directory: build/xiaozhi-esp32
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Upload firmware files
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16
           path: |
             build/xiaozhi-esp32/build/bootloader/bootloader.bin
             build/xiaozhi-esp32/build/partition_table/partition-table.bin

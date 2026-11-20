@@ -10,6 +10,23 @@
 #define CHIPO_ENABLE_IMU 1
 #endif
 
+// Also read the QMI8658 gyroscope (spin, nod "yes", shake "no"). If it does not answer, CHIPO keeps
+// working with the accelerometer only.
+#ifndef CHIPO_ENABLE_GYRO
+#define CHIPO_ENABLE_GYRO 1
+#endif
+
+// Now and then, while idle, CHIPO winks or smiles by itself. Can also be switched at run time
+// with ChipoFace::SetIdleQuirks().
+#ifndef CHIPO_IDLE_QUIRKS
+#define CHIPO_IDLE_QUIRKS 1
+#endif
+
+// During this time before falling asleep CHIPO looks sleepy and yawns. 0 disables it.
+#ifndef CHIPO_TIRED_BEFORE_SLEEP_MS
+#define CHIPO_TIRED_BEFORE_SLEEP_MS 20000
+#endif
+
 // The IMU sits on the board's main I2C bus, already opened by the XiaoZhi board code
 // (Waveshare ESP32-S3 Touch AMOLED 1.8: I2C port 0, SDA 15, SCL 14, QMI8658 at 0x6B,
 // 0x6A as fallback; source: Waveshare's esp-idf example 92_qmi8658_imu).
@@ -36,6 +53,20 @@
 #define CHIPO_FALL_ANGLE_DEG 45
 #endif
 
+// Desk clock: CHIPO lying on its side for this long turns into a big clock (see BUDDY). The side is the one
+// that ends up DOWN, seen from the front: -1 = left (USB-C edge up when the port is on the right), +1 = right,
+// 0 = off. If the real board turns out mirrored, flip the sign here (or CHIPO_TILT_MIRROR_X).
+#ifndef CHIPO_DESK_CLOCK_SIDE
+#define CHIPO_DESK_CLOCK_SIDE -1
+#endif
+#ifndef CHIPO_DESK_CLOCK_AFTER_MS
+#define CHIPO_DESK_CLOCK_AFTER_MS 10000
+#endif
+// "Uy, me mareé": how long the dizzy face lasts when CHIPO is stood up again after being a clock.
+#ifndef CHIPO_DESK_CLOCK_DIZZY_MS
+#define CHIPO_DESK_CLOCK_DIZZY_MS 2800
+#endif
+
 // Idle (no voice, no touch) for this long and CHIPO falls asleep. 0 disables sleeping.
 #ifndef CHIPO_SLEEP_AFTER_MS
 #define CHIPO_SLEEP_AFTER_MS 120000
@@ -49,4 +80,9 @@
 // Log the tilt reading once per second (useful to check axis direction on the real board).
 #ifndef CHIPO_DEBUG_TILT_LOG
 #define CHIPO_DEBUG_TILT_LOG 1
+#endif
+
+// Sampling period of the IMU while the car mode (CHIPO DRIVE) is on; 40 ms (25 Hz) otherwise.
+#ifndef CHIPO_DRIVE_SAMPLE_MS
+#define CHIPO_DRIVE_SAMPLE_MS 20
 #endif

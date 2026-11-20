@@ -19,7 +19,7 @@
    powershell -ExecutionPolicy Bypass -File .\scripts\build_chipo.ps1
    ```
 
-El script descarga XiaoZhi oficial en `build/xiaozhi-esp32`, copia el componente CHIPO, aplica los cambios de integración, selecciona la Waveshare ESP32-S3 Touch AMOLED 1.8 V2 y ejecuta `idf.py build`.
+El script descarga XiaoZhi oficial en `build/xiaozhi-esp32`, copia el componente CHIPO, aplica los cambios de integración, selecciona la placa y ejecuta `idf.py build`. Por defecto compila para la **Waveshare ESP32-S3 Touch AMOLED 2.16** (480×480); para la 1.8 V2 añade `-Board 1.8-v2`. Si cambias de placa, el script borra `sdkconfig` y `build` para no arrastrar la configuración anterior.
 
 Si el script termina correctamente, los binarios quedan en:
 
@@ -33,4 +33,4 @@ El archivo habitual para flashear es `xiaozhi.bin` o el binario de aplicación q
 - El primer build puede tardar bastante y descargar varios componentes.
 - Esta integración inicial coloca la cara de CHIPO como una capa LVGL encima de la pantalla de XiaoZhi. Todavía no sustituye todos los paneles ni rediseña el flujo completo.
 - No se ha ejecutado una compilación real en este entorno ni se ha probado en la placa física. El script automatiza el build local, pero el resultado solo debe considerarse válido si `idf.py build` termina con código 0.
-- No conectes un altavoz externo hasta confirmar en el esquema y en la placa si existe transductor integrado.
+- En la 1,8" V2 no conectes un altavoz externo hasta confirmar en el esquema y en la placa si existe transductor integrado. La 2,16" trae altavoz integrado (ver `docs/HARDWARE_2_16.md`).

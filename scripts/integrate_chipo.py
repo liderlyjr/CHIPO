@@ -5,10 +5,17 @@ import re
 import shutil
 import sys
 
-if len(sys.argv) != 3:
-    raise SystemExit("Usage: integrate_chipo.py <CHIPO repo root> <xiaozhi checkout>")
-chipo = Path(sys.argv[1]).resolve()
-xiaozhi = Path(sys.argv[2]).resolve()
+BOARDS = {
+    "1.8-v2": ("CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2=y", "Waveshare ESP32-S3 Touch AMOLED 1.8 V2"),
+    "2.16": ("CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16=y", "Waveshare ESP32-S3 Touch AMOLED 2.16"),
+}
+args = [a for a in sys.argv[1:] if not a.startswith("--board=")]
+board_args = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--board=")]
+board = board_args[0] if board_args else "1.8-v2"
+if len(args) != 2 or board not in BOARDS:
+    raise SystemExit("Usage: integrate_chipo.py <CHIPO repo root> <xiaozhi checkout> [--board=1.8-v2|2.16]")
+chipo = Path(args[0]).resolve()
+xiaozhi = Path(args[1]).resolve()
 main = xiaozhi / "main"
 if not (main / "application.h").is_file() or not (main / "application.cc").is_file():
     raise SystemExit(f"Not a XiaoZhi source checkout: {xiaozhi}")
@@ -24,7 +31,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -152,6 +159,66 @@ replace_once(
                             chipo_weather_->OnVoiceText(message.c_str());
                         }
                     }
+                    // CHIPO DRIVE: "Chipo, vámonos" and the other car-mode commands. When CHIPO answers with
+                    // its own sound, the server's spoken reply to that sentence is dropped (see "tts" below).
+                    if (chipo_drive_) {
+                        DisplayLockGuard lock(display);
+                        if (lock && chipo_drive_->OnVoiceText(message.c_str())) {
+                            chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                            if (chipo_face_) chipo_face_->SetThinking(false);
+                        }
+                    }
+                    if (chipo_face_ && ChipoIsThanks(message.c_str())) {  // "gracias", "te quiero": a shower of hearts
+                        DisplayLockGuard lock(display);
+                        if (lock) {
+                            chipo_face_->Celebrate(ChipoFace::Burst::Hearts, 5);
+                            chipo_face_->ShowEmotion(ChipoFace::Emotion::Love, 2200);
+                        }
+                    }
+                    if (chipo_face_ && esp_timer_get_time() >= chipo_drive_silence_until_us_) {  // "ponte el gorro", "quítate las gafas"
+                        const CostumeCommand costume_cmd = ParseCostumeCommand(message.c_str());
+                        if (costume_cmd.matched) {
+                            DisplayLockGuard lock(display);
+                            if (lock) {
+                                chipo_face_->SetCostume(costume_cmd.costume);
+                                display->ShowNotification(costume_cmd.costume == Costume::None
+                                                              ? "Sin disfraz"
+                                                              : "¡Disfraz puesto!", 2500);
+                                chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                                chipo_face_->SetThinking(false);
+                                std::string_view clip = ChipoDriveClip("buddy_chime");
+                                if (!clip.empty()) audio_service_.PlaySound(clip);
+                            }
+                        }
+                    }
+                    if (chipo_scenes_ && esp_timer_get_time() >= chipo_drive_silence_until_us_) {  // "baila", "pon el acuario", "quita eso"
+                        DisplayLockGuard lock(display);
+                        if (lock && chipo_scenes_->OnVoiceText(message.c_str())) {
+                            chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                            if (chipo_face_) chipo_face_->SetThinking(false);
+                        }
+                    }
+                    // CHIPO BUDDY (timers, alarm, bedtime), FUN (lamp, dice, coin) and Home Assistant: same rule, a sound answers
+                    // and the server's spoken reply to that sentence is dropped.
+                    if ((chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_ || chipo_remind_ || chipo_ambient_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                        DisplayLockGuard lock(display);
+                        if (lock) {
+                            bool handled = false;
+                            if (chipo_remind_) handled = chipo_remind_->OnVoiceText(message.c_str());  // "recuérdame a las 18:30 ..."
+                            if (!handled && chipo_buddy_) handled = chipo_buddy_->OnVoiceText(message.c_str());
+                            if (!handled && chipo_fun_) handled = chipo_fun_->OnVoiceText(message.c_str());
+                            if (chipo_pet_) {  // mood and games: every sentence counts as attention
+                                const bool pet_handled = chipo_pet_->OnVoiceText(message.c_str());
+                                if (!handled) handled = pet_handled;
+                            }
+                            if (!handled && chipo_ambient_) handled = chipo_ambient_->OnVoiceText(message.c_str());  // rain, fire, noise
+                            if (!handled && chipo_ha_) handled = chipo_ha_->OnVoiceText(message.c_str());
+                            if (handled) {
+                                chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                                if (chipo_face_) chipo_face_->SetThinking(false);
+                            }
+                        }
+                    }
                 });
 """,
     "Show CHIPO thinking and weather once speech is recognised",
@@ -164,11 +231,59 @@ replace_once(
         DisplayLockGuard lock(display);
         if (lock) {
             chipo_face_->SetState(ChipoStateFromXiaoZhi(new_state));
+            if (chipo_settings_) chipo_settings_->NotifyActivity();  // wakes the screen saver
         }
     }
+    if (chipo_fun_ && new_state == kDeviceStateWifiConfiguring) chipo_fun_->SetOffline(true);  // no Wi-Fi yet
     auto led = board.GetLed();
 """,
     "Map XiaoZhi state to CHIPO face",
+)
+
+replace_once(
+    app_cc,
+    '    ESP_LOGI(TAG, "Network connected");\n',
+    '    ESP_LOGI(TAG, "Network connected");\n    if (chipo_fun_) chipo_fun_->SetOffline(false);  // CHIPO stops murmuring\n',
+    "Tell CHIPO Fun the network is back",
+)
+replace_once(
+    app_cc,
+    "void Application::HandleNetworkDisconnectedEvent() {\n",
+    "void Application::HandleNetworkDisconnectedEvent() {\n    if (chipo_fun_) chipo_fun_->SetOffline(true);  // no internet: CHIPO murmurs now and then\n",
+    "Tell CHIPO Fun the network is gone",
+)
+
+replace_once(
+    app_cc,
+    "            SetDeviceState(kDeviceStateIdle);\n            Alert(Lang::Strings::ERROR, last_error_message_.c_str(), \"cancel\",",
+    """            if (chipo_fun_) {
+                DisplayLockGuard lock(Board::GetInstance().GetDisplay());
+                if (lock) chipo_fun_->OnServerError(static_cast<uint32_t>(esp_timer_get_time() / 1000));
+            }
+            SetDeviceState(kDeviceStateIdle);
+            Alert(Lang::Strings::ERROR, last_error_message_.c_str(), "cancel",""",
+    "CHIPO Fun reacts to a server error",
+)
+
+# Loudness and 8-band spectrum of what CHIPO plays and hears (dance, sound visualizer): one cheap call per audio block.
+audio_service_cc = main / "audio" / "audio_service.cc"
+replace_once(
+    audio_service_cc,
+    '#include "audio_service.h"\n',
+    '#include "audio_service.h"\n#include "chipo_audio_level.h"\n',
+    "Include the CHIPO audio level meter",
+)
+replace_once(
+    audio_service_cc,
+    "        codec_->OutputData(task.pcm);\n",
+    "        ChipoAudioFeed(task.pcm.data(), task.pcm.size(), codec_->output_sample_rate(), codec_->output_channels(), false, ChipoAudioNowMs());\n        codec_->OutputData(task.pcm);\n",
+    "Measure the audio CHIPO plays",
+)
+replace_once(
+    audio_service_cc,
+    "    /* Update the last input time */\n    last_input_time_ = std::chrono::steady_clock::now();\n",
+    "    ChipoAudioFeed(data.data(), data.size(), sample_rate, codec_->input_channels(), true, ChipoAudioNowMs());\n    /* Update the last input time */\n    last_input_time_ = std::chrono::steady_clock::now();\n",
+    "Measure the audio CHIPO hears",
 )
 
 cmake = main / "CMakeLists.txt"
@@ -238,6 +353,434 @@ replace_once(
 """,
     "Gate UpgradeFirmware to CHIPO releases",
 )
+
+# --- CHIPO DRIVE: copilot mode for the car (voice on/off, sunglasses, motion reactions) -------------
+replace_once(
+    app_h,
+    '#include "chipo_weather_controller.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_remind.h"\n#include "chipo_ambient.h"\n#include "chipo_scenes.h"\n#include "chipo_settings.h"\n#include "chipo_version.h"\n',
+    "Application drive header include",
+)
+replace_once(
+    app_h,
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoRemind> chipo_remind_;\n    std::unique_ptr<ChipoAmbient> chipo_ambient_;\n    std::unique_ptr<ChipoScenes> chipo_scenes_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "Application drive members",
+)
+replace_once(
+    app_cc,
+    '#include "chipo_update.h"\n',
+    '#include "chipo_update.h"\n#include "chipo_drive_clips.h"\n#include "chipo_ha_client.h"\n#include "esp_timer.h"\n#include <sys/time.h>\n#include <ctime>\n',
+    "Application drive includes",
+)
+replace_once(
+    app_cc,
+    """        if (!ChipoUpdaterStart(std::move(hooks))) {
+            ESP_LOGW(TAG, "CHIPO updater not started");
+        }
+    }
+""",
+    """        if (!ChipoUpdaterStart(std::move(hooks))) {
+            ESP_LOGW(TAG, "CHIPO updater not started");
+        }
+    }
+
+    // CHIPO DRIVE (copilot mode for the car). Switched on and off by voice only.
+    if (chipo_face_) {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_drive_ = std::make_unique<ChipoDrive>();
+            ChipoDrive::Hooks hooks;
+            // Sounds are clips embedded in the firmware, played through the assistant's own audio path.
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
+            hooks.assistant_busy = [this]() {
+                const auto state = GetDeviceState();
+                return state == kDeviceStateListening || state == kDeviceStateSpeaking;
+            };
+            if (!chipo_drive_->Start(chipo_face_.get(), std::move(hooks))) {
+                chipo_drive_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Drive");
+            }
+        }
+    }
+
+    // CHIPO Home Assistant (only active when the address and token are stored in NVS; otherwise off).
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_ha_ = std::make_unique<ChipoHa>();
+            HaConfig ha_cfg;
+            ChipoHaLoadConfig(&ha_cfg);
+            ChipoHa::Hooks ha_hooks;
+            ha_hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            ha_hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            ha_hooks.post = ChipoHaPost;
+            ha_hooks.get = ChipoHaGet;
+            ha_hooks.run_async = ChipoHaRunAsync;
+            if (!chipo_ha_->Start(ha_cfg, std::move(ha_hooks))) {
+                chipo_ha_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Home Assistant");
+            }
+        }
+    }
+
+    // CHIPO FUN (AMOLED): start-up screen, colour lamp, dice, coin. Created before BUDDY so that an alarm
+    // ringing while the lamp is on is drawn above it.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_fun_ = std::make_unique<ChipoFun>();
+            ChipoFun::Hooks hooks;
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            // The start-up screen ends: the face wakes up with a smile.
+            hooks.boot_done = [this]() {
+                if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Happy, 1800);
+            };
+            // A server error ("me caí"): the face gets sad for a moment.
+            hooks.oops = [this]() {
+                if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Sad, 3500);
+            };
+            // Offline murmur: the face laughs while CHIPO babbles (runs on the LVGL task, display lock held).
+            hooks.babble = [this](uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotion(ChipoFace::Emotion::Laugh, ms);
+            };
+            // Eye colour chosen by voice ("ojos rosas"): applied now and kept across reboots.
+            hooks.set_eye_color = [this](int64_t rgb) {
+                if (!chipo_face_) return;
+                if (rgb < 0) chipo_face_->ClearEyeTint();
+                else chipo_face_->SetEyeTint(static_cast<uint32_t>(rgb));
+                Settings settings("chipo", true);
+                settings.SetInt("eye_rgb", static_cast<int32_t>(rgb));
+            };
+            {
+                Settings saved("chipo", false);
+                const int32_t eye_rgb = saved.GetInt("eye_rgb", -1);
+                if (eye_rgb >= 0 && chipo_face_) chipo_face_->SetEyeTint(static_cast<uint32_t>(eye_rgb));
+            }
+            if (!chipo_fun_->Start(lv_screen_active(), std::move(hooks), CHIPO_OS_VERSION)) {
+                chipo_fun_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Fun");
+            } else {
+                chipo_fun_->ShowBoot();
+            }
+        }
+    }
+
+    // CHIPO PET: mood of the little computer and voice games (rock-paper-scissors, guess the number).
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_pet_ = std::make_unique<ChipoPet>();
+            ChipoPet::Hooks hooks;
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            hooks.emotion = [this](const char* name, uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
+            };
+            hooks.cry = [this](uint32_t ms) {  // very neglected: tears
+                if (chipo_face_) chipo_face_->Cry(ms);
+            };
+            hooks.sore_loser = [this]() {  // lost a game: tantrum, then tears
+                if (chipo_face_) chipo_face_->SoreLoser();
+            };
+            if (!chipo_pet_->Start(std::move(hooks))) {
+                chipo_pet_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Pet");
+            }
+        }
+    }
+
+    // The calendar chooses the costume (Santa hat from 1 Dec to 6 Jan). The clock is the server time plus the zone offset.
+    if (chipo_face_) {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_face_->SetDateSource([](int* month, int* day) {
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                if (tv.tv_sec < 1700000000) return false;
+                struct tm tm_now;
+                gmtime_r(&tv.tv_sec, &tm_now);
+                *month = tm_now.tm_mon + 1;
+                *day = tm_now.tm_mday;
+                return true;
+            });
+        }
+    }
+
+    // CHIPO REMIND: spoken reminders at a time of day, kept in the device's NVS so they survive a reboot.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_remind_ = std::make_unique<ChipoRemind>();
+            ChipoRemind::Hooks hooks;
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            hooks.emotion = [this](const char* name, uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
+            };
+            hooks.assistant_busy = [this]() {
+                const auto state = GetDeviceState();
+                return state == kDeviceStateListening || state == kDeviceStateSpeaking;
+            };
+            // XiaoZhi stores the server time plus the time zone offset as the system time (see BUDDY below).
+            hooks.wall_time = [](ChipoRemind::Wall* out) {
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                if (tv.tv_sec < 1700000000) return false;
+                struct tm tm_now;
+                gmtime_r(&tv.tv_sec, &tm_now);
+                out->valid = true;
+                out->hour = tm_now.tm_hour;
+                out->minute = tm_now.tm_min;
+                return true;
+            };
+            hooks.load = []() {
+                Settings saved("chipo", false);
+                return saved.GetString("reminders", "");
+            };
+            hooks.save = [](const std::string& data) {
+                Settings settings("chipo", true);
+                if (data.empty()) settings.EraseKey("reminders");
+                else settings.SetString("reminders", data);
+            };
+            if (!chipo_remind_->Start(std::move(hooks))) {
+                chipo_remind_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Remind");
+            }
+        }
+    }
+
+    // CHIPO AMBIENT: rain / fire / soft noise in the background (one 0.96 s piece queued about every second).
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_ambient_ = std::make_unique<ChipoAmbient>();
+            ChipoAmbient::Hooks hooks;
+            hooks.clip_exists = [](const char* id) { return !ChipoDriveClip(id).empty(); };
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            hooks.emotion = [this](const char* name, uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
+            };
+            hooks.assistant_busy = [this]() {
+                const auto state = GetDeviceState();
+                return state == kDeviceStateListening || state == kDeviceStateSpeaking;
+            };
+            if (!chipo_ambient_->Start(std::move(hooks))) {
+                chipo_ambient_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Ambient");
+            }
+        }
+    }
+
+    // CHIPO BUDDY: timer, pomodoro, stopwatch, alarm and bedside clock by voice.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_buddy_ = std::make_unique<ChipoBuddy>();
+            ChipoBuddy::Hooks hooks;
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
+            hooks.assistant_busy = [this]() {
+                const auto state = GetDeviceState();
+                return state == kDeviceStateListening || state == kDeviceStateSpeaking;
+            };
+            hooks.in_drive = [this]() { return chipo_drive_ && chipo_drive_->active(); };
+            // XiaoZhi stores the server time plus the time zone offset as the system time, so the
+            // "UTC" fields already are the local clock. Before the first sync the year is 1970: not valid.
+            hooks.wall_time = [](BuddyWallTime* out) {
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                if (tv.tv_sec < 1700000000) return false;
+                struct tm tm_now;
+                gmtime_r(&tv.tv_sec, &tm_now);
+                out->valid = true;
+                out->hour = tm_now.tm_hour;
+                out->minute = tm_now.tm_min;
+                out->second = tm_now.tm_sec;
+                return true;
+            };
+            hooks.scene = [this](const char* which) { if (chipo_ha_) chipo_ha_->RunScene(which); };
+            if (!chipo_buddy_->Start(lv_screen_active(), std::move(hooks))) {
+                chipo_buddy_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Buddy");
+            } else if (chipo_face_) {
+                // Lying on its side for a while turns CHIPO into a desk clock (the face reports it).
+                chipo_face_->SetDeskClockObserver([this](bool on, int side) {
+                    if (chipo_buddy_) chipo_buddy_->SetDeskClock(on, side);
+                });
+            }
+        }
+    }
+
+    // CHIPO SCENES: sound visualizer, aquarium, lava lamp and the dance. The face dances to the loudness of CHIPO's own audio.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            if (chipo_face_) {
+                chipo_face_->SetLevelSource([]() { return ChipoAudioRead(ChipoAudioNowMs(), true).level; });
+            }
+            chipo_scenes_ = std::make_unique<ChipoScenes>();
+            ChipoScenes::Hooks hooks;
+            hooks.audio = [](float* bands, float* level) {
+                const ChipoAudioLevels l = ChipoAudioRead(ChipoAudioNowMs(), true);
+                if (!l.valid) return false;
+                for (int i = 0; i < kChipoAudioBands; ++i) bands[i] = l.band[i];
+                *level = l.level;
+                return true;
+            };
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
+            hooks.dance = [this](bool on) {
+                if (chipo_face_) chipo_face_->SetDance(on);
+            };
+            hooks.dancing = [this]() { return chipo_face_ && chipo_face_->dancing(); };
+            if (!chipo_scenes_->Start(lv_screen_active(), std::move(hooks))) {
+                chipo_scenes_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Scenes");
+            }
+        }
+    }
+
+    // CHIPO SETTINGS (last, so it is drawn above everything): long-press menu, battery, screen saver,
+    // burn-in drift of the face and touch reactions of the face.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_settings_ = std::make_unique<ChipoSettings>();
+            ChipoSettings::Hooks hooks;
+            hooks.get_volume = []() {
+                auto codec = Board::GetInstance().GetAudioCodec();
+                return codec ? codec->output_volume() : 70;
+            };
+            hooks.set_volume = [](int volume) {
+                auto codec = Board::GetInstance().GetAudioCodec();
+                if (codec) codec->SetOutputVolume(volume);
+            };
+            hooks.get_brightness = []() {
+                auto backlight = Board::GetInstance().GetBacklight();
+                return backlight ? static_cast<int>(backlight->brightness()) : 80;
+            };
+            hooks.set_brightness = [](int percent, bool permanent) {
+                auto backlight = Board::GetInstance().GetBacklight();
+                if (backlight) backlight->SetBrightness(static_cast<uint8_t>(percent), permanent);
+            };
+            hooks.battery = [](int* level, bool* charging, bool* discharging) {
+                return Board::GetInstance().GetBatteryLevel(*level, *charging, *discharging);
+            };
+            hooks.wifi = ChipoSettingsWifi;
+            hooks.restart = []() { esp_restart(); };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.react = [this](TapKind kind) {
+                if (!chipo_face_) return;
+                if (chipo_pet_) chipo_pet_->OnTouch(kind == TapKind::Tickle ? ChipoPet::Touch::Tickle : ChipoPet::Touch::Tap);
+                if (kind == TapKind::Tickle) {
+                    chipo_face_->ShowEmotion(ChipoFace::Emotion::Laugh, 2500);
+                    chipo_face_->Celebrate(ChipoFace::Burst::Sparkles, 6);
+                } else {
+                    chipo_face_->ShowEmotion(ChipoFace::Emotion::Wink, 900);
+                    chipo_face_->Celebrate(ChipoFace::Burst::Hearts, 2);
+                }
+            };
+            hooks.gaze = [this](float nx, float ny, bool down) {  // the eyes follow the finger
+                if (!chipo_face_) return;
+                if (down) chipo_face_->LookAt(nx, ny);
+                else chipo_face_->StopLookAt();
+            };
+            hooks.shift = [this](int dx, int dy) {
+                if (chipo_face_) chipo_face_->SetPixelShift(dx, dy);
+            };
+            auto overlay = [this]() {
+                return (chipo_weather_ && chipo_weather_->IsShown()) || (chipo_fun_ && chipo_fun_->mode() != ChipoFun::Mode::Off) ||
+                       (chipo_buddy_ && chipo_buddy_->screen_shown()) || (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
+            };
+            hooks.overlay_active = overlay;
+            hooks.keep_awake = [this, overlay]() { return GetDeviceState() != kDeviceStateIdle || overlay(); };
+            if (!chipo_settings_->Start(lv_screen_active(), std::move(hooks), CHIPO_OS_VERSION)) {
+                chipo_settings_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Settings");
+            } else if (chipo_weather_) {
+                // The weather opens on a tap anywhere except on the face (which reacts) and over other screens.
+                chipo_weather_->SetTapBlocker([this](int y) { return chipo_settings_ && chipo_settings_->BlocksWeatherTap(y); });
+            }
+        }
+    }
+""",
+    "Create CHIPO Drive after the face",
+)
+replace_once(
+    app_cc,
+    """                Schedule([this]() {
+                    aborted_ = false;
+                    SetDeviceState(kDeviceStateSpeaking);
+                });""",
+    """                Schedule([this]() {
+                    aborted_ = false;
+                    if (esp_timer_get_time() < chipo_drive_silence_until_us_) {
+                        // CHIPO DRIVE already answered this command: do not play the server's reply.
+                        chipo_drive_silence_until_us_ = 0;
+                        AbortSpeaking(kAbortReasonNone);
+                        return;
+                    }
+                    SetDeviceState(kDeviceStateSpeaking);
+                });""",
+    "Drop the server reply to a car-mode command",
+)
+replace_once(
+    cmake,
+    "                        chipo_update\n",
+    "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n                        chipo_pet\n                        chipo_remind\n                        chipo_ambient\n                        chipo_scenes\n                        chipo_settings\n",
+    "Link chipo_drive component",
+)
+
 ota_cc = main / "ota.cc"
 replace_once(
     ota_cc,
@@ -269,7 +812,7 @@ else:
 defaults = xiaozhi / "sdkconfig.defaults"
 defaults_text = defaults.read_text(encoding="utf-8") if defaults.exists() else ""
 settings = [
-    "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2=y",
+    BOARDS[board][0],
     "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
     # Wake word "Chipo": custom wake word through ESP-SR MultiNet (English model, written
     # phonetically). Needs tuning on the real board; see docs/WAKE_WORD.md.
@@ -283,11 +826,19 @@ settings = [
     "CONFIG_LV_FONT_MONTSERRAT_20=y",
     "CONFIG_LV_FONT_MONTSERRAT_24=y",
 ]
+# Only one board may be selected: drop the symbols of the other boards if an earlier run (with another
+# --board) left them in sdkconfig.defaults.
+other_boards = {cfg for key, (cfg, _) in BOARDS.items() if key != board}
+kept_lines = [ln for ln in defaults_text.splitlines() if ln.strip() not in other_boards]
+if len(kept_lines) != len(defaults_text.splitlines()):
+    defaults_text = "\n".join(kept_lines) + "\n"
+    defaults.write_text(defaults_text, encoding="utf-8", newline="\n")
+    print("[patched] removed the board symbol of another board from sdkconfig.defaults")
 missing = [line for line in settings if line not in defaults_text]
 if missing:
     with defaults.open("a", encoding="utf-8", newline="\n") as f:
         if defaults_text and not defaults_text.endswith("\n"):
             f.write("\n")
         f.write("\n".join(missing) + "\n")
-print("[configured] Waveshare ESP32-S3 Touch AMOLED 1.8 V2")
+print(f"[configured] {BOARDS[board][1]}")
 print("[done] CHIPO overlay integrated. Build with: idf.py set-target esp32s3 && idf.py build")

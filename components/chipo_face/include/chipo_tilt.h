@@ -14,7 +14,10 @@
  * screen normal. Everything afterwards is measured relative to that pose.
  */
 struct ImuSample {
-    float x = 0, y = 0, z = 0;  // g
+    float x = 0, y = 0, z = 0;     // accelerometer, g
+    float gx = 0, gy = 0, gz = 0;  // gyroscope, degrees per second (only meaningful if has_gyro)
+    bool has_gyro = false;
+    uint32_t t_ms = 0;             // when the sensor task read it (0: unknown, use the caller's clock)
 };
 
 struct TiltOutput {

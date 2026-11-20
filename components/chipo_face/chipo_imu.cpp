@@ -6,6 +6,7 @@
 #include <initializer_list>
 
 #include "esp_log.h"
+#include "esp_timer.h"
 
 namespace {
 constexpr char TAG[] = "ChipoImu";
@@ -14,6 +15,7 @@ constexpr char TAG[] = "ChipoImu";
 constexpr uint8_t kRegWhoAmI = 0x00;
 constexpr uint8_t kRegCtrl1 = 0x02;
 constexpr uint8_t kRegCtrl2 = 0x03;
+constexpr uint8_t kRegCtrl3 = 0x04;
 constexpr uint8_t kRegCtrl5 = 0x06;
 constexpr uint8_t kRegCtrl7 = 0x08;
 constexpr uint8_t kRegAccelX_L = 0x35;
@@ -26,13 +28,19 @@ constexpr uint8_t kCtrl1Value = 0x40;
 // CTRL2: accelerometer full scale +-4 g (0b001 << 4) and output data rate 250 Hz (0b0101).
 constexpr uint8_t kCtrl2Value = (1 << 4) | 5;
 constexpr float kLsbPerG = 8192.0f;  // 32768 / 4 g
-// CTRL5: accelerometer low-pass filter on (mode 0).
+// CTRL3: gyroscope full scale +-512 dps (0b101 << 4) and output data rate 0b0101.
+constexpr uint8_t kCtrl3Value = (5 << 4) | 5;
+constexpr float kLsbPerDps = 64.0f;  // 32768 / 512 dps
+// CTRL5: low-pass filter on (mode 0) for the accelerometer (bit 0) and, with the gyroscope, also bit 4.
 constexpr uint8_t kCtrl5Value = 0x01;
-// CTRL7: enable the accelerometer only.
+constexpr uint8_t kCtrl5WithGyroValue = 0x11;
+// CTRL7: enable the accelerometer (bit 0) and, optionally, the gyroscope (bit 1).
 constexpr uint8_t kCtrl7Value = 0x01;
+constexpr uint8_t kCtrl7WithGyroValue = 0x03;
 
 constexpr int kI2cTimeoutMs = 50;
 constexpr uint32_t kSamplePeriodMs = 40;  // 25 Hz
+constexpr uint32_t kFastSamplePeriodMs = CHIPO_DRIVE_SAMPLE_MS;  // car mode
 }  // namespace
 
 ChipoImu::~ChipoImu() {
@@ -92,13 +100,23 @@ bool ChipoImu::Start() {
         return false;
     }
 
-    // Datasheet soft reset, then accelerometer-only configuration.
+    // Datasheet soft reset, then accelerometer (and, if it answers, gyroscope) configuration.
     bool ok = WriteReg(kRegReset, kResetCommand);
     vTaskDelay(pdMS_TO_TICKS(30));
     ok = ok && WriteReg(kRegCtrl1, kCtrl1Value);
     ok = ok && WriteReg(kRegCtrl2, kCtrl2Value);
-    ok = ok && WriteReg(kRegCtrl5, kCtrl5Value);
-    ok = ok && WriteReg(kRegCtrl7, kCtrl7Value);
+    bool gyro_ok = false;
+#if CHIPO_ENABLE_GYRO
+    if (ok) {
+        gyro_ok = WriteReg(kRegCtrl3, kCtrl3Value) && WriteReg(kRegCtrl5, kCtrl5WithGyroValue) &&
+                  WriteReg(kRegCtrl7, kCtrl7WithGyroValue);
+    }
+#endif
+    if (ok && !gyro_ok) {
+        // No gyroscope (or it refused): accelerometer only, exactly as before.
+        ok = WriteReg(kRegCtrl5, kCtrl5Value) && WriteReg(kRegCtrl7, kCtrl7Value);
+    }
+    gyro_ok_ = gyro_ok;
     if (!ok) {
         ESP_LOGW(TAG, "QMI8658 configuration failed");
         i2c_master_bus_rm_device(dev_);
@@ -117,7 +135,8 @@ bool ChipoImu::Start() {
         dev_ = nullptr;
         return false;
     }
-    ESP_LOGI(TAG, "QMI8658 accelerometer ready at 0x%02X (+-4 g, 25 Hz readout)", address);
+    ESP_LOGI(TAG, "QMI8658 ready at 0x%02X: accelerometer +-4 g%s, 25 Hz readout", address,
+             gyro_ok_ ? " + gyroscope +-512 dps" : " (gyroscope off)");
     return true;
 }
 
@@ -133,12 +152,11 @@ void ChipoImu::Stop() {
 }
 
 bool ChipoImu::Poll(ImuSample* out) {
-    const uint32_t sequence = sequence_.load();
-    if (sequence == polled_sequence_) return false;
-    polled_sequence_ = sequence;
-    out->x = x_milli_g_.load() / 1000.0f;
-    out->y = y_milli_g_.load() / 1000.0f;
-    out->z = z_milli_g_.load() / 1000.0f;
+    const uint32_t head = head_.load(std::memory_order_acquire);
+    if (head == tail_) return false;
+    if (head - tail_ > kRingSize - 4) tail_ = head - 4;  // the UI task fell behind: skip the oldest
+    *out = ring_[tail_ % kRingSize];
+    ++tail_;
     return true;
 }
 
@@ -150,21 +168,29 @@ void ChipoImu::Run() {
     uint32_t consecutive_errors = 0;
     TickType_t last_wake = xTaskGetTickCount();
     while (running_.load()) {
-        uint8_t raw[6];
-        if (ReadRegs(kRegAccelX_L, raw, sizeof(raw))) {
+        // Accelerometer X..Z are followed by gyroscope X..Z in the register map.
+        uint8_t raw[12];
+        if (ReadRegs(kRegAccelX_L, raw, gyro_ok_ ? 12 : 6)) {
             consecutive_errors = 0;
-            const int16_t ax = static_cast<int16_t>(raw[0] | (raw[1] << 8));
-            const int16_t ay = static_cast<int16_t>(raw[2] | (raw[3] << 8));
-            const int16_t az = static_cast<int16_t>(raw[4] | (raw[5] << 8));
-            x_milli_g_.store(static_cast<int32_t>(ax * 1000.0f / kLsbPerG));
-            y_milli_g_.store(static_cast<int32_t>(ay * 1000.0f / kLsbPerG));
-            z_milli_g_.store(static_cast<int32_t>(az * 1000.0f / kLsbPerG));
-            sequence_.fetch_add(1);
+            ImuSample sample;
+            sample.x = static_cast<int16_t>(raw[0] | (raw[1] << 8)) / kLsbPerG;
+            sample.y = static_cast<int16_t>(raw[2] | (raw[3] << 8)) / kLsbPerG;
+            sample.z = static_cast<int16_t>(raw[4] | (raw[5] << 8)) / kLsbPerG;
+            sample.has_gyro = gyro_ok_;
+            if (gyro_ok_) {
+                sample.gx = static_cast<int16_t>(raw[6] | (raw[7] << 8)) / kLsbPerDps;
+                sample.gy = static_cast<int16_t>(raw[8] | (raw[9] << 8)) / kLsbPerDps;
+                sample.gz = static_cast<int16_t>(raw[10] | (raw[11] << 8)) / kLsbPerDps;
+            }
+            sample.t_ms = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+            const uint32_t head = head_.load(std::memory_order_relaxed);
+            ring_[head % kRingSize] = sample;
+            head_.store(head + 1, std::memory_order_release);
         } else if (++consecutive_errors == 25) {
             ESP_LOGW(TAG, "IMU not answering; slowing down");
         }
         // After a long run of errors poll once per second instead of hammering the shared bus.
-        const uint32_t period = consecutive_errors >= 25 ? 1000 : kSamplePeriodMs;
+        const uint32_t period = consecutive_errors >= 25 ? 1000 : (fast_.load() ? kFastSamplePeriodMs : kSamplePeriodMs);
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(period));
     }
     task_done_.store(true);

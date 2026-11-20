@@ -182,17 +182,17 @@ struct Sky {
 };
 
 Sky SkyFor(WeatherKind kind, bool is_day, bool placeholder) {
-    if (placeholder) return {0x1A2230, 0x384659};
+    if (placeholder) return {0x000000, 0x2A3648};
     switch (kind) {
-    case WeatherKind::Clear: return is_day ? Sky{0x1E6FD9, 0x62B6F4} : Sky{0x070B24, 0x1B2A5C};
-    case WeatherKind::PartlyCloudy: return is_day ? Sky{0x3A78C4, 0x86AED6} : Sky{0x0E1530, 0x2C3C66};
-    case WeatherKind::Cloudy: return is_day ? Sky{0x56677B, 0x8A9AAC} : Sky{0x1A2230, 0x384659};
-    case WeatherKind::Fog: return is_day ? Sky{0x6B7684, 0x9EA8B3} : Sky{0x262D38, 0x4A5461};
-    case WeatherKind::Rain: return is_day ? Sky{0x2C3E55, 0x58728C} : Sky{0x111A28, 0x2C3E55};
-    case WeatherKind::Snow: return is_day ? Sky{0x5B7189, 0xA2B8CC} : Sky{0x1F2B3A, 0x4A6075};
-    case WeatherKind::Thunder: return Sky{0x1F1B33, 0x3E3860};
+    case WeatherKind::Clear: return is_day ? Sky{0x00060F, 0x0A72FF} : Sky{0x000000, 0x1A2A9C};
+    case WeatherKind::PartlyCloudy: return is_day ? Sky{0x000A14, 0x2F86E0} : Sky{0x000000, 0x24347A};
+    case WeatherKind::Cloudy: return is_day ? Sky{0x040608, 0x55677F} : Sky{0x000000, 0x2A3648};
+    case WeatherKind::Fog: return is_day ? Sky{0x060709, 0x707C8C} : Sky{0x000000, 0x3A4350};
+    case WeatherKind::Rain: return is_day ? Sky{0x000610, 0x2260A8} : Sky{0x000000, 0x16406E};
+    case WeatherKind::Snow: return is_day ? Sky{0x04090F, 0x78A8D8} : Sky{0x000000, 0x365C80};
+    case WeatherKind::Thunder: return Sky{0x020008, 0x6A2BE8};
     }
-    return {0x1A2230, 0x384659};
+    return {0x000000, 0x2A3648};
 }
 
 void Fmt(char* out, size_t n, int v) { std::snprintf(out, n, "%d", v); }
@@ -269,7 +269,7 @@ void ChipoWeatherView::RenderStatus(const char* title, const char* line) {
     if (!root_) return;
     BeginRender(WeatherKind::Cloudy, true, true);
     const int lh_m = lv_font_get_line_height(fonts_.medium);
-    int y = 14;
+    int y = 14 + (width_ > 400 ? 12 : 0);  // bigger panels (2.16") have rounded corners: keep clear of them
     lv_obj_t* l = Label(content_, title ? title : "CHIPO", fonts_.medium, kWhite);
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, y);
     y += lh_m + 6;
@@ -286,9 +286,10 @@ void ChipoWeatherView::Render(const WeatherData& d) {
     BeginRender(d.kind, d.is_day, false);
     const int lh_s = lv_font_get_line_height(fonts_.small);
     const int lh_m = lv_font_get_line_height(fonts_.medium);
-    const int margin = 16;
+    const int edge = width_ > 400 ? 24 : 0;  // 2.16" (480 x 480): rounded corners, keep the cards clear of them
+    const int margin = 16 + edge;
     char buf[48];
-    int y = 14;
+    int y = 14 + edge / 2;
 
     lv_obj_t* city = Label(content_, d.city[0] ? d.city : "CHIPO", fonts_.medium, kWhite);
     lv_obj_align(city, LV_ALIGN_TOP_MID, 0, y);
@@ -332,7 +333,7 @@ void ChipoWeatherView::Render(const WeatherData& d) {
 
     // ---- next days (as many rows as fit above the bottom margin) -------------------------------
     const int row_h = std::max(lh_s + 10, 34);
-    const int room = height_ - 22 - y - 12;
+    const int room = height_ - 22 - y - 12 - edge / 2;
     const int rows = std::min(d.day_count, std::max(0, room / row_h));
     if (rows > 0) {
         lv_obj_t* dcard = Shape(content_, margin, y, width_ - 2 * margin, rows * row_h + 12, 22, kWhite, LV_OPA_20);

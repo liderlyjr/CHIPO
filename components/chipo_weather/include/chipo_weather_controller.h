@@ -32,6 +32,8 @@ public:
     void Show();    // open now (cached data if fresh, else download)
     void Hide();
     bool IsShown() const;
+    // A tap opens the weather unless this says no (it gets the tap's y). A tap that closes the weather is never blocked.
+    void SetTapBlocker(std::function<bool(int y)> blocker) { tap_blocker_ = std::move(blocker); }
     // Feed it every sentence recognised from the user's voice; opens the weather if it is a weather question.
     bool OnVoiceText(const char* text);
 
@@ -63,4 +65,5 @@ private:
     uint32_t loading_since_ms_ = 0;
     uint32_t hide_at_ms_ = 0;
     bool auto_hide_armed_ = false;
+    std::function<bool(int y)> tap_blocker_;
 };

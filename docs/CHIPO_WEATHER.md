@@ -75,3 +75,11 @@ cierre automático, caché, datos viejos, fallo de red y parada limpia.
 - Los archivos que solo se compilan para el ESP32 (`chipo_weather_client.cpp` y la parte de tareas del controlador) se
   han comprobado solo con cabeceras de prueba; la compilación real la hace GitHub Actions.
 - Un toque cualquiera abre el clima, también el que despierta a CHIPO del sueño.
+
+## Cielos AMOLED
+
+![Clima en neón](img/chipo_weather_neon.png)
+
+Los degradados del cielo parten de negro puro arriba (píxeles apagados) hacia un color saturado abajo: azul eléctrico de
+día, violeta en tormenta, azul marino de noche. Los datos de la imagen son de ejemplo. Herramienta de capturas:
+`tests/host/render_weather.cpp`.
