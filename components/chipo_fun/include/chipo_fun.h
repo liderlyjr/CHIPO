@@ -43,6 +43,8 @@ public:
     // True when CHIPO answered with a sound, so the server's spoken reply must be dropped.
     bool OnVoiceText(const char* text);
     void OnTouch();  // the overlay was touched (also reachable from tests)
+    // CHIPO was shaken: with the dice or the coin on screen it throws again. True when it did.
+    bool OnShake(uint32_t now_ms);
 
     enum class Mode : uint8_t { Off, Boot, Lamp, Dice, Coin };
     Mode mode() const { return mode_; }

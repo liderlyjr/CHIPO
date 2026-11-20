@@ -26,6 +26,10 @@ if (-not (Test-Path (Join-Path $XiaoZhiDir ".git"))) {
     if ($LASTEXITCODE -ne 0) { throw "Falló la descarga de XiaoZhi." }
 } else {
     Write-Host "Usando el checkout XiaoZhi existente: $XiaoZhiDir"
+    # Quita los cambios de integraciones anteriores: el script de integración parte siempre de XiaoZhi limpio.
+    git -C $XiaoZhiDir reset --hard
+    if ($LASTEXITCODE -ne 0) { throw "No se pudo limpiar el checkout de XiaoZhi." }
+    git -C $XiaoZhiDir clean -fd
 }
 
 python (Join-Path $ChipoRoot "scripts\integrate_chipo.py") $ChipoRoot $XiaoZhiDir "--board=$Board"

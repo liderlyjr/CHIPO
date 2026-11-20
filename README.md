@@ -87,6 +87,7 @@ Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de 
 - **AMBIENTE**: lluvia, fuego o ruido suave de fondo por voz (se apaga a los 30 min) y música a través de un reproductor de Home Assistant. Ver [docs/CHIPO_AMBIENT.md](docs/CHIPO_AMBIENT.md).
 - **ANIMACIONES EXTRA**: los ojos siguen tu dedo, corazones y chispas al acariciarlo o decirle "gracias", parpadeo lento de cariño, bostezo con estirón antes de dormir, lágrimas si lo ignoras mucho, rabieta si pierde un juego, Zzz y respiración al dormir, disfraces (gorro de Papá Noel del 1 dic al 6 ene, gafas de sol, bigote) y baile al ritmo del sonido. Ver [docs/CHIPO_ANIMACIONES.md](docs/CHIPO_ANIMACIONES.md).
 - **PANTALLAS**: visualizador de sonido (8 bandas reales), acuario y lámpara de lava, por voz. Ver [docs/CHIPO_ANIMACIONES.md](docs/CHIPO_ANIMACIONES.md).
+- **TOOLS**: franja de hora y temperatura, anillo de pomodoro, nivel, bola 8, pizarra, subtítulos y agitar para dados/moneda. Ver [docs/CHIPO_TOOLS.md](docs/CHIPO_TOOLS.md).
 - **Home Assistant** por voz: luces y escenas (apagado hasta configurar la dirección y el token).
 - **Actualización automática** desde las Releases de GitHub.
 

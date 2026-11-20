@@ -926,6 +926,7 @@ void ChipoFace::Step(uint32_t now_ms) {
         for (int guard = 0; guard < 8 && tilt_source_(&sample); ++guard) {
             const uint32_t t = sample.t_ms != 0 ? sample.t_ms : now_ms;
             if (sample_observer_) sample_observer_(sample, t);
+            if (extra_sample_observer_) extra_sample_observer_(sample, t);
             tilt_.Update(sample, t);
             startle_seen = startle_seen || tilt_.output().startle;  // a later sample would clear it
             if (sample.has_gyro) {

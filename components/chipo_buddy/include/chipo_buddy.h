@@ -45,6 +45,9 @@ public:
     void SetDeskClock(bool on, int side = -1);
     bool desk_clock() const { return desk_clock_; }
 
+    // A pomodoro is running: fraction of the current period still to go (0..1) and whether it is a work period.
+    bool PomodoroProgress(float* remaining_fraction, bool* work) const;
+
     bool bedtime() const { return bedtime_; }
     bool ringing() const { return ring_ != Ring::None; }
     bool screen_shown() const { return view_.IsShown(); }

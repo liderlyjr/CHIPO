@@ -36,6 +36,10 @@ g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_buddy/include -Icomponents/
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_fun/include -Icomponents/chipo_drive/include tests/host/test_fun_logic.cpp components/chipo_fun/chipo_fun_voice.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_fun_logic"
 "$OUT/test_fun_logic"
 
+echo "== CHIPO TOOLS logic (shake, level, 8-ball, voice)"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_tools/include -Icomponents/chipo_drive/include tests/host/test_tools_logic.cpp components/chipo_tools/chipo_tools_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_tools_logic"
+"$OUT/test_tools_logic"
+
 echo "== Home Assistant requests and spoken commands"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include tests/host/test_ha_logic.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_ha_logic"
 "$OUT/test_ha_logic"
@@ -56,6 +60,7 @@ mkdir -p "$OUT/stub" "$OUT/obj"
 sed -e 's/^#if 0 \/\* *Set this to "1" to enable content *\*\//#if 1 \/* enabled *\//' \
     -e 's/^#define LV_FONT_MONTSERRAT_20 0/#define LV_FONT_MONTSERRAT_20 1/' \
     -e 's/^#define LV_FONT_MONTSERRAT_24 0/#define LV_FONT_MONTSERRAT_24 1/' \
+    -e 's/^#define LV_FONT_MONTSERRAT_32 0/#define LV_FONT_MONTSERRAT_32 1/' \
     "$LVGL_DIR/lv_conf_template.h" > "$OUT/stub/lv_conf.h"
 grep -q '^#if 1 /\* enabled' "$OUT/stub/lv_conf.h" || { echo "could not enable lv_conf template"; exit 1; }
 LVFLAGS="-DLV_CONF_INCLUDE_SIMPLE -I$OUT/stub -I$LVGL_DIR"
@@ -97,6 +102,12 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_fun/i
     tests/host/test_fun.cpp components/chipo_fun/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_fun"
 "$OUT/test_fun"
+
+echo "== chipo_tools (LVGL): info strip, pomodoro ring, level, 8-ball, canvas, subtitles"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_tools/include -Icomponents/chipo_drive/include -Icomponents/chipo_face/include -w \
+    tests/host/test_tools.cpp components/chipo_tools/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
+    "$OUT"/obj/*.o -o "$OUT/test_tools"
+"$OUT/test_tools"
 
 echo "== Home Assistant controller (async call, result text, off when not configured)"
 g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include -w \

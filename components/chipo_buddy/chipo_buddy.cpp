@@ -142,6 +142,18 @@ void ChipoBuddy::LeaveBedtime() {
     view_.Hide();
 }
 
+bool ChipoBuddy::PomodoroProgress(float* remaining_fraction, bool* work) const {
+    if (!running_) return false;
+    const PomodoroPhase phase = engine_.pomodoro_phase();
+    if (phase == PomodoroPhase::Off) return false;
+    const uint32_t total = phase == PomodoroPhase::Work ? BuddyEngine::kWorkMs
+                         : phase == PomodoroPhase::Break ? BuddyEngine::kBreakMs : BuddyEngine::kLongBreakMs;
+    const uint32_t left = engine_.PomodoroRemainingMs(Now());
+    if (remaining_fraction) *remaining_fraction = total ? static_cast<float>(left) / static_cast<float>(total) : 0.0f;
+    if (work) *work = phase == PomodoroPhase::Work;
+    return true;
+}
+
 void ChipoBuddy::OnTouch(bool long_press) {
     if (ring_ != Ring::None) {
         const bool snooze = ring_ == Ring::Alarm && alarm_snoozes_ < kMaxAlarmSnoozes && !long_press;

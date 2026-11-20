@@ -31,7 +31,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings", "chipo_tools"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -200,11 +200,12 @@ replace_once(
                     }
                     // CHIPO BUDDY (timers, alarm, bedtime), FUN (lamp, dice, coin) and Home Assistant: same rule, a sound answers
                     // and the server's spoken reply to that sentence is dropped.
-                    if ((chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_ || chipo_remind_ || chipo_ambient_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                    if ((chipo_tools_ || chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_ || chipo_remind_ || chipo_ambient_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
                         DisplayLockGuard lock(display);
                         if (lock) {
                             bool handled = false;
-                            if (chipo_remind_) handled = chipo_remind_->OnVoiceText(message.c_str());  // "recuérdame a las 18:30 ..."
+                            if (chipo_tools_) handled = chipo_tools_->OnVoiceText(message.c_str());  // "nivel", "bola mágica", "dibuja", "subtítulos"
+                            if (!handled && chipo_remind_) handled = chipo_remind_->OnVoiceText(message.c_str());  // "recuérdame a las 18:30 ..."
                             if (!handled && chipo_buddy_) handled = chipo_buddy_->OnVoiceText(message.c_str());
                             if (!handled && chipo_fun_) handled = chipo_fun_->OnVoiceText(message.c_str());
                             if (chipo_pet_) {  // mood and games: every sentence counts as attention
@@ -358,13 +359,13 @@ replace_once(
 replace_once(
     app_h,
     '#include "chipo_weather_controller.h"\n',
-    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_remind.h"\n#include "chipo_ambient.h"\n#include "chipo_scenes.h"\n#include "chipo_settings.h"\n#include "chipo_version.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_remind.h"\n#include "chipo_ambient.h"\n#include "chipo_scenes.h"\n#include "chipo_settings.h"\n#include "chipo_tools.h"\n#include "chipo_version.h"\n',
     "Application drive header include",
 )
 replace_once(
     app_h,
     "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
-    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoRemind> chipo_remind_;\n    std::unique_ptr<ChipoAmbient> chipo_ambient_;\n    std::unique_ptr<ChipoScenes> chipo_scenes_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoRemind> chipo_remind_;\n    std::unique_ptr<ChipoAmbient> chipo_ambient_;\n    std::unique_ptr<ChipoScenes> chipo_scenes_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    std::unique_ptr<ChipoTools> chipo_tools_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
     "Application drive members",
 )
 replace_once(
@@ -684,6 +685,85 @@ replace_once(
         }
     }
 
+    // CHIPO TOOLS: time and temperature around the face, pomodoro ring, spirit level, magic 8-ball, drawing canvas,
+    // subtitles, and "shake to throw again". Created before SETTINGS so the settings menu is drawn above it.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_tools_ = std::make_unique<ChipoTools>();
+            ChipoTools::Hooks hooks;
+            // Same rule as BUDDY: XiaoZhi stores the local time as system time; a year near 1970 means "not set yet".
+            hooks.wall_time = [](int* hour, int* minute) {
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                if (tv.tv_sec < 1700000000) return false;
+                struct tm tm_now;
+                gmtime_r(&tv.tv_sec, &tm_now);
+                *hour = tm_now.tm_hour;
+                *minute = tm_now.tm_min;
+                return true;
+            };
+            hooks.temperature = [this](int* temp_c) {
+                WeatherData data;
+                if (!chipo_weather_ || !chipo_weather_->Latest(&data, 3u * 60u * 60u * 1000u)) return false;
+                *temp_c = data.temp;
+                return true;
+            };
+            hooks.refresh_weather = [this]() {
+                if (chipo_weather_ && GetDeviceState() == kDeviceStateIdle) chipo_weather_->Prefetch();
+            };
+            hooks.pomodoro = [this](float* remaining, bool* work) {
+                return chipo_buddy_ && chipo_buddy_->PomodoroProgress(remaining, work);
+            };
+            hooks.face_calm = [this]() {
+                if (GetDeviceState() != kDeviceStateIdle || !chipo_face_) return false;
+                const auto info = chipo_face_->Debug();
+                return info.shown_state == ChipoFace::State::Idle && info.mood == ChipoFace::Mood::Normal &&
+                       info.emotion == ChipoFace::Emotion::None && !info.fell && !info.drive_mode && !info.dancing;
+            };
+            hooks.other_screen = [this]() {
+                return (chipo_weather_ && chipo_weather_->IsShown()) || (chipo_fun_ && chipo_fun_->mode() != ChipoFun::Mode::Off) ||
+                       (chipo_buddy_ && (chipo_buddy_->screen_shown() || chipo_buddy_->bedtime())) ||
+                       (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
+            };
+            hooks.emotion = [this](const char* name, uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
+            };
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
+            hooks.shake_other = [this](uint32_t now_ms) { return chipo_fun_ && chipo_fun_->OnShake(now_ms); };
+            // The display's own text font has the Spanish accents; without it CHIPO TOOLS folds them to plain letters.
+            hooks.text_font = [display]() -> const lv_font_t* {
+                Theme* theme = display->GetTheme();
+                if (!theme) return nullptr;
+                auto font = theme->GetTextFont();
+                return font ? font->font() : nullptr;
+            };
+            hooks.load_flag = [](const char* key, bool def) {
+                Settings settings("chipo", false);
+                return settings.GetBool(key, def);
+            };
+            hooks.save_flag = [](const char* key, bool value) {
+                Settings settings("chipo", true);
+                settings.SetBool(key, value);
+            };
+            if (!chipo_tools_->Start(lv_screen_active(), std::move(hooks))) {
+                chipo_tools_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Tools");
+            } else if (chipo_face_) {
+                // Shaking (accelerometer): the face keeps the car mode's own listener, this one is separate.
+                chipo_face_->SetExtraSampleObserver([this](const ImuSample& sample, uint32_t now_ms) {
+                    if (chipo_tools_) chipo_tools_->OnSample(sample, now_ms);
+                });
+            }
+        }
+    }
+
     // CHIPO SETTINGS (last, so it is drawn above everything): long-press menu, battery, screen saver,
     // burn-in drift of the face and touch reactions of the face.
     {
@@ -740,7 +820,8 @@ replace_once(
             };
             auto overlay = [this]() {
                 return (chipo_weather_ && chipo_weather_->IsShown()) || (chipo_fun_ && chipo_fun_->mode() != ChipoFun::Mode::Off) ||
-                       (chipo_buddy_ && chipo_buddy_->screen_shown()) || (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
+                       (chipo_buddy_ && chipo_buddy_->screen_shown()) || (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active()) ||
+                       (chipo_tools_ && chipo_tools_->screen_shown());
             };
             hooks.overlay_active = overlay;
             hooks.keep_awake = [this, overlay]() { return GetDeviceState() != kDeviceStateIdle || overlay(); };
@@ -779,6 +860,38 @@ replace_once(
     "                        chipo_update\n",
     "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n                        chipo_pet\n                        chipo_remind\n                        chipo_ambient\n                        chipo_scenes\n                        chipo_settings\n",
     "Link chipo_drive component",
+)
+
+# --- CHIPO TOOLS: time/weather strip, pomodoro ring, level, magic 8-ball, canvas, subtitles, shaking -------------------
+replace_once(
+    cmake,
+    "                        chipo_settings\n",
+    "                        chipo_settings\n                        chipo_tools\n",
+    "Link chipo_tools component",
+)
+replace_once(
+    app_cc,
+    '#include "settings.h"\n',
+    '#include "settings.h"\n#include "lvgl_font.h"\n',
+    "Application font header include (subtitles use the display's own text font)",
+)
+replace_once(
+    app_cc,
+    """                    Schedule([display, message = std::string(text->valuestring),
+                              glyphs = std::move(glyphs), bpp]() {
+                        display->AddTextGlyphs(glyphs, bpp);
+                        display->SetChatMessage("assistant", message.c_str());
+""",
+    """                    Schedule([this, display, message = std::string(text->valuestring),
+                              glyphs = std::move(glyphs), bpp]() {
+                        display->AddTextGlyphs(glyphs, bpp);
+                        display->SetChatMessage("assistant", message.c_str());
+                        if (chipo_tools_) {  // subtitles (only when the owner turned them on)
+                            DisplayLockGuard lock(display);
+                            if (lock) chipo_tools_->ShowSubtitle(message.c_str());
+                        }
+""",
+    "Subtitles: the sentence CHIPO is saying",
 )
 
 ota_cc = main / "ota.cc"
@@ -825,6 +938,8 @@ settings = [
     # Fonts for the weather screen (LVGL built-in Montserrat, ASCII).
     "CONFIG_LV_FONT_MONTSERRAT_20=y",
     "CONFIG_LV_FONT_MONTSERRAT_24=y",
+    "CONFIG_LV_FONT_MONTSERRAT_32=y",  # time and temperature strip, level, 8-ball
+    "CONFIG_LV_USE_CANVAS=y",          # drawing canvas
 ]
 # Only one board may be selected: drop the symbols of the other boards if an earlier run (with another
 # --board) left them in sdkconfig.defaults.

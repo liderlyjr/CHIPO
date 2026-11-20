@@ -71,6 +71,8 @@ public:
 
     using SampleObserver = std::function<void(const ImuSample& sample, uint32_t now_ms)>;
     void SetSampleObserver(SampleObserver observer) { sample_observer_ = std::move(observer); }
+    // A second, independent listener (CHIPO TOOLS: shake, level). Unlike the one above, the car mode never clears it.
+    void SetExtraSampleObserver(SampleObserver observer) { extra_sample_observer_ = std::move(observer); }
     // Sunglasses slide down over the eyes (and up again when switched off). While the car mode is
     // on, the tilt reactions (fall, dizzy, shake, spin) are paused: the road would trigger them.
     void SetDriveMode(bool on);
@@ -301,6 +303,7 @@ private:
 
     // CHIPO DRIVE.
     SampleObserver sample_observer_;
+    SampleObserver extra_sample_observer_;
     DeskClockObserver desk_clock_observer_;
     bool side_lying_ = false;
     bool desk_clock_ = false;

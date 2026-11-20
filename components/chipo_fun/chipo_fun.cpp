@@ -364,6 +364,13 @@ bool ChipoFun::OnVoiceText(const char* text) {
     return false;
 }
 
+bool ChipoFun::OnShake(uint32_t now_ms) {
+    if (!running_ || rolling_) return false;
+    if (mode_ == Mode::Dice) { Play("buddy_chime"); StartDice(dice_count_, now_ms); return true; }
+    if (mode_ == Mode::Coin) { Play("buddy_chime"); StartCoin(now_ms); return true; }
+    return false;
+}
+
 void ChipoFun::OnTouch() {
     if (!running_ || mode_ == Mode::Off) return;
     const bool was_boot = mode_ == Mode::Boot;
