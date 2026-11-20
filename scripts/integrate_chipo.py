@@ -826,6 +826,14 @@ settings = [
     "CONFIG_LV_FONT_MONTSERRAT_20=y",
     "CONFIG_LV_FONT_MONTSERRAT_24=y",
 ]
+# Only one board may be selected: drop the symbols of the other boards if an earlier run (with another
+# --board) left them in sdkconfig.defaults.
+other_boards = {cfg for key, (cfg, _) in BOARDS.items() if key != board}
+kept_lines = [ln for ln in defaults_text.splitlines() if ln.strip() not in other_boards]
+if len(kept_lines) != len(defaults_text.splitlines()):
+    defaults_text = "\n".join(kept_lines) + "\n"
+    defaults.write_text(defaults_text, encoding="utf-8", newline="\n")
+    print("[patched] removed the board symbol of another board from sdkconfig.defaults")
 missing = [line for line in settings if line not in defaults_text]
 if missing:
     with defaults.open("a", encoding="utf-8", newline="\n") as f:

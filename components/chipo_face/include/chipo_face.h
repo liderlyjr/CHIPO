@@ -343,7 +343,7 @@ private:
     FxEngine fx_;
     ChipoFx fx_view_;
     int fx_w_ = 368, fx_h_ = 448;
-    float fs_ = 1.0f;  // face scale: 1.0 on the 368 px wide screen, bigger on larger panels (480 px -> 1.3)
+    float fs_ = 1.0f;  // face scale: bigger on wide screens: about 58 % of the screen width (1.35 at 368 px, 1.76 at 480 px)
     int S(float v) const { return static_cast<int>(v * fs_ + (v >= 0 ? 0.5f : -0.5f)); }
     void FaceCentre(float* x, float* y) const;
     float gaze_nx_ = 0, gaze_ny_ = 0;     // finger position, -1..1
