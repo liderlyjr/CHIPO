@@ -154,3 +154,11 @@ El color del estado (escuchando, error, amor…) sigue tiñendo ojos y boca. Ima
   el rojo queda para avisos. El arranque muestra los ojos de CHIPO.
 - Animaciones revisadas en GIF a 480×480: `docs/img/chipo_216_anim_*.gif` (simulación en PC).
 - Límite conocido: el halo de brillo de los ojos no se escala con la cara (sombras grandes colgaban el render).
+- Brillo de los ojos: ya no usa sombras de LVGL (en 480×480 un fotograma podía tardar segundos). Ahora es un aro de
+  color en el borde del ojo más dos discos translúcidos detrás, que crecen con la cara. Aro cian al escuchar y
+  hablar, rojo en error, del color de la emoción en las demás; en reposo, pensando y dormido los ojos van limpios.
+- Caída al inclinar: en la 2.16" la cara sale del todo por el borde (antes se quedaba asomando) y vuelve al
+  enderezar. GIF: `docs/img/chipo_216_anim_fall.gif`.
+- Drive: la cara sube un poco y el sol es más pequeño y más bajo; la sonrisa queda cerrada (sin lengua).
+- Ajustes: en pantallas anchas las barras y botones se alargan (hasta 440 px). Clima: márgenes mayores para
+  no tocar las esquinas redondeadas de la 2.16".

@@ -269,7 +269,7 @@ void ChipoWeatherView::RenderStatus(const char* title, const char* line) {
     if (!root_) return;
     BeginRender(WeatherKind::Cloudy, true, true);
     const int lh_m = lv_font_get_line_height(fonts_.medium);
-    int y = 14;
+    int y = 14 + (width_ > 400 ? 12 : 0);  // bigger panels (2.16") have rounded corners: keep clear of them
     lv_obj_t* l = Label(content_, title ? title : "CHIPO", fonts_.medium, kWhite);
     lv_obj_align(l, LV_ALIGN_TOP_MID, 0, y);
     y += lh_m + 6;
@@ -286,9 +286,10 @@ void ChipoWeatherView::Render(const WeatherData& d) {
     BeginRender(d.kind, d.is_day, false);
     const int lh_s = lv_font_get_line_height(fonts_.small);
     const int lh_m = lv_font_get_line_height(fonts_.medium);
-    const int margin = 16;
+    const int edge = width_ > 400 ? 24 : 0;  // 2.16" (480 x 480): rounded corners, keep the cards clear of them
+    const int margin = 16 + edge;
     char buf[48];
-    int y = 14;
+    int y = 14 + edge / 2;
 
     lv_obj_t* city = Label(content_, d.city[0] ? d.city : "CHIPO", fonts_.medium, kWhite);
     lv_obj_align(city, LV_ALIGN_TOP_MID, 0, y);
@@ -332,7 +333,7 @@ void ChipoWeatherView::Render(const WeatherData& d) {
 
     // ---- next days (as many rows as fit above the bottom margin) -------------------------------
     const int row_h = std::max(lh_s + 10, 34);
-    const int room = height_ - 22 - y - 12;
+    const int room = height_ - 22 - y - 12 - edge / 2;
     const int rows = std::min(d.day_count, std::max(0, room / row_h));
     if (rows > 0) {
         lv_obj_t* dcard = Shape(content_, margin, y, width_ - 2 * margin, rows * row_h + 12, 22, kWhite, LV_OPA_20);

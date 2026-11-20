@@ -164,38 +164,42 @@ void ChipoSettings::Build(const lv_font_t* font, const char* version) {
     menu_ = Box(lv_screen_active(), 0, 0, w, h, 0, 0x000000);
     lv_obj_add_flag(menu_, LV_OBJ_FLAG_CLICKABLE);  // swallows the taps: nothing under the menu reacts
     lv_obj_add_flag(menu_, LV_OBJ_FLAG_HIDDEN);
-    const int ox = w > kLayoutW ? (w - kLayoutW) / 2 : 0;
+    // Wider panels (2.16": 480 px) get a wider menu: same rows, longer bars and buttons, centred.
+    const int cw = std::min(std::max(w, kLayoutW), 440);
+    const int ox = (w - cw) / 2;
     const int oy = h > kLayoutH ? (h - kLayoutH) / 2 : 0;
-    lv_obj_t* content = Box(menu_, ox, oy, kLayoutW, kLayoutH, 0, 0x000000, 0);
+    const int bar_x = 24 + 64 + 14, bar_w = cw - 2 * bar_x, plus_x = cw - 24 - 64;
+    const int half_w = (cw - 48 - 16) / 2;
+    lv_obj_t* content = Box(menu_, ox, oy, cw, kLayoutH, 0, 0x000000, 0);
     lv_obj_set_style_bg_opa(content, LV_OPA_TRANSP, 0);
-    lv_obj_t* title = Text(content, font, 0, 18, kLayoutW, kCyan, LV_TEXT_ALIGN_CENTER);
+    lv_obj_t* title = Text(content, font, 0, 18, cw, kCyan, LV_TEXT_ALIGN_CENTER);
     lv_label_set_text(title, "AJUSTES");
     lv_obj_set_style_text_letter_space(title, 4, 0);
 
     lv_obj_t* l_vol = Text(content, font, 24, 68, 160, 0xFFFFFF, LV_TEXT_ALIGN_LEFT);
     lv_label_set_text(l_vol, "Volumen");
-    val_vol_ = Text(content, font, 204, 68, 140, kCyan, LV_TEXT_ALIGN_RIGHT);
+    val_vol_ = Text(content, font, cw - 24 - 140, 68, 140, kCyan, LV_TEXT_ALIGN_RIGHT);
     lv_obj_t* b0 = Button(content, font, 24, 104, 64, 50, "-", kCyan);
-    bar_vol_ = Bar(content, 102, 121, 164);
-    lv_obj_t* b1 = Button(content, font, 280, 104, 64, 50, "+", kCyan);
+    bar_vol_ = Bar(content, bar_x, 121, bar_w);
+    lv_obj_t* b1 = Button(content, font, plus_x, 104, 64, 50, "+", kCyan);
 
     lv_obj_t* l_bri = Text(content, font, 24, 176, 160, 0xFFFFFF, LV_TEXT_ALIGN_LEFT);
     lv_label_set_text(l_bri, "Brillo");
-    val_bri_ = Text(content, font, 204, 176, 140, kPink, LV_TEXT_ALIGN_RIGHT);
+    val_bri_ = Text(content, font, cw - 24 - 140, 176, 140, kPink, LV_TEXT_ALIGN_RIGHT);
     lv_obj_t* b2 = Button(content, font, 24, 212, 64, 50, "-", kPink);
-    bar_bri_ = Bar(content, 102, 229, 164);
-    lv_obj_t* b3 = Button(content, font, 280, 212, 64, 50, "+", kPink);
+    bar_bri_ = Bar(content, bar_x, 229, bar_w);
+    lv_obj_t* b3 = Button(content, font, plus_x, 212, 64, 50, "+", kPink);
 
-    info_bat_ = Text(content, font, 24, 292, 320, kGreen, LV_TEXT_ALIGN_LEFT);
-    info_wifi_ = Text(content, font, 24, 326, 320, kCyan, LV_TEXT_ALIGN_LEFT);
-    info_ver_ = Text(content, font, 24, 360, 320, 0x9AA7B2, LV_TEXT_ALIGN_LEFT);
+    info_bat_ = Text(content, font, 24, 292, cw - 48, kGreen, LV_TEXT_ALIGN_LEFT);
+    info_wifi_ = Text(content, font, 24, 326, cw - 48, kCyan, LV_TEXT_ALIGN_LEFT);
+    info_ver_ = Text(content, font, 24, 360, cw - 48, 0x9AA7B2, LV_TEXT_ALIGN_LEFT);
     char buf[64];
     std::snprintf(buf, sizeof(buf), "CHIPO OS %s", version);
     lv_label_set_text(info_ver_, buf);
 
-    lv_obj_t* b4 = Button(content, font, 24, 394, 152, 46, "Reiniciar", kPink);
+    lv_obj_t* b4 = Button(content, font, 24, 394, half_w, 46, "Reiniciar", kPink);
     restart_label_ = lv_obj_get_child(b4, 0);
-    lv_obj_t* b5 = Button(content, font, 192, 394, 152, 46, "Cerrar", kCyan);
+    lv_obj_t* b5 = Button(content, font, 24 + half_w + 16, 394, half_w, 46, "Cerrar", kCyan);
 
     lv_obj_t* buttons[kActionCount] = {b0, b1, b2, b3, b4, b5};
     for (int i = 0; i < kActionCount; ++i) {

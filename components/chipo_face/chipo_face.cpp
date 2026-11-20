@@ -88,7 +88,8 @@ bool IsDefaultGlow(uint32_t rgb) {
 }
 
 // Mouth shapes: the half-moon smile only fits happy faces; sad ones get it upside down.
-enum MouthKind : uint8_t { kMouthSmile = 0, kMouthFrown = 1, kMouthO = 2, kMouthFlat = 3 };
+enum MouthKind : uint8_t { kMouthSmile = 0, kMouthFrown = 1, kMouthO = 2, kMouthFlat = 3, kMouthGrin = 4 };
+constexpr uint32_t kRingCyan = 0x5CF0FF;   // ring + halo while listening / speaking (calm colour)
 constexpr uint32_t kHappyArc = 0xFFD2B0;   // closed happy eyes (peach)
 constexpr uint32_t kSleepArc = 0xC9B0FF;   // closed sleeping eyes (lilac)
 
@@ -213,8 +214,10 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         return false;
     }
 
-    StyleGlow(left_eye_, kEyeCore, 20);
-    StyleGlow(right_eye_, kEyeCore, 20);
+    // No LVGL shadow on the eyes: software box shadows can stall the renderer for seconds on some sizes
+    // (seen at 480 x 480). The glow is drawn by the flat halo discs behind the eyes instead.
+    StyleGlow(left_eye_, kEyeCore, 0);
+    StyleGlow(right_eye_, kEyeCore, 0);
     StylePupil(left_pupil_);
     StylePupil(right_pupil_);
     // Two specular highlights on every pupil (a big and a small one) make the eyes look wet and deep.
@@ -287,6 +290,16 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         MakeInert(brow);
         lv_obj_add_flag(brow, LV_OBJ_FLAG_HIDDEN);
     }
+    for (auto& halo : halo_) {  // [0..1] outer, [2..3] inner, per eye
+        halo = lv_obj_create(root_);
+        if (!halo) continue;
+        lv_obj_remove_style_all(halo);
+        lv_obj_set_style_bg_opa(halo, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_radius(halo, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        MakeInert(halo);
+        lv_obj_move_background(halo);  // behind the eyes
+        lv_obj_add_flag(halo, LV_OBJ_FLAG_HIDDEN);
+    }
     for (auto& arc : eye_arc_) {
         arc = lv_arc_create(root_);
         if (!arc) continue;
@@ -301,7 +314,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
     }
     for (int i = 0; i < 3; ++i) {
-        StyleGlow(dots_[i], kEyeLilac, 8);
+        StyleGlow(dots_[i], kEyeLilac, 0);
         lv_obj_set_size(dots_[i], S(8), S(8));
         lv_obj_set_pos(dots_[i], S(kCenterX) + S((i - 1) * 22 - 4), S(kDotsY));
         lv_obj_add_flag(dots_[i], LV_OBJ_FLAG_HIDDEN);
@@ -436,6 +449,7 @@ void ChipoFace::Stop() {
     road_shown_ = false;
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = tongue_ = bowl_ = inner_ = nullptr;
     eye_arc_[0] = eye_arc_[1] = nullptr;
+    for (auto& o : halo_) o = nullptr;
     for (auto& o : brow_) o = nullptr;
     for (auto& o : blush_) o = nullptr;
     for (auto& dot : dots_) dot = nullptr;
@@ -690,6 +704,7 @@ ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, Emotion emotion, u
         p.eye_h = 48;
         p.pupil_y = 4;
         p.mouth_w = 34; p.mouth_h = 11; p.mouth_cy = 168;  // frown
+        p.glow_r = 255; p.glow_g = 100; p.glow_b = 90;    // red ring: something went wrong
         break;
     case State::Sleep:
         p.eye_h = 4; p.pupil_h = 2;
@@ -1154,8 +1169,8 @@ void ChipoFace::Step(uint32_t now_ms) {
         vel_y_ += kFallAccelY * dt;
         face_x_ += vel_x_ * dt;
         face_y_ += vel_y_ * dt;
-        if (std::fabs(face_x_) >= (static_cast<float>(fx_w_) * 0.5f + kGoneMargin)) {  // gone: park it out of sight
-            face_x_ = static_cast<float>(fall_dir_) * (static_cast<float>(fx_w_) * 0.5f + kGoneMargin);
+        if (std::fabs(face_x_) >= (static_cast<float>(fx_w_) * 0.5f + kGoneMargin * fs_)) {  // gone: park it out of sight
+            face_x_ = static_cast<float>(fall_dir_) * (static_cast<float>(fx_w_) * 0.5f + kGoneMargin * fs_);
             vel_x_ = 0;
         }
         if (face_y_ >= kFallMaxDropY) {
@@ -1258,11 +1273,18 @@ void ChipoFace::Step(uint32_t now_ms) {
         default: break;
         }
         if (mood == Mood::Startled || mood == Mood::Dizzy) mk = kMouthO;  // "oh!"
+        if (drive_mode_ && mk == kMouthSmile) mk = kMouthGrin;  // cool driver: closed grin, no tongue over the sun
         layout.mouth_kind = mk;
         uint8_t arc = 0;
         if (emotion == Emotion::Happy || emotion == Emotion::Laugh) arc = 1;
         else if (emotion == Emotion::None && shown == State::Sleep) arc = 2;
         layout.eye_arc = arc;
+        // A glowing ring round the eyes tells "I'm listening / talking / something happened";
+        // calm faces (idle, thinking, asleep, sleepy) keep plain lilac eyes.
+        layout.ring = mood != Mood::Normal ||
+                      (emotion == Emotion::None
+                           ? (shown == State::Listening || shown == State::Speaking || shown == State::Error)
+                           : emotion != Emotion::Tired);
         if (arc) layout.pupils_visible = layout.right_pupil_visible = false;
         if (arc) layout.brows_visible = false;
         layout.blush_visible = emotion == Emotion::Happy || emotion == Emotion::Laugh || emotion == Emotion::Love ||
@@ -1273,7 +1295,8 @@ void ChipoFace::Step(uint32_t now_ms) {
     layout.face_dx = Round16(face_x_);
     float sway = 0;  // the car rocks the face gently while driving
     if (drive_mode_) sway = glasses_t_ * (2.0f * std::sin(static_cast<float>(now_ms) * 0.0022f) + road_jolt_ * 3.0f);
-    layout.face_dy = Round16(face_y_ + sway);
+    // Driving: the face rides a little higher so the sunset sits below the mouth, not behind it.
+    layout.face_dy = Round16(face_y_ + sway - glasses_t_ * 30.0f * fs_);
     UpdateGlasses(layout, dt);
     UpdateRoad(dt, now_ms);
     ApplyLayout(layout);
@@ -1377,8 +1400,8 @@ void ChipoFace::CreateRoad(lv_obj_t* parent) {
         MakeInert(o);
     };
     // Synthwave scenery (AMOLED: true black ground, saturated neon): a half sun sets on a glowing horizon.
-    const int horizon_y = static_cast<int>(h * 0.70f);
-    const int sun_d = 170;
+    const int horizon_y = static_cast<int>(h * 0.78f);  // low enough that the sun sits under the face
+    const int sun_d = 150;
     sun_ = lv_obj_create(road_);
     sun_mask_ = lv_obj_create(road_);
     horizon_ = lv_obj_create(road_);
@@ -1580,28 +1603,14 @@ void ChipoFace::ApplyLayout(const Layout& l) {
     if (first || l.mouth_x != a.mouth_x || l.mouth_y != a.mouth_y) {
         lv_obj_set_pos(mouth_, l.mouth_x, l.mouth_y);
     }
-    if (first || l.glow_w != a.glow_w) {
-        for (lv_obj_t* o : {left_eye_, right_eye_}) {
-            lv_obj_set_style_shadow_width(o, l.glow_w, LV_PART_MAIN);
-        }
-    }
-    if (first || l.glow_opa != a.glow_opa) {
-        const lv_opa_t opa = static_cast<lv_opa_t>(l.glow_opa * 255 / 100);
-        for (lv_obj_t* o : {left_eye_, right_eye_}) {
-            lv_obj_set_style_shadow_opa(o, opa, LV_PART_MAIN);
-        }
-    }
-    if (first || l.glow_rgb != a.glow_rgb) {
+    if (first || l.glow_rgb != a.glow_rgb || l.ring != a.ring) {
         const lv_color_t color = lv_color_hex(l.glow_rgb);
-        for (lv_obj_t* o : {left_eye_, right_eye_}) {
-            lv_obj_set_style_shadow_color(o, color, LV_PART_MAIN);
-        }
         // Cute skin: the mouth is a pink smile and the eyes lilac; the state colour tints them (about a third)
         // so LISTENING / THINKING / ERROR / the emotions still read, and keeps the soft halo around them.
         lv_obj_set_style_bg_color(bowl_, (IsDefaultGlow(l.glow_rgb) ? lv_color_hex(kMouthLip) : lv_color_mix(color, lv_color_hex(kMouthLip), 80)), LV_PART_MAIN);
         for (lv_obj_t* o : {left_eye_, right_eye_}) {  // a coloured ring tells the state; plain lilac when calm
-            lv_obj_set_style_border_width(o, IsDefaultGlow(l.glow_rgb) ? 0 : S(5), LV_PART_MAIN);
-            lv_obj_set_style_border_color(o, color, LV_PART_MAIN);
+            lv_obj_set_style_border_width(o, l.ring ? S(5) : 0, LV_PART_MAIN);
+            lv_obj_set_style_border_color(o, IsDefaultGlow(l.glow_rgb) ? lv_color_hex(kRingCyan) : color, LV_PART_MAIN);
             lv_obj_set_style_border_opa(o, LV_OPA_COVER, LV_PART_MAIN);
         }
         for (lv_obj_t* o : {left_eye_, right_eye_}) {
@@ -1636,9 +1645,10 @@ void ChipoFace::ApplyLayout(const Layout& l) {
             lv_obj_set_size(bowl_, w, std::max<int>(S(5), std::min<int>(h, S(8))));
             lv_obj_set_pos(bowl_, 0, std::max(0, (h - S(8)) / 2));
             break;
-        default:           // half-moon smile, open with tongue when it is big enough
+        default:           // half-moon smile, open with tongue when it is big enough (a grin stays closed)
             lv_obj_set_size(bowl_, w, 2 * h);
             lv_obj_set_pos(bowl_, 0, -h);
+            if (l.mouth_kind == kMouthGrin) break;
             if (open && inner_) {
                 lv_obj_set_size(inner_, w - 2 * rim, 2 * (h - rim));
                 lv_obj_set_pos(inner_, rim, -h + rim);
@@ -1655,6 +1665,31 @@ void ChipoFace::ApplyLayout(const Layout& l) {
         }
         if (inner_) { if (show_inner) lv_obj_remove_flag(inner_, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(inner_, LV_OBJ_FLAG_HIDDEN); }
         if (tongue_) { if (show_tongue) lv_obj_remove_flag(tongue_, LV_OBJ_FLAG_HIDDEN); else lv_obj_add_flag(tongue_, LV_OBJ_FLAG_HIDDEN); }
+    }
+    if (halo_[0] && halo_[1] && halo_[2] && halo_[3] &&
+        (first || l.ring != a.ring || l.glow_rgb != a.glow_rgb || l.glow_w != a.glow_w || l.glow_opa != a.glow_opa ||
+         l.eye_arc != a.eye_arc || l.eye_w != a.eye_w || l.eye_h != a.eye_h || l.eye_y != a.eye_y ||
+         l.right_eye_h != a.right_eye_h || l.right_eye_y != a.right_eye_y || l.left_eye_x != a.left_eye_x ||
+         l.right_eye_x != a.right_eye_x)) {
+        // A soft coloured halo that grows with the face: the shadow glow cannot be scaled up (big software
+        // shadows stall the renderer), so on bigger panels this flat disc carries the state colour.
+        const bool on = l.ring && l.eye_arc == 0;
+        const int g = S(6) + static_cast<int>(static_cast<float>(l.glow_w) * fs_ * 0.35f);
+        const int base = std::min<int>(255, l.glow_opa * 255 / 100);
+        const int16_t hs[2] = {l.eye_h, l.right_eye_h};
+        const int16_t ys[2] = {l.eye_y, l.right_eye_y};
+        const int16_t xs[2] = {l.left_eye_x, l.right_eye_x};
+        for (int k = 0; k < 4; ++k) {
+            const int i = k & 1;                     // which eye
+            const int gg = k < 2 ? g : g / 2;        // outer, then inner ring
+            const int opa = base * (k < 2 ? 18 : 30) / 100;
+            if (!on) { lv_obj_add_flag(halo_[k], LV_OBJ_FLAG_HIDDEN); continue; }
+            lv_obj_set_size(halo_[k], l.eye_w + 2 * gg, hs[i] + 2 * gg);
+            lv_obj_set_pos(halo_[k], xs[i] - gg, ys[i] - gg);
+            lv_obj_set_style_bg_color(halo_[k], lv_color_hex(IsDefaultGlow(l.glow_rgb) ? kRingCyan : l.glow_rgb), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(halo_[k], static_cast<lv_opa_t>(opa), LV_PART_MAIN);
+            lv_obj_remove_flag(halo_[k], LV_OBJ_FLAG_HIDDEN);
+        }
     }
     if (eye_arc_[0] && eye_arc_[1] &&
         (first || l.eye_arc != a.eye_arc || l.eye_w != a.eye_w || l.left_eye_x != a.left_eye_x ||

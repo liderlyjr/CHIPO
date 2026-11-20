@@ -1,6 +1,7 @@
 // Developer tool (not a test): renders CHIPO's face animations as numbered PPM frames, one folder per
 // sequence, to review the motion and build GIFs. Usage: render_anim <out_dir> [width height]
 // Sequences: conversation (idle -> listening -> thinking -> speaking -> idle), emotions, sleep, yawn.
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -8,6 +9,13 @@
 #include <sys/stat.h>
 
 #include "chipo_face.h"
+
+// Fake accelerometer: gravity on +Y when CHIPO stands upright (as in test_face.cpp).
+static ImuSample g_imu{0, 1, 0};
+static void SetRoll(float deg) {
+    const float r = deg * 3.14159265f / 180.0f;
+    g_imu = {std::sin(r), std::cos(r), 0};
+}
 
 static uint32_t g_now = 1000;
 static uint32_t FakeTick() { return g_now; }
@@ -54,6 +62,7 @@ int main(int argc, char** argv) {
     ChipoFace face;
     face.SetIdleQuirks(false);
     face.Start(lv_screen_active());
+    face.SetTiltSource([](ImuSample* s) { *s = g_imu; return true; });
     for (int i = 0; i < 40; ++i) { g_now += 40; lv_timer_handler(); }
 
     std::string dir;
@@ -108,5 +117,16 @@ int main(int argc, char** argv) {
     face.ShowEmotion(ChipoFace::Emotion::Tired, 60000);
     play(5400);
     face.ShowEmotion(ChipoFace::Emotion::None);
+    play(800);
+
+    // Tilted past 45 degrees the face slides off the side, then comes back when CHIPO stands up.
+    begin("fall");
+    SetRoll(0);
+    play(1200);
+    SetRoll(55);
+    play(2400);
+    std::printf("fall: face_dx %d (screen %d px wide)\n", face.Debug().face_dx, W);
+    SetRoll(0);
+    play(3000);
     return 0;
 }

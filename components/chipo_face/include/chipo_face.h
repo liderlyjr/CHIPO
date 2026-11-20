@@ -218,6 +218,7 @@ private:
         bool blush_visible;   // only while CHIPO likes something
         uint8_t mouth_kind;   // MouthKind
         uint8_t eye_arc;      // 0 open eyes, 1 happy arcs (like ^ ^), 2 sleepy arcs (like u u)
+        bool ring;            // coloured ring + halo round the eyes
     };
 
     bool has_tint_ = false;
@@ -241,7 +242,8 @@ private:
     lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
     lv_obj_t* tongue_ = nullptr;      // red tongue inside the mouth (cute skin)
-    lv_obj_t* eye_arc_[2] = {nullptr, nullptr};  // closed eyes drawn as arcs (happy / asleep)
+    lv_obj_t* eye_arc_[2] = {nullptr, nullptr};
+    lv_obj_t* halo_[4] = {};  // flat translucent glow behind the eyes: outer pair, inner pair (scales with the face)  // closed eyes drawn as arcs (happy / asleep)
     lv_obj_t* inner_ = nullptr;       // dark inside of the open mouth
     lv_obj_t* brow_[2] = {nullptr, nullptr};
     lv_obj_t* blush_[2] = {nullptr, nullptr};  // soft translucent blush under the eyes
