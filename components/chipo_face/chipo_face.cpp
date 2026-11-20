@@ -69,7 +69,12 @@ constexpr float kDriveLookPx = 10.0f;       // how far the eyes look into a curv
 constexpr uint32_t kEyeCore = 0xDDF8FF;
 constexpr float kAmoledGlowGain = 1.3f;  // halo width gain (px) for the AMOLED panel
 constexpr float kAmoledOpaGain = 1.25f;  // and opacity gain (capped at 100 %)
-constexpr uint32_t kPupil = 0x000000;
+constexpr uint32_t kPupil = 0x2B0F52;       // deep violet iris...
+constexpr uint32_t kPupilLight = 0x8A55D8;  // ...lighter towards the bottom
+constexpr uint32_t kBrow = 0x9A7FB5;
+constexpr uint32_t kBlush = 0xFF8FB0;
+constexpr uint32_t kMouthLip = 0xF0828C;
+constexpr uint32_t kMouthInside = 0x5E1530;
 // "Cute" skin: lilac eyes, pink smile with a red tongue, all on the AMOLED's true black.
 constexpr uint32_t kEyeLilac = 0xE2C8FF;
 constexpr uint32_t kSmile = 0xFF9DB0;
@@ -112,6 +117,10 @@ void StyleGlow(lv_obj_t* object, uint32_t color, int32_t glow_width) {
 void StylePupil(lv_obj_t* object) {
     lv_obj_remove_style_all(object);
     lv_obj_set_style_bg_color(object, lv_color_hex(kPupil), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_color(object, lv_color_hex(kPupilLight), LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_dir(object, LV_GRAD_DIR_VER, LV_PART_MAIN);
+    lv_obj_set_style_bg_main_stop(object, 60, LV_PART_MAIN);
+    lv_obj_set_style_bg_grad_stop(object, 255, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(object, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(object, 0, LV_PART_MAIN);
     lv_obj_set_style_radius(object, LV_RADIUS_CIRCLE, LV_PART_MAIN);
@@ -162,13 +171,22 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     lv_rand_set_seed(esp_random());
 #endif
 
+    {
+        // The face was drawn for the 368 px wide screen; larger panels get a proportionally bigger face
+        // (never smaller, never so big that the canvas would not fit the height).
+        int32_t pw = lv_obj_get_width(parent), ph = lv_obj_get_height(parent);
+        if (pw <= 0) pw = 368;
+        if (ph <= 0) ph = 448;
+        fs_ = std::min(static_cast<float>(pw) / 368.0f, static_cast<float>(ph) / 340.0f);
+        fs_ = Clamp(fs_, 1.0f, 1.6f);
+    }
     CreateRoad(parent);  // below the face, above XiaoZhi's own screen
 
     root_ = lv_obj_create(parent);
     if (root_ == nullptr) return false;
 
     lv_obj_remove_style_all(root_);
-    lv_obj_set_size(root_, kCanvasWidth, kCanvasHeight);
+    lv_obj_set_size(root_, S(kCanvasWidth), S(kCanvasHeight));
     lv_obj_align(root_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_bg_opa(root_, LV_OPA_TRANSP, LV_PART_MAIN);
     MakeInert(root_);
@@ -201,11 +219,11 @@ bool ChipoFace::Start(lv_obj_t* parent) {
             lv_obj_t* spark = lv_obj_create(pupil);
             if (!spark) continue;
             lv_obj_remove_style_all(spark);
-            lv_obj_set_size(spark, k == 0 ? 11 : 5, k == 0 ? 11 : 5);
+            lv_obj_set_size(spark, S(k == 0 ? 11 : 5), S(k == 0 ? 11 : 5));
             lv_obj_set_style_bg_color(spark, lv_color_white(), LV_PART_MAIN);
             lv_obj_set_style_bg_opa(spark, k == 0 ? LV_OPA_COVER : LV_OPA_70, LV_PART_MAIN);
             lv_obj_set_style_radius(spark, LV_RADIUS_CIRCLE, LV_PART_MAIN);
-            lv_obj_align(spark, k == 0 ? LV_ALIGN_TOP_LEFT : LV_ALIGN_BOTTOM_RIGHT, k == 0 ? 4 : -4, k == 0 ? 5 : -5);
+            lv_obj_align(spark, k == 0 ? LV_ALIGN_TOP_LEFT : LV_ALIGN_BOTTOM_RIGHT, S(k == 0 ? 4 : -4), S(k == 0 ? 5 : -5));
             MakeInert(spark);
         }
     }
@@ -217,24 +235,67 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     bowl_ = lv_obj_create(mouth_);
     if (bowl_) {
         lv_obj_remove_style_all(bowl_);
-        lv_obj_set_style_bg_color(bowl_, lv_color_hex(kSmile), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(bowl_, lv_color_hex(kMouthLip), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(bowl_, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_radius(bowl_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
         MakeInert(bowl_);
     }
+    inner_ = lv_obj_create(mouth_);
+    if (inner_) {
+        lv_obj_remove_style_all(inner_);
+        lv_obj_set_style_bg_color(inner_, lv_color_hex(kMouthInside), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(inner_, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(inner_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        MakeInert(inner_);
+        lv_obj_add_flag(inner_, LV_OBJ_FLAG_HIDDEN);
+    }
     tongue_ = lv_obj_create(mouth_);
     if (tongue_) {
         lv_obj_remove_style_all(tongue_);
-        lv_obj_set_style_bg_color(tongue_, lv_color_hex(kTongue), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(tongue_, lv_color_hex(0xFF7A88), LV_PART_MAIN);
         lv_obj_set_style_bg_opa(tongue_, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_radius(tongue_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
         MakeInert(tongue_);
         lv_obj_add_flag(tongue_, LV_OBJ_FLAG_HIDDEN);
     }
+    for (auto& blush : blush_) {
+        blush = lv_obj_create(root_);
+        if (!blush) continue;
+        lv_obj_remove_style_all(blush);
+        lv_obj_set_size(blush, S(46), S(26));
+        lv_obj_set_style_bg_color(blush, lv_color_hex(kBlush), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(blush, LV_OPA_40, LV_PART_MAIN);  // translucent pink halo...
+        lv_obj_t* core = lv_obj_create(blush);                    // ...with a slightly stronger heart
+        if (core) {
+            lv_obj_remove_style_all(core);
+            lv_obj_set_size(core, S(26), S(14));
+            lv_obj_set_style_bg_color(core, lv_color_hex(kBlush), LV_PART_MAIN);
+            lv_obj_set_style_bg_opa(core, LV_OPA_50, LV_PART_MAIN);
+            lv_obj_set_style_radius(core, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+            MakeInert(core);
+            lv_obj_align(core, LV_ALIGN_CENTER, 0, 0);
+        }
+        lv_obj_set_style_radius(blush, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        MakeInert(blush);
+        lv_obj_move_background(blush);
+    }
+    for (auto& brow : brow_) {
+        brow = lv_obj_create(root_);
+        if (!brow) continue;
+        lv_obj_remove_style_all(brow);
+        lv_obj_set_size(brow, S(30), S(5));
+        lv_obj_set_style_bg_color(brow, lv_color_hex(kBrow), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(brow, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(brow, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_transform_pivot_x(brow, S(15), LV_PART_MAIN);
+        lv_obj_set_style_transform_pivot_y(brow, S(2), LV_PART_MAIN);
+        MakeInert(brow);
+        lv_obj_add_flag(brow, LV_OBJ_FLAG_HIDDEN);
+    }
     for (int i = 0; i < 3; ++i) {
         StyleGlow(dots_[i], kGlowBlue, 8);
-        lv_obj_set_size(dots_[i], 8, 8);
-        lv_obj_set_pos(dots_[i], static_cast<int32_t>(kCenterX) + (i - 1) * 22 - 4, kDotsY);
+        lv_obj_set_size(dots_[i], S(8), S(8));
+        lv_obj_set_pos(dots_[i], S(kCenterX) + S((i - 1) * 22 - 4), S(kDotsY));
         lv_obj_add_flag(dots_[i], LV_OBJ_FLAG_HIDDEN);
     }
 
@@ -304,7 +365,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     next_slow_blink_ms_ = 0;
 
     const uint32_t now = lv_tick_get();
-    cur_ = Pose{62, 70, 22, 30, 0, 0, 56, 24, kMouthCenterY, 20, 60};
+    cur_ = Pose{62, 70, 30, 38, 0, 0, 56, 24, kMouthCenterY, 20, 60};
     pose_initialised_ = true;
     layout_applied_ = false;
     stepped_ = false;
@@ -365,7 +426,9 @@ void ChipoFace::Stop() {
     for (auto& o : lane_) o = nullptr;
     for (auto& o : streak_) o = nullptr;
     road_shown_ = false;
-    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = tongue_ = bowl_ = nullptr;
+    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = tongue_ = bowl_ = inner_ = nullptr;
+    for (auto& o : brow_) o = nullptr;
+    for (auto& o : blush_) o = nullptr;
     for (auto& dot : dots_) dot = nullptr;
     for (auto& piece : glasses_) piece = nullptr;
     for (auto& piece : hat_) piece = nullptr;
@@ -580,7 +643,7 @@ float ChipoFace::BlinkAmount(uint32_t now_ms) {
 
 ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, Emotion emotion, uint32_t now_ms,
                                       const TiltOutput& tilt) {
-    Pose p{62, 70, 22, 30, 0, 0, 56, 24, kMouthCenterY, 20, 60};
+    Pose p{62, 70, 30, 38, 0, 0, 56, 24, kMouthCenterY, 20, 60};
     const float t = static_cast<float>(now_ms);
 
     switch (shown) {
@@ -590,7 +653,7 @@ ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, Emotion emotion, u
         break;
     case State::Listening:
         p.eye_w = 66; p.eye_h = 78;
-        p.mouth_w = 13; p.mouth_h = 13; p.mouth_cy = 161;
+        p.mouth_w = 36; p.mouth_h = 22; p.mouth_cy = 163;  // smiling, tongue out: all ears
         // Soft pulsing glow: "I'm all ears".
         p.glow_w = 22 + 10 * (0.5f + 0.5f * std::sin(kTwoPi * t / 1200.0f));
         p.glow_opa = 72;
@@ -755,8 +818,8 @@ void ChipoFace::ApplyEmotion(Pose& p, Emotion emotion, State shown, uint32_t now
         break;
     case Emotion::Surprised:
         p.eye_w = 72; p.eye_h = 84;
-        p.pupil_w = 12; p.pupil_h = 14; p.pupil_x = 0; p.pupil_y = 0;
-        mouth(22, 28, 169);
+        p.pupil_w = 20; p.pupil_h = 22; p.pupil_x = 0; p.pupil_y = 0;  // small pupils in wide eyes
+        mouth(26, 30, 169);
         glow(0xBFF2FF, 28, 82);
         break;
     case Emotion::Whee: {
@@ -1120,23 +1183,23 @@ void ChipoFace::Step(uint32_t now_ms) {
 
     // ---- pose -> pixels --------------------------------------------------------------------
     Layout layout{};
-    layout.eye_w = Round16(cur_.eye_w);
-    layout.eye_h = Round16(eye_h);
-    layout.eye_y = Round16(kEyeCenterY - eye_h / 2.0f);
-    layout.left_eye_x = Round16(kCenterX - kEyeGap / 2.0f - cur_.eye_w);
-    layout.right_eye_x = Round16(kCenterX + kEyeGap / 2.0f);
+    layout.eye_w = Round16(cur_.eye_w * fs_);
+    layout.eye_h = Round16(eye_h * fs_);
+    layout.eye_y = Round16((kEyeCenterY - eye_h / 2.0f) * fs_);
+    layout.left_eye_x = Round16((kCenterX - kEyeGap / 2.0f - cur_.eye_w) * fs_);
+    layout.right_eye_x = Round16((kCenterX + kEyeGap / 2.0f) * fs_);
     layout.pupils_visible = pupil_h >= 3.0f;
-    layout.pupil_w = Round16(cur_.pupil_w);
-    layout.pupil_h = Round16(std::max(pupil_h, 0.0f));
+    layout.pupil_w = Round16(cur_.pupil_w * fs_);
+    layout.pupil_h = Round16(std::max(pupil_h, 0.0f) * fs_);
     const float oy = Clamp(cur_.pupil_y, -(eye_h - pupil_h) / 2.0f, (eye_h - pupil_h) / 2.0f);
-    layout.pupil_y = Round16(kEyeCenterY - pupil_h / 2.0f + oy);
-    layout.right_eye_h = Round16(right_eye_h);
-    layout.right_eye_y = Round16(kEyeCenterY - right_eye_h / 2.0f);
+    layout.pupil_y = Round16((kEyeCenterY - pupil_h / 2.0f + oy) * fs_);
+    layout.right_eye_h = Round16(right_eye_h * fs_);
+    layout.right_eye_y = Round16((kEyeCenterY - right_eye_h / 2.0f) * fs_);
     layout.right_pupil_visible = right_pupil_h >= 3.0f;
-    layout.right_pupil_h = Round16(std::max(right_pupil_h, 0.0f));
+    layout.right_pupil_h = Round16(std::max(right_pupil_h, 0.0f) * fs_);
     const float right_oy =
         Clamp(cur_.pupil_y, -(right_eye_h - right_pupil_h) / 2.0f, (right_eye_h - right_pupil_h) / 2.0f);
-    layout.right_pupil_y = Round16(kEyeCenterY - right_pupil_h / 2.0f + right_oy);
+    layout.right_pupil_y = Round16((kEyeCenterY - right_pupil_h / 2.0f + right_oy) * fs_);
     {
         // Glow colour in steps of 4 so a slow colour change does not repaint every step.
         auto channel = [](float v) -> uint32_t {
@@ -1145,15 +1208,39 @@ void ChipoFace::Step(uint32_t now_ms) {
         };
         layout.glow_rgb = (channel(cur_.glow_r) << 16) | (channel(cur_.glow_g) << 8) | channel(cur_.glow_b);
     }
-    layout.left_pupil_x = Round16(layout.left_eye_x + (cur_.eye_w - cur_.pupil_w) / 2.0f + cur_.pupil_x);
-    layout.right_pupil_x = Round16(layout.right_eye_x + (cur_.eye_w - cur_.pupil_w) / 2.0f + cur_.pupil_x);
-    layout.mouth_w = Round16(cur_.mouth_w);
-    layout.mouth_h = Round16(cur_.mouth_h);
-    layout.mouth_x = Round16(kCenterX - cur_.mouth_w / 2.0f);
-    layout.mouth_y = Round16(cur_.mouth_cy - cur_.mouth_h / 2.0f);
+    layout.left_pupil_x = Round16(layout.left_eye_x + ((cur_.eye_w - cur_.pupil_w) / 2.0f + cur_.pupil_x) * fs_);
+    layout.right_pupil_x = Round16(layout.right_eye_x + ((cur_.eye_w - cur_.pupil_w) / 2.0f + cur_.pupil_x) * fs_);
+    layout.mouth_w = Round16(cur_.mouth_w * fs_);
+    layout.mouth_h = Round16(cur_.mouth_h * fs_);
+    layout.mouth_x = Round16((kCenterX - cur_.mouth_w / 2.0f) * fs_);
+    layout.mouth_y = Round16((cur_.mouth_cy - cur_.mouth_h / 2.0f) * fs_);
     // AMOLED: black pixels are off, so a wider and brighter halo reads as light, not as a grey haze.
     layout.glow_w = static_cast<int16_t>(2 * std::lround(Clamp(cur_.glow_w * kAmoledGlowGain, 0.0f, 60.0f) / 2.0f));  // steps of 2 px
     layout.glow_opa = Round16(Clamp(cur_.glow_opa * kAmoledOpaGain, 0.0f, 100.0f));
+    {
+        // Eyebrows (thin bars): a gentle arch when calm, worried when sad, angry when grumpy, raised when surprised.
+        // They only show where they add something; the squinting, kissing and sleeping faces have none.
+        bool brows = false;
+        int rot = 60, lift = 0;
+        switch (emotion) {
+        case Emotion::None:
+            brows = shown == State::Idle || shown == State::Thinking || shown == State::Error || shown == State::Connecting;
+            if (shown == State::Thinking) { rot = 90; lift = 3; }
+            if (shown == State::Error) rot = 140;
+            break;
+        case Emotion::Sad: brows = true; rot = 150; break;
+        case Emotion::Grumpy: brows = true; rot = -150; break;
+        case Emotion::Suspicious: brows = true; rot = -90; break;
+        case Emotion::Surprised: brows = true; rot = 0; lift = 9; break;
+        default: break;
+        }
+        if (blink > 0.5f) brows = brows && false;
+        layout.brows_visible = brows;
+        layout.blush_visible = emotion == Emotion::Happy || emotion == Emotion::Laugh || emotion == Emotion::Love ||
+                               emotion == Emotion::Wink || emotion == Emotion::Dance;
+        layout.brow_rot = static_cast<int16_t>(rot);
+        layout.brow_lift = Round16(static_cast<float>(lift) * fs_);
+    }
     layout.face_dx = Round16(face_x_);
     float sway = 0;  // the car rocks the face gently while driving
     if (drive_mode_) sway = glasses_t_ * (2.0f * std::sin(static_cast<float>(now_ms) * 0.0022f) + road_jolt_ * 3.0f);
@@ -1206,37 +1293,37 @@ void ChipoFace::UpdateGlasses(const Layout& l, float dt) {
     } else {
         e = p * p * (3.0f - 2.0f * p);
     }
-    const int dy = Round16(-(1.0f - e) * kGlassesTravel + glasses_jolt_ * 7.0f);
-    const int dx = Round16(drive_lean_cur_ * 4.0f);
+    const int dy = Round16((-(1.0f - e) * kGlassesTravel + glasses_jolt_ * 7.0f) * fs_);
+    const int dx = Round16(drive_lean_cur_ * 4.0f * fs_);
     const int key[4] = {l.eye_w, l.left_eye_x, dx, dy};
     bool same = true;
     for (int i = 0; i < 4; ++i) same = same && key[i] == glasses_applied_[i];
     if (same) return;
     for (int i = 0; i < 4; ++i) glasses_applied_[i] = key[i];
 
-    constexpr int kPad = 12;       // lens margin around the eye
-    constexpr int kLensH = 82;
+    const int kPad = S(12);       // lens margin around the eye
+    const int kLensH = S(82);
     const int lens_w = l.eye_w + 2 * kPad;
-    const int lens_y = static_cast<int>(kEyeCenterY) - kLensH / 2 + dy;
+    const int lens_y = S(kEyeCenterY) - kLensH / 2 + dy;
     const int left_x = l.left_eye_x - kPad + dx;
     const int right_x = l.right_eye_x - kPad + dx;
     lv_obj_set_size(glasses_[0], lens_w, kLensH);
     lv_obj_set_pos(glasses_[0], left_x, lens_y);
     lv_obj_set_size(glasses_[1], lens_w, kLensH);
     lv_obj_set_pos(glasses_[1], right_x, lens_y);
-    const int bridge_x = left_x + lens_w - 5;
-    lv_obj_set_size(glasses_[2], right_x - bridge_x + 5, 8);   // bridge
-    lv_obj_set_pos(glasses_[2], bridge_x, lens_y + 20);
+    const int bridge_x = left_x + lens_w - S(5);
+    lv_obj_set_size(glasses_[2], right_x - bridge_x + S(5), S(8));   // bridge
+    lv_obj_set_pos(glasses_[2], bridge_x, lens_y + S(20));
     const int brow_x = left_x + lens_w / 2;
-    lv_obj_set_size(glasses_[3], right_x + lens_w / 2 - brow_x, 6);  // brow bar across the top
-    lv_obj_set_pos(glasses_[3], brow_x, lens_y + 5);
-    lv_obj_set_size(glasses_[4], 20, 7);                        // arms
-    lv_obj_set_pos(glasses_[4], left_x - 16, lens_y + 16);
-    lv_obj_set_size(glasses_[5], 20, 7);
-    lv_obj_set_pos(glasses_[5], right_x + lens_w - 4, lens_y + 16);
-    lv_obj_set_size(glasses_[6], 26, 6);                        // glints
+    lv_obj_set_size(glasses_[3], right_x + lens_w / 2 - brow_x, S(6));  // brow bar across the top
+    lv_obj_set_pos(glasses_[3], brow_x, lens_y + S(5));
+    lv_obj_set_size(glasses_[4], S(20), S(7));                        // arms
+    lv_obj_set_pos(glasses_[4], left_x - S(16), lens_y + S(16));
+    lv_obj_set_size(glasses_[5], S(20), S(7));
+    lv_obj_set_pos(glasses_[5], right_x + lens_w - S(4), lens_y + S(16));
+    lv_obj_set_size(glasses_[6], S(26), S(6));                        // glints
     lv_obj_set_pos(glasses_[6], left_x + 16, lens_y + 16);
-    lv_obj_set_size(glasses_[7], 26, 6);
+    lv_obj_set_size(glasses_[7], S(26), S(6));
     lv_obj_set_pos(glasses_[7], right_x + 16, lens_y + 16);
 }
 
@@ -1482,7 +1569,12 @@ void ChipoFace::ApplyLayout(const Layout& l) {
         }
         // Cute skin: the mouth is a pink smile and the eyes lilac; the state colour tints them (about a third)
         // so LISTENING / THINKING / ERROR / the emotions still read, and keeps the soft halo around them.
-        lv_obj_set_style_bg_color(bowl_, (IsDefaultGlow(l.glow_rgb) ? lv_color_hex(kSmile) : lv_color_mix(color, lv_color_hex(kSmile), 80)), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(bowl_, (IsDefaultGlow(l.glow_rgb) ? lv_color_hex(kMouthLip) : lv_color_mix(color, lv_color_hex(kMouthLip), 80)), LV_PART_MAIN);
+        for (lv_obj_t* o : {left_eye_, right_eye_}) {  // a coloured ring tells the state; plain lilac when calm
+            lv_obj_set_style_border_width(o, IsDefaultGlow(l.glow_rgb) ? 0 : S(4), LV_PART_MAIN);
+            lv_obj_set_style_border_color(o, color, LV_PART_MAIN);
+            lv_obj_set_style_border_opa(o, LV_OPA_COVER, LV_PART_MAIN);
+        }
         for (lv_obj_t* o : {left_eye_, right_eye_}) {
             lv_obj_set_style_bg_color(o, IsDefaultGlow(l.glow_rgb) ? lv_color_hex(kEyeLilac)
                                                        : lv_color_mix(color, lv_color_hex(kEyeLilac), 70), LV_PART_MAIN);
@@ -1497,17 +1589,53 @@ void ChipoFace::ApplyLayout(const Layout& l) {
         // Half-moon: an ellipse twice as tall as the window, its top half above (clipped away).
         lv_obj_set_size(bowl_, l.mouth_w, 2 * l.mouth_h);
         lv_obj_set_pos(bowl_, 0, -l.mouth_h);
+        const int rim = S(3);
+        if (inner_) {  // dark inside with a lip around it, once the mouth is big enough to show both
+            if (l.mouth_h >= S(14) && l.mouth_w >= S(20)) {
+                lv_obj_set_size(inner_, l.mouth_w - 2 * rim, 2 * (l.mouth_h - rim));
+                lv_obj_set_pos(inner_, rim, -l.mouth_h + rim);
+                lv_obj_remove_flag(inner_, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_add_flag(inner_, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
         if (tongue_) {
-            if (l.mouth_h >= 14 && l.mouth_w >= 30) {
-                const int tw = std::max<int>(12, l.mouth_w * 44 / 100);
-                const int vh = std::max<int>(5, l.mouth_h * 52 / 100);  // visible tongue height
+            if (l.mouth_h >= S(14) && l.mouth_w >= S(20)) {
+                const int tw = std::max<int>(S(12), l.mouth_w * 44 / 100);
+                const int vh = std::max<int>(S(5), l.mouth_h * 48 / 100);  // visible tongue height
                 lv_obj_set_size(tongue_, tw, 2 * vh);
-                lv_obj_set_pos(tongue_, (l.mouth_w - tw) / 2, l.mouth_h - vh);
+                lv_obj_set_pos(tongue_, (l.mouth_w - tw) / 2, l.mouth_h - vh - rim);
                 lv_obj_remove_flag(tongue_, LV_OBJ_FLAG_HIDDEN);
             } else {
                 lv_obj_add_flag(tongue_, LV_OBJ_FLAG_HIDDEN);
             }
         }
+    }
+    if (blush_[0] && blush_[1] && (first || l.blush_visible != a.blush_visible)) {
+        for (auto* b : blush_) {
+            if (l.blush_visible) lv_obj_remove_flag(b, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(b, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (blush_[0] && blush_[1] &&
+        (first || l.left_eye_x != a.left_eye_x || l.right_eye_x != a.right_eye_x || l.eye_w != a.eye_w ||
+         l.mouth_y != a.mouth_y || l.mouth_h != a.mouth_h)) {
+        const int by = l.mouth_y + l.mouth_h / 2 - S(22);
+        lv_obj_set_pos(blush_[0], l.left_eye_x - S(10), by);
+        lv_obj_set_pos(blush_[1], l.right_eye_x + l.eye_w - S(36), by);
+    }
+    if (brow_[0] && brow_[1] &&
+        (first || l.brows_visible != a.brows_visible || l.brow_rot != a.brow_rot || l.brow_lift != a.brow_lift ||
+         l.eye_y != a.eye_y || l.left_eye_x != a.left_eye_x || l.right_eye_x != a.right_eye_x || l.eye_w != a.eye_w)) {
+        for (int i = 0; i < 2; ++i) {
+            if (l.brows_visible) lv_obj_remove_flag(brow_[i], LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(brow_[i], LV_OBJ_FLAG_HIDDEN);
+        }
+        const int by = l.eye_y - S(17) - l.brow_lift;
+        lv_obj_set_pos(brow_[0], l.left_eye_x + l.eye_w / 2 - S(15), by);
+        lv_obj_set_pos(brow_[1], l.right_eye_x + l.eye_w / 2 - S(15), by);
+        lv_obj_set_style_transform_rotation(brow_[0], -l.brow_rot, LV_PART_MAIN);
+        lv_obj_set_style_transform_rotation(brow_[1], l.brow_rot, LV_PART_MAIN);
     }
     if (first || l.face_dx != a.face_dx || l.face_dy != a.face_dy) {
         lv_obj_align(root_, LV_ALIGN_CENTER, l.face_dx + shift_x_, l.face_dy + shift_y_);
@@ -1597,9 +1725,9 @@ void ChipoFace::EmitStateFx(State shown, Mood mood, uint32_t now_ms) {
         now_ms >= next_tear_ms_) {
         const float eye_w = static_cast<float>(applied_.eye_w);
         const float eye_h = static_cast<float>(applied_.eye_h);
-        const float rx = (tear_side_ == 0) ? kCenterX - kEyeGap / 2.0f - eye_w * 0.5f : kCenterX + kEyeGap / 2.0f + eye_w * 0.5f;
-        fx_.Spawn(FxKind::Tear, cx - kCanvasWidth / 2.0f + rx + (tear_side_ == 0 ? -6.0f : 6.0f),
-                  cy - kCanvasHeight / 2.0f + kEyeCenterY + eye_h * 0.5f - 2.0f, 12.0f, 0x8FD0FF);
+        const float rx = (tear_side_ == 0) ? (kCenterX - kEyeGap / 2.0f) * fs_ - eye_w * 0.5f : (kCenterX + kEyeGap / 2.0f) * fs_ + eye_w * 0.5f;
+        fx_.Spawn(FxKind::Tear, cx - kCanvasWidth * fs_ / 2.0f + rx + (tear_side_ == 0 ? -6.0f : 6.0f) * fs_,
+                  cy - kCanvasHeight * fs_ / 2.0f + kEyeCenterY * fs_ + eye_h * 0.5f - 2.0f, 12.0f * fs_, 0x8FD0FF);
         tear_side_ ^= 1;
         next_tear_ms_ = now_ms + 420;
     }
@@ -1607,7 +1735,7 @@ void ChipoFace::EmitStateFx(State shown, Mood mood, uint32_t now_ms) {
     if (shown == State::Sleep) {
         if (next_zzz_ms_ == 0) next_zzz_ms_ = now_ms + 700;
         if (now_ms >= next_zzz_ms_ && fx_.alive(FxKind::Zzz) < 3) {
-            fx_.Spawn(FxKind::Zzz, cx + 74.0f, cy - 52.0f, 24.0f, 0xBFD9FF);
+            fx_.Spawn(FxKind::Zzz, cx + 74.0f * fs_, cy - 52.0f * fs_, 24.0f * fs_, 0xC9B0FF);
             next_zzz_ms_ = now_ms + 1500;
         }
     } else {
@@ -1627,26 +1755,26 @@ void ChipoFace::CreateCostumes() {
     for (auto& o : hat_) o = lv_obj_create(root_);
     for (auto& o : moustache_) o = lv_obj_create(root_);
     // Santa hat above the eyes (inside the 300 x 220 face canvas).
-    if (hat_[0]) { flat(hat_[0], 0xE0262B, 40); lv_obj_set_size(hat_[0], 130, 36); lv_obj_set_pos(hat_[0], 85, 2); }
-    if (hat_[1]) { flat(hat_[1], 0xF4F4F4, 9); lv_obj_set_size(hat_[1], 146, 18); lv_obj_set_pos(hat_[1], 77, 30); }
+    if (hat_[0]) { flat(hat_[0], 0xE0262B, 40); lv_obj_set_size(hat_[0], S(130), S(36)); lv_obj_set_pos(hat_[0], S(85), S(2)); }
+    if (hat_[1]) { flat(hat_[1], 0xF4F4F4, 9); lv_obj_set_size(hat_[1], S(146), S(18)); lv_obj_set_pos(hat_[1], S(77), S(30)); }
     if (hat_[2]) {
         flat(hat_[2], 0xE0262B, 11);
-        lv_obj_set_size(hat_[2], 52, 22);
-        lv_obj_set_pos(hat_[2], 176, 8);
-        lv_obj_set_style_transform_pivot_x(hat_[2], 26, LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(hat_[2], 11, LV_PART_MAIN);
+        lv_obj_set_size(hat_[2], S(52), S(22));
+        lv_obj_set_pos(hat_[2], S(176), S(8));
+        lv_obj_set_style_transform_pivot_x(hat_[2], S(26), LV_PART_MAIN);
+        lv_obj_set_style_transform_pivot_y(hat_[2], S(11), LV_PART_MAIN);
         lv_obj_set_style_transform_rotation(hat_[2], 200, LV_PART_MAIN);
     }
-    if (hat_[3]) { flat(hat_[3], 0xF4F4F4, LV_RADIUS_CIRCLE); lv_obj_set_size(hat_[3], 26, 26); lv_obj_set_pos(hat_[3], 218, 16); }
+    if (hat_[3]) { flat(hat_[3], 0xF4F4F4, LV_RADIUS_CIRCLE); lv_obj_set_size(hat_[3], S(26), S(26)); lv_obj_set_pos(hat_[3], S(218), S(16)); }
     // Moustache between the eyes and the mouth: two curls turned a little.
     for (int i = 0; i < kMoustachePieces; ++i) {
         lv_obj_t* o = moustache_[i];
         if (!o) continue;
         flat(o, 0xC98A4B, 10);
-        lv_obj_set_size(o, 60, 20);
-        lv_obj_set_pos(o, i == 0 ? 90 : 150, 132);
-        lv_obj_set_style_transform_pivot_x(o, 30, LV_PART_MAIN);
-        lv_obj_set_style_transform_pivot_y(o, 10, LV_PART_MAIN);
+        lv_obj_set_size(o, S(60), S(20));
+        lv_obj_set_pos(o, S(i == 0 ? 90 : 150), S(132));
+        lv_obj_set_style_transform_pivot_x(o, S(30), LV_PART_MAIN);
+        lv_obj_set_style_transform_pivot_y(o, S(10), LV_PART_MAIN);
         lv_obj_set_style_transform_rotation(o, i == 0 ? 120 : -120, LV_PART_MAIN);  // tips curl up
     }
     hat_shown_ = moustache_shown_ = false;
@@ -1683,7 +1811,7 @@ void ChipoFace::UpdateCostumes(uint32_t now_ms) {
         const int bob = Round16(2.0f * std::sin(static_cast<float>(now_ms) * 0.004f));
         if (bob != hat_bob_applied_) {
             hat_bob_applied_ = bob;
-            lv_obj_set_pos(hat_[3], 218, 16 + bob);
+            lv_obj_set_pos(hat_[3], S(218), S(16) + Round16(bob * fs_));
         }
     }
 }

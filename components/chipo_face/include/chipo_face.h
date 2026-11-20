@@ -212,6 +212,10 @@ private:
         int16_t glow_w, glow_opa;
         int16_t face_dx, face_dy;
         bool pupils_visible;
+        int16_t brow_rot;     // tenths of a degree, left brow (the right one mirrors it)
+        int16_t brow_lift;    // px above the resting place
+        bool brows_visible;
+        bool blush_visible;   // only while CHIPO likes something
     };
 
     bool has_tint_ = false;
@@ -235,6 +239,9 @@ private:
     lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
     lv_obj_t* tongue_ = nullptr;      // red tongue inside the mouth (cute skin)
+    lv_obj_t* inner_ = nullptr;       // dark inside of the open mouth
+    lv_obj_t* brow_[2] = {nullptr, nullptr};
+    lv_obj_t* blush_[2] = {nullptr, nullptr};  // soft translucent blush under the eyes
     lv_obj_t* bowl_ = nullptr;        // lower half of an ellipse, clipped by mouth_: the smile
     lv_obj_t* dots_[3] = {nullptr, nullptr, nullptr};
     // Aviator sunglasses: left lens, right lens, bridge, brow bar, left arm, right arm, left glint, right glint.
@@ -330,6 +337,8 @@ private:
     FxEngine fx_;
     ChipoFx fx_view_;
     int fx_w_ = 368, fx_h_ = 448;
+    float fs_ = 1.0f;  // face scale: 1.0 on the 368 px wide screen, bigger on larger panels (480 px -> 1.3)
+    int S(float v) const { return static_cast<int>(v * fs_ + (v >= 0 ? 0.5f : -0.5f)); }
     void FaceCentre(float* x, float* y) const;
     float gaze_nx_ = 0, gaze_ny_ = 0;     // finger position, -1..1
     uint32_t gaze_until_ms_ = 0;

@@ -6,7 +6,6 @@
 namespace {
 constexpr uint32_t kTickMs = 40;
 constexpr uint32_t kAutoOffMs = 10u * 60u * 1000u;
-constexpr int kBarW = 34, kBarGap = 8, kBaseY = 392, kMaxBarH = 300;
 
 lv_obj_t* Flat(lv_obj_t* parent, uint32_t rgb, int radius) {
     lv_obj_t* o = lv_obj_create(parent);
@@ -68,6 +67,15 @@ bool ChipoScenes::Start(lv_obj_t* parent, Hooks hooks) {
     int32_t w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
     w_ = w > 0 ? w : 368;
     h_ = h > 0 ? h : 448;
+    {   // drawn for 368 x 448: bars and plants keep their proportions on bigger panels (2.16": 480 x 480)
+        const float sc = static_cast<float>(w_) / 368.0f;
+        bar_w_ = static_cast<int>(34 * sc + 0.5f);
+        bar_gap_ = static_cast<int>(8 * sc + 0.5f);
+        base_y_ = h_ - 56;
+        max_bar_h_ = h_ * 300 / 448;
+        plant_x0_ = static_cast<int>(40 * sc + 0.5f);
+        plant_dx_ = static_cast<int>(140 * sc + 0.5f);
+    }
     root_ = lv_obj_create(parent);
     if (!root_) return false;
     lv_obj_remove_style_all(root_);
@@ -106,13 +114,13 @@ void ChipoScenes::Stop() {
 }
 
 void ChipoScenes::Build() {
-    const int x0 = (w_ - (kBars * kBarW + (kBars - 1) * kBarGap)) / 2;
+    const int x0 = (w_ - (kBars * bar_w_ + (kBars - 1) * bar_gap_)) / 2;
     for (int i = 0; i < kBars; ++i) {
         const uint32_t c = Lerp(0x00E5FF, 0xFF2EC8, static_cast<float>(i) / (kBars - 1));
         bar_[i] = Flat(root_, c, 8);
         cap_[i] = Flat(root_, 0xFFFFFF, 3);
-        if (bar_[i]) { lv_obj_set_size(bar_[i], kBarW, 4); lv_obj_set_pos(bar_[i], x0 + i * (kBarW + kBarGap), kBaseY - 4); }
-        if (cap_[i]) { lv_obj_set_size(cap_[i], kBarW, 5); lv_obj_set_pos(cap_[i], x0 + i * (kBarW + kBarGap), kBaseY - 12); }
+        if (bar_[i]) { lv_obj_set_size(bar_[i], bar_w_, 4); lv_obj_set_pos(bar_[i], x0 + i * (bar_w_ + bar_gap_), base_y_ - 4); }
+        if (cap_[i]) { lv_obj_set_size(cap_[i], bar_w_, 5); lv_obj_set_pos(cap_[i], x0 + i * (bar_w_ + bar_gap_), base_y_ - 12); }
     }
     for (int i = 0; i < AquariumModel::kFish; ++i) {
         fish_[i][0] = Flat(root_, 0xFFFFFF, LV_RADIUS_CIRCLE);   // body
@@ -133,7 +141,7 @@ void ChipoScenes::Build() {
         if (plant_[i]) {
             const int hgt = 110 + i * 30;
             lv_obj_set_size(plant_[i], 12, hgt);
-            lv_obj_set_pos(plant_[i], 40 + i * 140, h_ - hgt);
+            lv_obj_set_pos(plant_[i], plant_x0_ + i * plant_dx_, h_ - hgt);
             lv_obj_set_style_transform_pivot_x(plant_[i], 6, LV_PART_MAIN);
             lv_obj_set_style_transform_pivot_y(plant_[i], hgt, LV_PART_MAIN);
         }
@@ -217,18 +225,18 @@ void ChipoScenes::UpdateVisualizer() {
     float bands[kBars] = {}, level = 0;
     const bool fresh = hooks_.audio && hooks_.audio(bands, &level);
     bars_.Update(fresh ? bands : nullptr, dt, static_cast<float>(Now() - shown_ms_) / 1000.0f);
-    const int x0 = (w_ - (kBars * kBarW + (kBars - 1) * kBarGap)) / 2;
+    const int x0 = (w_ - (kBars * bar_w_ + (kBars - 1) * bar_gap_)) / 2;
     for (int i = 0; i < kBars; ++i) {
-        const int bh = std::max(4, static_cast<int>(bars_.bar[i] * kMaxBarH));
+        const int bh = std::max(4, static_cast<int>(bars_.bar[i] * max_bar_h_));
         if (bh != bar_h_[i]) {
             bar_h_[i] = bh;
-            lv_obj_set_size(bar_[i], kBarW, bh);
-            lv_obj_set_pos(bar_[i], x0 + i * (kBarW + kBarGap), kBaseY - bh);
-            const int cy = kBaseY - std::max(bh + 8, static_cast<int>(bars_.peak[i] * kMaxBarH) + 8);
-            lv_obj_set_pos(cap_[i], x0 + i * (kBarW + kBarGap), cy);
+            lv_obj_set_size(bar_[i], bar_w_, bh);
+            lv_obj_set_pos(bar_[i], x0 + i * (bar_w_ + bar_gap_), base_y_ - bh);
+            const int cy = base_y_ - std::max(bh + 8, static_cast<int>(bars_.peak[i] * max_bar_h_) + 8);
+            lv_obj_set_pos(cap_[i], x0 + i * (bar_w_ + bar_gap_), cy);
         } else {
-            const int cy = kBaseY - std::max(bh + 8, static_cast<int>(bars_.peak[i] * kMaxBarH) + 8);
-            lv_obj_set_pos(cap_[i], x0 + i * (kBarW + kBarGap), cy);
+            const int cy = base_y_ - std::max(bh + 8, static_cast<int>(bars_.peak[i] * max_bar_h_) + 8);
+            lv_obj_set_pos(cap_[i], x0 + i * (bar_w_ + bar_gap_), cy);
         }
     }
 }
