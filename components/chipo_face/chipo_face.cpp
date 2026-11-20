@@ -69,7 +69,18 @@ constexpr float kDriveLookPx = 10.0f;       // how far the eyes look into a curv
 constexpr uint32_t kEyeCore = 0xDDF8FF;
 constexpr float kAmoledGlowGain = 1.3f;  // halo width gain (px) for the AMOLED panel
 constexpr float kAmoledOpaGain = 1.25f;  // and opacity gain (capped at 100 %)
-constexpr uint32_t kPupil = 0x06121B;
+constexpr uint32_t kPupil = 0x000000;
+// "Cute" skin: lilac eyes, pink smile with a red tongue, all on the AMOLED's true black.
+constexpr uint32_t kEyeLilac = 0xE2C8FF;
+constexpr uint32_t kSmile = 0xFF9DB0;
+constexpr uint32_t kTongue = 0xFF2D3A;
+
+// The idle/listening glow is (near) the default cyan: then the cute skin shows its own lilac and pink.
+bool IsDefaultGlow(uint32_t rgb) {
+    auto near = [](uint32_t a, uint32_t b) { return (a > b ? a - b : b - a) <= 40; };
+    return near((rgb >> 16) & 0xFF, (kGlowBlue >> 16) & 0xFF) && near((rgb >> 8) & 0xFF, (kGlowBlue >> 8) & 0xFF) &&
+           near(rgb & 0xFF, kGlowBlue & 0xFF);
+}
 
 constexpr float kTwoPi = 6.2831853f;
 
@@ -198,7 +209,28 @@ bool ChipoFace::Start(lv_obj_t* parent) {
             MakeInert(spark);
         }
     }
-    StyleGlow(mouth_, kGlowBlue, 20);
+    StyleGlow(mouth_, kSmile, 20);
+    // The mouth is a clipping window: a half-moon smile (bottom half of an ellipse) with a red tongue.
+    lv_obj_set_style_bg_opa(mouth_, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(mouth_, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(mouth_, 0, LV_PART_MAIN);
+    bowl_ = lv_obj_create(mouth_);
+    if (bowl_) {
+        lv_obj_remove_style_all(bowl_);
+        lv_obj_set_style_bg_color(bowl_, lv_color_hex(kSmile), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(bowl_, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(bowl_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        MakeInert(bowl_);
+    }
+    tongue_ = lv_obj_create(mouth_);
+    if (tongue_) {
+        lv_obj_remove_style_all(tongue_);
+        lv_obj_set_style_bg_color(tongue_, lv_color_hex(kTongue), LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(tongue_, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_radius(tongue_, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        MakeInert(tongue_);
+        lv_obj_add_flag(tongue_, LV_OBJ_FLAG_HIDDEN);
+    }
     for (int i = 0; i < 3; ++i) {
         StyleGlow(dots_[i], kGlowBlue, 8);
         lv_obj_set_size(dots_[i], 8, 8);
@@ -272,7 +304,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     next_slow_blink_ms_ = 0;
 
     const uint32_t now = lv_tick_get();
-    cur_ = Pose{62, 70, 22, 30, 0, 0, 42, 8, kMouthCenterY, 20, 60};
+    cur_ = Pose{62, 70, 22, 30, 0, 0, 56, 24, kMouthCenterY, 20, 60};
     pose_initialised_ = true;
     layout_applied_ = false;
     stepped_ = false;
@@ -333,7 +365,7 @@ void ChipoFace::Stop() {
     for (auto& o : lane_) o = nullptr;
     for (auto& o : streak_) o = nullptr;
     road_shown_ = false;
-    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = nullptr;
+    root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = tongue_ = bowl_ = nullptr;
     for (auto& dot : dots_) dot = nullptr;
     for (auto& piece : glasses_) piece = nullptr;
     for (auto& piece : hat_) piece = nullptr;
@@ -548,7 +580,7 @@ float ChipoFace::BlinkAmount(uint32_t now_ms) {
 
 ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, Emotion emotion, uint32_t now_ms,
                                       const TiltOutput& tilt) {
-    Pose p{62, 70, 22, 30, 0, 0, 42, 8, kMouthCenterY, 20, 60};
+    Pose p{62, 70, 22, 30, 0, 0, 56, 24, kMouthCenterY, 20, 60};
     const float t = static_cast<float>(now_ms);
 
     switch (shown) {
@@ -1433,29 +1465,48 @@ void ChipoFace::ApplyLayout(const Layout& l) {
         lv_obj_set_pos(mouth_, l.mouth_x, l.mouth_y);
     }
     if (first || l.glow_w != a.glow_w) {
-        for (lv_obj_t* o : {left_eye_, right_eye_, mouth_}) {
+        for (lv_obj_t* o : {left_eye_, right_eye_}) {
             lv_obj_set_style_shadow_width(o, l.glow_w, LV_PART_MAIN);
         }
     }
     if (first || l.glow_opa != a.glow_opa) {
         const lv_opa_t opa = static_cast<lv_opa_t>(l.glow_opa * 255 / 100);
-        for (lv_obj_t* o : {left_eye_, right_eye_, mouth_}) {
+        for (lv_obj_t* o : {left_eye_, right_eye_}) {
             lv_obj_set_style_shadow_opa(o, opa, LV_PART_MAIN);
         }
     }
     if (first || l.glow_rgb != a.glow_rgb) {
         const lv_color_t color = lv_color_hex(l.glow_rgb);
-        for (lv_obj_t* o : {left_eye_, right_eye_, mouth_}) {
+        for (lv_obj_t* o : {left_eye_, right_eye_}) {
             lv_obj_set_style_shadow_color(o, color, LV_PART_MAIN);
         }
-        lv_obj_set_style_bg_color(mouth_, color, LV_PART_MAIN);  // the mouth is made of the glow itself
-        // AMOLED: the eyes are lit glass, pale on top and the state's saturated colour at the bottom.
+        // Cute skin: the mouth is a pink smile and the eyes lilac; the state colour tints them (about a third)
+        // so LISTENING / THINKING / ERROR / the emotions still read, and keeps the soft halo around them.
+        lv_obj_set_style_bg_color(bowl_, (IsDefaultGlow(l.glow_rgb) ? lv_color_hex(kSmile) : lv_color_mix(color, lv_color_hex(kSmile), 80)), LV_PART_MAIN);
         for (lv_obj_t* o : {left_eye_, right_eye_}) {
-            lv_obj_set_style_bg_color(o, lv_color_mix(color, lv_color_white(), 70), LV_PART_MAIN);
-            lv_obj_set_style_bg_grad_color(o, color, LV_PART_MAIN);
+            lv_obj_set_style_bg_color(o, IsDefaultGlow(l.glow_rgb) ? lv_color_hex(kEyeLilac)
+                                                       : lv_color_mix(color, lv_color_hex(kEyeLilac), 70), LV_PART_MAIN);
+            lv_obj_set_style_bg_grad_color(o, IsDefaultGlow(l.glow_rgb) ? lv_color_hex(0xC9A6FF)
+                                                       : lv_color_mix(color, lv_color_hex(kEyeLilac), 110), LV_PART_MAIN);
             lv_obj_set_style_bg_grad_dir(o, LV_GRAD_DIR_VER, LV_PART_MAIN);
             lv_obj_set_style_bg_main_stop(o, 40, LV_PART_MAIN);
             lv_obj_set_style_bg_grad_stop(o, 255, LV_PART_MAIN);
+        }
+    }
+    if (bowl_ && (first || l.mouth_w != a.mouth_w || l.mouth_h != a.mouth_h)) {
+        // Half-moon: an ellipse twice as tall as the window, its top half above (clipped away).
+        lv_obj_set_size(bowl_, l.mouth_w, 2 * l.mouth_h);
+        lv_obj_set_pos(bowl_, 0, -l.mouth_h);
+        if (tongue_) {
+            if (l.mouth_h >= 14 && l.mouth_w >= 30) {
+                const int tw = std::max<int>(12, l.mouth_w * 44 / 100);
+                const int vh = std::max<int>(5, l.mouth_h * 52 / 100);  // visible tongue height
+                lv_obj_set_size(tongue_, tw, 2 * vh);
+                lv_obj_set_pos(tongue_, (l.mouth_w - tw) / 2, l.mouth_h - vh);
+                lv_obj_remove_flag(tongue_, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_add_flag(tongue_, LV_OBJ_FLAG_HIDDEN);
+            }
         }
     }
     if (first || l.face_dx != a.face_dx || l.face_dy != a.face_dy) {

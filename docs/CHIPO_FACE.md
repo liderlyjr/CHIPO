@@ -135,3 +135,10 @@ placa en la mano, y la fluidez en la pantalla AMOLED. Eso solo se ve con la plac
 ## Animaciones extra (corazones, lágrimas, disfraces, baile…)
 Ver [CHIPO_ANIMACIONES.md](CHIPO_ANIMACIONES.md). API nueva de `ChipoFace`: `LookAt/StopLookAt`, `Celebrate(Burst)`, `SlowBlink`, `Cry`,
 `SoreLoser`, `SetCostume/SetDateSource`, `SetDance/SetLevelSource`; emoción nueva `Emotion::Dance`.
+
+## Estilo «bonito» (ojos lilas y sonrisa) sobre negro
+
+Pensado para aprovechar el negro real del AMOLED: fondo negro, ojos lilas con pupila negra y dos brillos, y una
+boca de media luna rosa con lengua roja (la boca es una ventana que recorta la mitad inferior de una elipse).
+El color del estado (escuchando, error, amor…) sigue tiñendo ojos y boca. Imagen: `docs/img/chipo_cute_skin.png`
+(simulación en PC, 368×448). **Sin ver en la pantalla real.** Las mejillas se probaron y se quitaron.

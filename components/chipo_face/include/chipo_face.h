@@ -234,6 +234,8 @@ private:
     lv_obj_t* left_pupil_ = nullptr;
     lv_obj_t* right_pupil_ = nullptr;
     lv_obj_t* mouth_ = nullptr;
+    lv_obj_t* tongue_ = nullptr;      // red tongue inside the mouth (cute skin)
+    lv_obj_t* bowl_ = nullptr;        // lower half of an ellipse, clipped by mouth_: the smile
     lv_obj_t* dots_[3] = {nullptr, nullptr, nullptr};
     // Aviator sunglasses: left lens, right lens, bridge, brow bar, left arm, right arm, left glint, right glint.
     static constexpr int kGlassesPieces = 8;
