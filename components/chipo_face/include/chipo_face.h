@@ -85,6 +85,7 @@ public:
     struct DebugInfo {
         State shown_state;
         Mood mood;
+        float face_scale;  // geometry below is in design pixels; multiply by this for real screen pixels
         int face_dx, face_dy;
         int fall_dir;  // -1 / +1: slipping off the left / right side, 0: not falling
         bool fell;     // tilted past the fall angle

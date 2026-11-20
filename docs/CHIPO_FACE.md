@@ -175,3 +175,6 @@ El color del estado (escuchando, error, amor…) sigue tiñendo ojos y boca. Ima
   apagan en orden inverso, de derecha a izquierda, con los dos puntos al final (~0,4 s). Solo cambia la opacidad
   de cada pieza (sin capas), barato para el ESP32. Al levantar CHIPO el reloj se apaga todavía girado y después
   la vista vuelve a vertical.
+- Cara más grande: ojos y boca ocupan ~58 % del ancho de la pantalla (escala 1,35 en la 1,8" y 1,76 en la 2,16").
+  El halo no crece con la escala (borde suave, no mancha). En drive la cara sube lo justo para que la boca quede
+  sobre el sol. `Debug()` informa los tamaños en píxeles de diseño y `face_scale` aparte.

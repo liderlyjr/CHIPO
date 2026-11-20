@@ -183,8 +183,10 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         int32_t pw = lv_obj_get_width(parent), ph = lv_obj_get_height(parent);
         if (pw <= 0) pw = 368;
         if (ph <= 0) ph = 448;
-        fs_ = std::min(static_cast<float>(pw) / 368.0f, static_cast<float>(ph) / 340.0f);
-        fs_ = Clamp(fs_, 1.0f, 1.6f);
+        // The eyes and mouth (about 158 px wide at scale 1) fill ~58 % of the screen width: 1.35 on the 1.8"
+        // (368 px), 1.76 on the 2.16" (480 px). The 300 x 220 canvas must still fit 85 % of the height.
+        fs_ = std::min(static_cast<float>(pw) * 0.58f / 158.0f, static_cast<float>(ph) * 0.85f / 220.0f);
+        fs_ = Clamp(fs_, 1.0f, 2.0f);
     }
     // The face slides off the screen when CHIPO falls over: without this the parent (the screen) grows a grey
     // scrollbar on its edge while the face is out of bounds.
@@ -1299,7 +1301,7 @@ void ChipoFace::Step(uint32_t now_ms) {
     float sway = 0;  // the car rocks the face gently while driving
     if (drive_mode_) sway = glasses_t_ * (2.0f * std::sin(static_cast<float>(now_ms) * 0.0022f) + road_jolt_ * 3.0f);
     // Driving: the face rides a little higher so the sunset sits below the mouth, not behind it.
-    layout.face_dy = Round16(face_y_ + sway - glasses_t_ * 30.0f * fs_);
+    layout.face_dy = Round16(face_y_ + sway - glasses_t_ * 36.0f * fs_);
     UpdateGlasses(layout, dt);
     UpdateRoad(dt, now_ms);
     ApplyLayout(layout);
@@ -1677,7 +1679,7 @@ void ChipoFace::ApplyLayout(const Layout& l) {
         // A soft coloured halo that grows with the face: the shadow glow cannot be scaled up (big software
         // shadows stall the renderer), so on bigger panels this flat disc carries the state colour.
         const bool on = l.ring && l.eye_arc == 0;
-        const int g = S(6) + static_cast<int>(static_cast<float>(l.glow_w) * fs_ * 0.35f);
+        const int g = S(4) + static_cast<int>(static_cast<float>(l.glow_w) * 0.35f);  // a soft rim, not a big blob
         const int base = std::min<int>(255, l.glow_opa * 255 / 100);
         const int16_t hs[2] = {l.eye_h, l.right_eye_h};
         const int16_t ys[2] = {l.eye_y, l.right_eye_y};
@@ -1941,15 +1943,19 @@ ChipoFace::DebugInfo ChipoFace::Debug() const {
     d.face_dy = applied_.face_dy;
     d.fall_dir = fall_dir_;
     d.fell = fell_;
-    d.eye_w = applied_.eye_w;
-    d.eye_h = applied_.eye_h;
-    d.mouth_w = applied_.mouth_w;
-    d.mouth_h = applied_.mouth_h;
+    // Sizes in design pixels (scale 1, as drawn for the 368 px screen) so they mean the same on every panel;
+    // face_scale says how big they really are on this screen.
+    auto design = [this](int v) { return static_cast<int>(std::lround(static_cast<float>(v) / fs_)); };
+    d.face_scale = fs_;
+    d.eye_w = design(applied_.eye_w);
+    d.eye_h = design(applied_.eye_h);
+    d.mouth_w = design(applied_.mouth_w);
+    d.mouth_h = design(applied_.mouth_h);
     d.thinking_dots_visible = dots_visible_;
     d.tilt_calibrated = tilt_.output().calibrated;
     d.tilt_angle_deg = tilt_.output().angle_deg;
     d.emotion = shown_emotion_;
-    d.right_eye_h = applied_.right_eye_h;
+    d.right_eye_h = design(applied_.right_eye_h);
     d.glow_rgb = applied_.glow_rgb;
     d.gyro_available = gyro_.output().available;
     d.gyro_spinning = gyro_.output().spinning;
