@@ -100,4 +100,4 @@ Consulta la [guía de integración](docs/XIAOZHI_INTEGRATION.md) y el adaptador 
 
 ## Altavoz
 
-No conectes un altavoz externo hasta verificar en el esquema y en la revisión física de la placa si existe un transductor integrado y qué salida de audio está disponible. ES8311 es el códec; por sí solo no demuestra que haya un altavoz instalado.
+La Waveshare 2.16" trae **altavoz integrado** (confirmado por el soporte de Waveshare, ver [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md)), así que no se usa altavoz externo. En la 1,8" V2 no se ha verificado: no conectes un altavoz externo hasta confirmarlo en el esquema y en la placa. ES8311 es el códec; por sí solo no demuestra que haya un altavoz instalado. El sonido real no se ha probado en ninguna de las dos placas.
