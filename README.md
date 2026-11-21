@@ -1,105 +1,98 @@
 # CHIPO OS
 
-CHIPO es un asistente de voz DIY basado en el firmware de XiaoZhi y adaptado a la placa **Waveshare ESP32-S3 Touch AMOLED 2.16** (480 × 480). Es la única placa soportada.
+CHIPO es un pequeño ordenador de sobremesa con aire de Macintosh clásico y un asistente de voz dentro. CHIPO OS es su
+firmware: parte de [XiaoZhi](https://github.com/78/xiaozhi-esp32), que pone la voz, el Wi-Fi y los controladores, y le
+añade una cara animada, pantallas propias, juegos, temporizadores y Home Assistant.
 
-## Objetivo
+**Placa: Waveshare ESP32-S3 Touch AMOLED 2.16** (pantalla cuadrada de 480 × 480). Es la única placa soportada.
 
-Construir una experiencia e interfaz propia llamada CHIPO OS aprovechando los controladores oficiales de XiaoZhi para la placa.
+> **Estado: V0.6.0. Compila en GitHub Actions y pasa 28 grupos de pruebas en PC, pero todavía no se ha probado en la
+> placa física.** Lo que solo se puede confirmar con ella está en [Qué falta por probar](#qué-falta-por-probar).
 
-## Hardware objetivo
+## Hardware
 
 | | Waveshare ESP32-S3 Touch AMOLED 2.16 |
 |---|---|
-| Microcontrolador | ESP32-S3 |
-| Pantalla AMOLED | 480 × 480, controlador CO5300 |
+| Microcontrolador | ESP32-S3, 16 MB de flash, 8 MB de PSRAM |
+| Pantalla | AMOLED 480 × 480, controlador CO5300 |
 | Táctil | CST9220 |
-| Audio | ES8311 + ES7210 (dos micrófonos), altavoz integrado |
-| Gestión de energía | AXP2101 |
-| Sensor de movimiento | QMI8658 |
+| Audio | Códec ES8311, ADC ES7210 con dos micrófonos, **altavoz integrado** |
+| Energía | AXP2101; la batería viene en la caja (capacidad sin confirmar) |
+| Almacenamiento | Ranura para tarjeta TF (no la usa CHIPO) |
+| Sensores | QMI8658 (acelerómetro y giroscopio, sin magnetómetro), reloj PCF85063 |
+| Botones | BOOT (GPIO0), PWR (al AXP2101), botón de usuario GPIO18 |
 
-Hardware de la 2,16" con caja, altavoz y batería: [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md).
+La placa viene montada en su caja de 46 × 46 × 22,5 mm. Detalles, fuentes y lo que no está documentado:
+[docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md).
 
-No se deben inventar pines ni sustituir controladores de la placa.
+## Qué hace CHIPO
 
-## Base de firmware
+- **Cara expresiva** de ojos y boca luminosos: escucha, piensa, habla, conecta, error y duerme; emociones, parpadeo y
+  reacciones al movimiento (inclinar, caerse, asentir, negar, girar, marearse). [CHIPO_FACE](docs/CHIPO_FACE.md)
+- **Asistente de voz** de XiaoZhi en español, con «Chipo» como palabra de activación. [WAKE_WORD](docs/WAKE_WORD.md)
+- **Clima** de Open-Meteo al preguntar por el tiempo o con un toque. [CHIPO_WEATHER](docs/CHIPO_WEATHER.md)
+- **BUDDY**: temporizador, pomodoro, cronómetro, alarma y modo dormir con reloj; tumbado de lado es un reloj de
+  mesita. [CHIPO_BUDDY](docs/CHIPO_BUDDY.md)
+- **RECORDATORIOS** por voz («recuérdame a las 18:30 sacar al perro»), guardados en el dispositivo.
+  [CHIPO_REMIND](docs/CHIPO_REMIND.md)
+- **TOOLS**: hora y temperatura alrededor de la cara, anillo del pomodoro, nivel de burbuja, bola 8 mágica, pizarra
+  para dibujar, subtítulos y el botón GPIO18 para cambiar de herramienta. [CHIPO_TOOLS](docs/CHIPO_TOOLS.md)
+- **FUN**: pantalla de inicio de neón, lámpara de colores, dados y moneda (también agitándolo). [CHIPO_FUN](docs/CHIPO_FUN.md)
+- **MASCOTA**: ánimo que sube con tu atención; piedra-papel-tijera y adivina el número. [CHIPO_PET](docs/CHIPO_PET.md)
+- **ANIMACIONES Y PANTALLAS**: los ojos siguen tu dedo, corazones, bostezos, lágrimas, rabietas, disfraces, baile;
+  visualizador de sonido, acuario y lámpara de lava. [CHIPO_ANIMACIONES](docs/CHIPO_ANIMACIONES.md)
+- **AMBIENTE**: lluvia, fuego o ruido suave de fondo. [CHIPO_AMBIENT](docs/CHIPO_AMBIENT.md)
+- **DRIVE**: modo copiloto para el coche («Chipo, vámonos»). [CHIPO_DRIVE](docs/CHIPO_DRIVE.md)
+- **AJUSTES** táctiles (pulsación larga): volumen, brillo, batería, Wi-Fi, versión y reinicio; protector de pantalla
+  AMOLED y cara cansada con poca batería. [CHIPO_SETTINGS](docs/CHIPO_SETTINGS.md)
+- **Home Assistant** por voz: luces, escenas, sensores y música (apagado hasta configurar dirección y token).
+  [CHIPO_HOME_ASSISTANT](docs/CHIPO_HOME_ASSISTANT.md)
+- **Siempre encendido cuando hace falta**: con algo pendiente (alarma, temporizador, recordatorio, reloj...) o
+  enchufado, no se apaga solo. [HARDWARE_2_16](docs/HARDWARE_2_16.md#energía-atenuar-y-apagarse-solo)
+- **Actualización automática** desde las Releases de este repositorio. [CHIPO_UPDATE](docs/CHIPO_UPDATE.md)
 
-- Proyecto original: https://github.com/78/xiaozhi-esp32
-- Perfil de placa de XiaoZhi: `esp32-s3-touch-amoled-2.16`, en español (`CONFIG_LANGUAGE_ES_ES`).
-- Integrar a mano: `python scripts/integrate_chipo.py <CHIPO> <xiaozhi>`. En Windows: `scripts\build_chipo.ps1`.
-- Versión de XiaoZhi fijada en el archivo `XIAOZHI_REF` (la misma en GitHub Actions y en Windows): cada compilación
-  usa exactamente la base con la que se comprobaron los parches de CHIPO.
-- Artefacto de GitHub Actions: `CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16`. **Sin probar en la placa física.**
-- Compilación recomendada: GitHub Actions con ESP-IDF 6.1
-- Grabación posterior: Espressif ESPTool-JS en el navegador
+## Compilar
 
-## Estado
+- **Sin instalar nada:** GitHub compila el firmware. Guía paso a paso: [docs/BUILD_GITHUB.md](docs/BUILD_GITHUB.md).
+- **En Windows con ESP-IDF 6.1:** `scripts\build_chipo.ps1`. Guía: [docs/BUILD_WINDOWS.md](docs/BUILD_WINDOWS.md).
+- **A mano:** `python scripts/integrate_chipo.py <carpeta CHIPO> <checkout de XiaoZhi>` y después
+  `idf.py set-target esp32s3 && idf.py build`.
 
-**V0.6.0 — CHIPO se actualiza solo desde las Releases de GitHub y el OTA de XiaoZhi ya no puede cambiarle el firmware. (V0.5.1: pantalla del clima y caída de la cara al inclinar 45°.)**
+La versión de XiaoZhi está fijada en [`XIAOZHI_REF`](XIAOZHI_REF): GitHub Actions y el script de Windows usan
+exactamente la base con la que se comprobaron los parches. El artefacto de cada compilación se llama
+`CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16` e incluye `BUILD_INFO.txt` con los commits exactos de CHIPO y de XiaoZhi.
 
-Consulta [docs/CHIPO_FACE.md](docs/CHIPO_FACE.md) para ver todas las animaciones, cómo reacciona CHIPO cuando
-lo inclinas o se cae, y cómo ajustar el sentido de la caída.
+## Actualizar
 
-Consulta [docs/CHIPO_DRIVE.md](docs/CHIPO_DRIVE.md) para el modo copiloto del coche («Chipo, vámonos»: gafas de sol,
-reacciones a aceleración, frenada, curvas y baches; sin probar aún en la placa).
+Se sube el número de [`VERSION`](VERSION) y se fusiona en `main`. GitHub publica la Release con
+`chipo-os-2.16.bin` y CHIPO la instala solo cuando está en reposo. El servidor de XiaoZhi no puede cambiarle el
+firmware. Detalles y seguridad: [docs/CHIPO_UPDATE.md](docs/CHIPO_UPDATE.md).
 
-Consulta [docs/CHIPO_BUDDY.md](docs/CHIPO_BUDDY.md) para el temporizador, pomodoro, cronómetro, alarma y modo
-dormir con reloj retro (todo por voz).
+## Cómo se integra con XiaoZhi
 
-Consulta [docs/CHIPO_HOME_ASSISTANT.md](docs/CHIPO_HOME_ASSISTANT.md) para controlar luces y escenas de Home
-Assistant por voz (apagado hasta configurar la dirección y el token).
+CHIPO no sustituye XiaoZhi: copia sus componentes (`components/chipo_*`) y aplica parches pequeños y comprobados a
+`application.cc/.h`, `audio_service.cc`, `ota.cc`, `CMakeLists.txt` y `sdkconfig.defaults`. Si XiaoZhi cambia y un
+punto de anclaje no coincide, el script se detiene en lugar de parchear a ciegas. Lista de cambios:
+[docs/XIAOZHI_INTEGRATION.md](docs/XIAOZHI_INTEGRATION.md).
 
-Consulta [docs/CHIPO_UPDATE.md](docs/CHIPO_UPDATE.md) para actualizar CHIPO subiendo `VERSION` a GitHub.
+## Qué está comprobado
 
-Consulta [docs/CHIPO_WEATHER.md](docs/CHIPO_WEATHER.md) para la pantalla del clima (se abre al preguntar por el
-clima o con un toque; datos de Open-Meteo, ubicación por IP o fija).
+- El script de integración se aplica sin errores sobre XiaoZhi `92d400d` y, ejecutado otra vez, no cambia nada.
+- 28 grupos de pruebas en PC, a 480 × 480, con AddressSanitizer y UBSan (`tests/host/run.sh`, también en GitHub
+  Actions antes de cada compilación).
+- El firmware completo compila con ESP-IDF 6.1 en GitHub Actions.
 
-Qué se ha comprobado:
+## Qué falta por probar
 
-- `scripts/integrate_chipo.py` se aplica sin errores (y repetido, sin cambios) sobre XiaoZhi `92d400d` (`XIAOZHI_REF`).
-- La pantalla del clima (lectura de datos, voz, toque, caché, errores) pasa sus pruebas en PC.
-- La lógica de inclinación y la cara completa pasan sus pruebas en PC con AddressSanitizer y UBSan
-  (`tests/host/run.sh`, también en GitHub Actions antes de cada compilación).
-- El firmware completo se compila con ESP-IDF 6.1 en GitHub Actions.
+Solo es posible con la placa:
 
-Qué falta por confirmar, solo posible con la placa:
-
-- Que el firmware arranca y la cara se ve fluida en la pantalla.
-- Que el acelerómetro responde y que la caída va hacia el lado correcto (ver `CHIPO_TILT_MIRROR_X`).
-- Que el toque abre la pantalla del clima y que la descarga funciona desde tu red.
-
-Cada compilación de Actions guarda un `BUILD_INFO.txt` con el commit exacto de CHIPO y de XiaoZhi usados.
-
-## Qué hace CHIPO hoy
-
-- **Cara expresiva** hecha de ojos y boca luminosos: estados (escucha, piensa, habla, conecta, error, dormido),
-  emociones, parpadeo, y reacciones al giroscopio (inclinar, caerse, asentir, negar, girar, marearse).
-- **Asistente de voz** de XiaoZhi, en español, con «Chipo» como palabra de activación.
-- **Pantalla del clima** (Open-Meteo) al preguntar por el tiempo o con un toque.
-- **Modo DRIVE** para el coche («Chipo, vámonos»): gafas de aviador, escena de carretera y comentarios de copiloto
-  según aceleración, frenada, curvas y baches.
-- **BUDDY**: temporizador, pomodoro, cronómetro, alarma y modo dormir con reloj de siete segmentos; tumbado de lado se convierte en reloj de mesita.
-- **FUN** (AMOLED): pantalla de inicio de neón, lámpara de colores, dados y moneda por voz; halo de los ojos más intenso. Ver [docs/CHIPO_FUN.md](docs/CHIPO_FUN.md).
-- **AJUSTES**: menú táctil en neón (pulsación larga) con volumen, brillo, batería, Wi-Fi, versión y reinicio; indicador de batería, protector de pantalla AMOLED y toques en la cara. Ver [docs/CHIPO_SETTINGS.md](docs/CHIPO_SETTINGS.md).
-- **MASCOTA**: ánimo que sube con tu atención y baja si lo ignoras; "¿cómo estás?", piedra-papel-tijera y adivina el número por voz. Ver [docs/CHIPO_PET.md](docs/CHIPO_PET.md).
-- **RECORDATORIOS**: "recuérdame a las 18:30 sacar al perro" (una vez o a diario), guardados en la memoria del dispositivo; y lectura de sensores de Home Assistant. Ver [docs/CHIPO_REMIND.md](docs/CHIPO_REMIND.md) y [docs/CHIPO_HOME_ASSISTANT.md](docs/CHIPO_HOME_ASSISTANT.md).
-- **AMBIENTE**: lluvia, fuego o ruido suave de fondo por voz (se apaga a los 30 min) y música a través de un reproductor de Home Assistant. Ver [docs/CHIPO_AMBIENT.md](docs/CHIPO_AMBIENT.md).
-- **ANIMACIONES EXTRA**: los ojos siguen tu dedo, corazones y chispas al acariciarlo o decirle "gracias", parpadeo lento de cariño, bostezo con estirón antes de dormir, lágrimas si lo ignoras mucho, rabieta si pierde un juego, Zzz y respiración al dormir, disfraces (gorro de Papá Noel del 1 dic al 6 ene, gafas de sol, bigote) y baile al ritmo del sonido. Ver [docs/CHIPO_ANIMACIONES.md](docs/CHIPO_ANIMACIONES.md).
-- **PANTALLAS**: visualizador de sonido (8 bandas reales), acuario y lámpara de lava, por voz. Ver [docs/CHIPO_ANIMACIONES.md](docs/CHIPO_ANIMACIONES.md).
-- **TOOLS**: franja de hora y temperatura, anillo de pomodoro, nivel, bola 8, pizarra, subtítulos y agitar para dados/moneda. Ver [docs/CHIPO_TOOLS.md](docs/CHIPO_TOOLS.md).
-- **Home Assistant** por voz: luces y escenas (apagado hasta configurar la dirección y el token).
-- **Actualización automática** desde las Releases de GitHub.
-
-Todo lo anterior compila en GitHub Actions y pasa sus pruebas en PC; **nada se ha probado todavía en la placa**
-(llega el 10 de diciembre de 2026).
-
-## Compilar sin instalar nada en Windows
-
-Sigue la [guía paso a paso para compilar con GitHub](docs/BUILD_GITHUB.md). No necesitas PowerShell ni instalar ESP-IDF en tu ordenador.
-
-## Integración con XiaoZhi
-
-Consulta la [guía de integración](docs/XIAOZHI_INTEGRATION.md) y el adaptador de estados en integration/xiaozhi/chipo_state_map.h.
+- Que arranca y la cara se ve fluida en la pantalla de 480 × 480.
+- Micrófonos, altavoz, palabra de activación «Chipo» y volumen de los sonidos.
+- Táctil, botón GPIO18 y sentido de los ejes del QMI8658 (ajustables en `chipo_config.h`).
+- Lectura de batería, consumo y si el AXP2101 apaga la placa con el USB conectado.
+- Clima, Home Assistant y actualizaciones desde tu red.
 
 ## Altavoz
 
-La Waveshare 2.16" trae **altavoz integrado** (confirmado por el soporte de Waveshare, ver [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md)), así que no se usa altavoz externo. El sonido real no se ha probado todavía.
+La 2,16" trae altavoz integrado (confirmado por el soporte de Waveshare), así que no se usa altavoz externo. Ver
+[docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md).

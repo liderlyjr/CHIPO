@@ -32,6 +32,9 @@ Las frases largas no cuentan como órdenes (más de 16 palabras se ignoran), y �
 interpretan como órdenes cuando hay un modo dormir o un sonido activos; en cualquier otro caso contesta el asistente.
 No se activa el modo dormir mientras el modo DRIVE está encendido.
 
+Mientras haya un temporizador, pomodoro, cronómetro o alarma puesta, CHIPO no deja que XiaoZhi lo atenúe ni lo apague
+(ver [HARDWARE_2_16.md](HARDWARE_2_16.md#energía-atenuar-y-apagarse-solo)). Con una alarma puesta conviene dejarlo enchufado.
+
 ## La pantalla
 
 Reloj retro de cuatro dígitos de siete segmentos, dibujado con rectángulos de LVGL (no necesita fuentes). Por debajo
