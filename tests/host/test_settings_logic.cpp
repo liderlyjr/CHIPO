@@ -11,6 +11,7 @@ int main() {
 
     BatteryView b = ClassifyBattery(false, 50, false, true);
     CHECK(b.state == BatteryState::Unknown && b.percent == -1 && b.text == "Sin lectura", "no reading is not invented");
+    CHECK(TiredFaceIntervalMs(BatteryState::Low) == 120000 && TiredFaceIntervalMs(BatteryState::Critical) == 45000 && TiredFaceIntervalMs(BatteryState::Charging) == 0 && TiredFaceIntervalMs(BatteryState::Unknown) == 0 && TiredFaceIntervalMs(BatteryState::Normal) == 0, "tired interval");
     CHECK(ClassifyBattery(true, 150, false, true).percent == -1, "out of range level is not a reading");
     CHECK(ClassifyBattery(true, 82, true, false).state == BatteryState::Charging, "charging");
     CHECK(ClassifyBattery(true, 100, true, false).state == BatteryState::Full, "full");

@@ -20,17 +20,19 @@ struct Source {
 };
 Source g_src[2];  // 0 speaker, 1 microphone
 
-// Hann window table (the audio task must not spend a cos() per sample and band).
-const float* HannTable() {
-    static float table[kWindow];
-    static bool ready = false;
-    if (!ready) {
+// Hann window table (the audio task must not spend a cos() per sample and band). Built once, thread-safe:
+// the microphone task and the speaker task both call this.
+struct HannWindow {
+    float v[kWindow];
+    HannWindow() {
         for (int i = 0; i < kWindow; ++i) {
-            table[i] = 0.5f - 0.5f * std::cos(2.0f * 3.14159265f * static_cast<float>(i) / static_cast<float>(kWindow - 1));
+            v[i] = 0.5f - 0.5f * std::cos(2.0f * 3.14159265f * static_cast<float>(i) / static_cast<float>(kWindow - 1));
         }
-        ready = true;
     }
-    return table;
+};
+const float* HannTable() {
+    static const HannWindow table;  // C++ guarantees one initialisation even with two threads
+    return table.v;
 }
 
 float Map(float amplitude, float floor_db, float ceil_db) {

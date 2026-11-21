@@ -71,6 +71,8 @@ public:
 
     using SampleObserver = std::function<void(const ImuSample& sample, uint32_t now_ms)>;
     void SetSampleObserver(SampleObserver observer) { sample_observer_ = std::move(observer); }
+    // A second, independent listener (CHIPO TOOLS: shake, level). Unlike the one above, the car mode never clears it.
+    void SetExtraSampleObserver(SampleObserver observer) { extra_sample_observer_ = std::move(observer); }
     // Sunglasses slide down over the eyes (and up again when switched off). While the car mode is
     // on, the tilt reactions (fall, dizzy, shake, spin) are paused: the road would trigger them.
     void SetDriveMode(bool on);
@@ -301,6 +303,7 @@ private:
 
     // CHIPO DRIVE.
     SampleObserver sample_observer_;
+    SampleObserver extra_sample_observer_;
     DeskClockObserver desk_clock_observer_;
     bool side_lying_ = false;
     bool desk_clock_ = false;
@@ -342,8 +345,8 @@ private:
     // Decorations and small behaviours (see chipo_fx_logic.h).
     FxEngine fx_;
     ChipoFx fx_view_;
-    int fx_w_ = 368, fx_h_ = 448;
-    float fs_ = 1.0f;  // face scale: bigger on wide screens: about 58 % of the screen width (1.35 at 368 px, 1.76 at 480 px)
+    int fx_w_ = 480, fx_h_ = 480;
+    float fs_ = 1.0f;  // face scale: bigger on wide screens: about 58 % of the screen width (1.76 on the 480 px panel)
     int S(float v) const { return static_cast<int>(v * fs_ + (v >= 0 ? 0.5f : -0.5f)); }
     void FaceCentre(float* x, float* y) const;
     float gaze_nx_ = 0, gaze_ny_ = 0;     // finger position, -1..1

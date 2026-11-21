@@ -5,7 +5,7 @@
 
 /**
  * CHIPO SCENES logic: voice commands and the little simulations behind the screens (bars, fish, lava blobs).
- * Pure code, no LVGL: unit tested on a PC. Screen size is 368 x 448 but everything is given the size explicitly.
+ * Pure code, no LVGL: unit tested on a PC. Everything is given the screen size explicitly (480 x 480 on the device).
  */
 enum class SceneKind : uint8_t { None, Visualizer, Aquarium, Lava };
 

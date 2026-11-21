@@ -24,7 +24,7 @@ No tienes que escribir comandos ni instalar ESP-IDF. GitHub descargará la base 
 
 1. Actualiza la página **Actions** si hace falta.
 2. Abre la ejecución más reciente.
-3. Espera a que el trabajo **Compile CHIPO for Waveshare** termine.
+3. Espera a que el trabajo **Compile CHIPO for Waveshare ESP32-S3 Touch AMOLED 2.16 (480x480)** termine.
 4. Si aparece un círculo verde con una marca, la compilación terminó correctamente.
 5. Si aparece una X roja, la compilación falló: no descargues ni grabes ningún archivo. Comparte una captura del error o el enlace de esa ejecución para corregirlo.
 
@@ -36,7 +36,7 @@ Cuando la ejecución esté en verde:
 
 1. Abre la ejecución completada.
 2. Baja hasta **Artifacts**, al final de la página.
-3. Descarga **CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2**.
+3. Descarga **CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16**.
 4. Windows descargará un ZIP.
 5. Descomprime el ZIP en una carpeta fácil de encontrar, por ejemplo el Escritorio.
 
@@ -46,9 +46,26 @@ El ZIP contiene los binarios generados y los archivos de argumentos de grabació
 
 Usaremos https://espressif.github.io/esptool-js/
 
-Antes de grabar, hay que comprobar qué archivos BIN produjo la compilación y sus direcciones de memoria. No elijas direcciones al azar ni grabes solo un BIN sin revisar el mapa de grabación.
+Las direcciones están en el archivo `flash_args` del ZIP: usa siempre las de **tu** compilación. Con la tabla de
+particiones actual de XiaoZhi (`partitions/v2/16m.csv`) son estas:
 
-Conecta la Waveshare al PC mediante un cable USB que transmita datos. En la página seleccionaremos el puerto serie y prepararemos la grabación usando los archivos y offsets exactos que generó la compilación. Haremos esta parte juntos cuando tengas el ZIP.
+| Archivo | Dirección |
+|---|---|
+| `bootloader.bin` | `0x0` |
+| `partition-table.bin` | `0x8000` |
+| `ota_data_initial.bin` | `0xd000` |
+| `xiaozhi.bin` | `0x20000` |
+| `generated_assets.bin` | `0x800000` |
+
+1. Conecta la Waveshare al PC con un cable USB que transmita datos.
+2. En ESPTool-JS pulsa **Connect** y elige el puerto de la placa.
+3. Añade los cinco archivos con sus direcciones (comprueba que coinciden con `flash_args`).
+4. Pulsa **Program** y espera a que termine. Después desconecta y vuelve a conectar el USB.
+
+Si la placa no entra en modo de grabación, mantén pulsado **BOOT** mientras la conectas.
+
+Solo hace falta grabar así la primera vez: después CHIPO se actualiza solo desde las Releases (ver
+[CHIPO_UPDATE.md](CHIPO_UPDATE.md)).
 
 ## Qué significa el resultado
 
@@ -58,4 +75,4 @@ Conecta la Waveshare al PC mediante un cable USB que transmita datos. En la pág
 
 ## Importante
 
-Esta compilación es para **Waveshare ESP32-S3 Touch AMOLED 1.8 V2**. No uses binarios de otra revisión de placa. La compilación todavía debe superar una ejecución real en GitHub y una prueba en la placa antes de considerar CHIPO OS validado.
+Esta compilación es para **Waveshare ESP32-S3 Touch AMOLED 2.16**. No uses binarios de otra placa. La compilación todavía debe superar una ejecución real en GitHub y una prueba en la placa antes de considerar CHIPO OS validado.

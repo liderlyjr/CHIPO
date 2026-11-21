@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       xiaozhi_ref:
-        description: "XiaoZhi branch or tag to build on (empty = default branch)"
+        description: "XiaoZhi branch, tag or commit to build on (empty = the pinned commit)"
         required: false
         default: ""
   push:
@@ -17,6 +17,7 @@ on:
       - "docs/**"
       - "README.md"
       - "VERSION"
+      - "XIAOZHI_REF"
       - ".github/workflows/build-chipo.yml"
 
 permissions:
@@ -45,7 +46,7 @@ jobs:
         run: LVGL_DIR="$RUNNER_TEMP/lvgl" tests/host/run.sh
 
   build:
-    name: Compile CHIPO for Waveshare
+    name: Compile CHIPO for Waveshare ESP32-S3 Touch AMOLED 2.16 (480x480)
     needs: host-tests
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -57,13 +58,17 @@ jobs:
 
       - name: Get XiaoZhi firmware base
         env:
-          XIAOZHI_REF: ${{ github.event.inputs.xiaozhi_ref }}
+          INPUT_REF: ${{ github.event.inputs.xiaozhi_ref }}
         run: |
-          if [ -n "$XIAOZHI_REF" ]; then
-            git clone --depth 1 --branch "$XIAOZHI_REF" https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
-          else
-            git clone --depth 1 https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
-          fi
+          # Pinned XiaoZhi commit (file XIAOZHI_REF): every build, and every Release CHIPO installs by itself, uses
+          # the exact base the CHIPO patches were checked against. To move to a newer XiaoZhi: run this workflow by
+          # hand with xiaozhi_ref (a branch, tag or commit), check it, then change XIAOZHI_REF.
+          REF="${INPUT_REF:-$(head -n1 XIAOZHI_REF | tr -d '[:space:]')}"
+          test -n "$REF"
+          git init -q build/xiaozhi-esp32
+          git -C build/xiaozhi-esp32 remote add origin https://github.com/78/xiaozhi-esp32.git
+          git -C build/xiaozhi-esp32 fetch -q --depth 1 origin "$REF"
+          git -C build/xiaozhi-esp32 checkout -q FETCH_HEAD
 
       - name: Record exact versions used
         run: |
@@ -75,68 +80,6 @@ jobs:
 
       - name: Apply CHIPO integration
         run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32"
-
-      - name: Show ESP-IDF version
-        run: |
-          . "$IDF_PATH/export.sh"
-          idf.py --version
-
-      - name: Compile for Waveshare ESP32-S3 AMOLED 1.8 V2
-        working-directory: build/xiaozhi-esp32
-        run: |
-          . "$IDF_PATH/export.sh"
-          idf.py set-target esp32s3
-          idf.py build
-
-      - name: Upload firmware files
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2
-          path: |
-            build/xiaozhi-esp32/build/bootloader/bootloader.bin
-            build/xiaozhi-esp32/build/partition_table/partition-table.bin
-            build/xiaozhi-esp32/build/ota_data_initial.bin
-            build/xiaozhi-esp32/build/xiaozhi.bin
-            build/xiaozhi-esp32/build/generated_assets.bin
-            build/xiaozhi-esp32/build/flash_args
-            build/xiaozhi-esp32/build/flasher_args.json
-            build/xiaozhi-esp32/build/flash_project_args
-            build/BUILD_INFO.txt
-          if-no-files-found: error
-          compression-level: 6
-
-  build-2-16:
-    name: Compile CHIPO for Waveshare 2.16 (480x480)
-    needs: host-tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    container:
-      image: espressif/idf:v6.1
-    steps:
-      - name: Checkout CHIPO
-        uses: actions/checkout@v4
-
-      - name: Get XiaoZhi firmware base
-        env:
-          XIAOZHI_REF: ${{ github.event.inputs.xiaozhi_ref }}
-        run: |
-          if [ -n "$XIAOZHI_REF" ]; then
-            git clone --depth 1 --branch "$XIAOZHI_REF" https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
-          else
-            git clone --depth 1 https://github.com/78/xiaozhi-esp32.git build/xiaozhi-esp32
-          fi
-
-      - name: Record exact versions used
-        run: |
-          {
-            echo "CHIPO_COMMIT=$GITHUB_SHA"
-            echo "CHIPO_VERSION=$(grep '^CHIPO_OS_VERSION=' VERSION | cut -d= -f2)"
-            echo "XIAOZHI_COMMIT=$(git -C build/xiaozhi-esp32 rev-parse HEAD)"
-          } | tee build/BUILD_INFO.txt
-
-      - name: Apply CHIPO integration
-        run: python scripts/integrate_chipo.py "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/build/xiaozhi-esp32" --board=2.16
 
       - name: Show ESP-IDF version
         run: |
@@ -169,7 +112,7 @@ jobs:
           compression-level: 6
 
   release:
-    name: Publish GitHub Release (CHIPO updates itself from it)
+    name: Publish GitHub Release for the 2.16 (CHIPO updates itself from it)
     needs: build
     # Only a merge to main publishes. Bumping CHIPO_OS_VERSION in VERSION is what creates a new Release.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -184,7 +127,7 @@ jobs:
       - name: Download the firmware built above
         uses: actions/download-artifact@v4
         with:
-          name: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2
+          name: CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16
           path: dist
 
       - name: Create the Release if this version has none yet
@@ -202,9 +145,11 @@ jobs:
           cd dist
           BIN="$(find . -name xiaozhi.bin | head -n1)"
           test -n "$BIN" || { echo "xiaozhi.bin missing from the artifact"; exit 1; }
-          # The stable asset name the device downloads.
-          cp "$BIN" chipo-os.bin
-          FILES=(chipo-os.bin)
+          # The asset name the device downloads, read from the firmware's own setting so they can never differ.
+          ASSET="$(sed -n 's/^#define CHIPO_UPDATE_ASSET "\([^"]*\)".*/\1/p' ../components/chipo_update/include/chipo_update_config.h)"
+          test -n "$ASSET" || { echo "CHIPO_UPDATE_ASSET not found"; exit 1; }
+          cp "$BIN" "$ASSET"
+          FILES=("$ASSET")
           for f in bootloader.bin partition-table.bin ota_data_initial.bin generated_assets.bin; do
             p="$(find . -name "$f" | head -n1)"
             [ -n "$p" ] && FILES+=("$p")
@@ -212,4 +157,4 @@ jobs:
           gh release create "$TAG" "${FILES[@]}" \
             --target "$GITHUB_SHA" \
             --title "CHIPO OS $VERSION" \
-            --notes "Firmware CHIPO OS $VERSION. CHIPO installs this by itself when it finds it (see docs/CHIPO_UPDATE.md). First flash on a new board: use all the files, as in the README. Not tested on a board by the build."
+            --notes "Firmware CHIPO OS $VERSION for the Waveshare ESP32-S3 Touch AMOLED 2.16 (480x480). CHIPO installs this by itself when it finds it (see docs/CHIPO_UPDATE.md). First flash on a new board: use all the files, as in the README. Not tested on a board by the build."

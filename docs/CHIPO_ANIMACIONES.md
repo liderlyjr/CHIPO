@@ -2,7 +2,7 @@
 
 Todo esto es **código probado en PC y compilado en GitHub**. **Nada se ha probado todavía en la placa**: el aspecto real en el
 AMOLED, la fluidez, el sonido y el consumo se verán cuando llegue (10 dic 2026). Las imágenes de `docs/img/` son capturas 1:1
-(368 × 448) renderizadas en el PC con el mismo LVGL, no fotos de la pantalla.
+renderizadas en el PC con el mismo LVGL, no fotos de la pantalla.
 
 ![A](img/chipo_anim_a.png)
 ![B](img/chipo_anim_b.png)

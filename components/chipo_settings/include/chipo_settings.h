@@ -29,6 +29,7 @@ public:
         std::function<void()> restart;
         std::function<void(const char*)> notify;
         std::function<bool(const char*)> play_clip;
+        std::function<void(const char* emotion, uint32_t ms)> emotion;  // low battery: tired look
         std::function<void(TapKind)> react;            // the face reacts to a poke or a tickle
         std::function<void(int dx, int dy)> shift;     // burn-in drift of the face
         std::function<void(float nx, float ny, bool down)> gaze;  // finger position -1..1 (down=false: finger lifted)
@@ -108,6 +109,8 @@ private:
     int volume_ = 70, brightness_ = 80;
     uint32_t last_activity_ms_ = 0, opened_ms_ = 0, restart_armed_until_ms_ = 0;
     uint32_t last_battery_ms_ = 0;
+    uint32_t last_tired_ms_ = 0;
+    bool tired_seen_ = false;
     bool dimmed_ = false;
     int dim_percent_ = 100, user_brightness_ = 80;
     int shift_x_ = 0, shift_y_ = 0;

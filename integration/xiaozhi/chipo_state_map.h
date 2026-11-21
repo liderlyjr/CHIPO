@@ -11,6 +11,7 @@ inline ChipoFace::State ChipoStateFromXiaoZhi(DeviceState state) {
     case kDeviceStateStarting:
     case kDeviceStateActivating:
     case kDeviceStateWifiConfiguring:
+    case kDeviceStateUpgrading:  // flashing an update: look busy, never idle (nobody should unplug it now)
         return ChipoFace::State::Connecting;
 
     case kDeviceStateListening:
@@ -26,7 +27,6 @@ inline ChipoFace::State ChipoStateFromXiaoZhi(DeviceState state) {
 
     case kDeviceStateIdle:
     case kDeviceStateUnknown:
-    case kDeviceStateUpgrading:
     default:
         return ChipoFace::State::Idle;
     }

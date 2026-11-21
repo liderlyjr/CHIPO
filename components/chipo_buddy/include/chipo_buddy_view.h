@@ -72,7 +72,7 @@ private:
     lv_obj_t* footer_ = nullptr;
     bool shown_ = false;
     int rotation_ = 0;
-    int screen_w_ = 368, screen_h_ = 448;
+    int screen_w_ = 480, screen_h_ = 480;
     BuddyScreen applied_;
     bool have_applied_ = false;
     std::string caption_text_, footer_text_;

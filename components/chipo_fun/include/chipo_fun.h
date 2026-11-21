@@ -43,6 +43,8 @@ public:
     // True when CHIPO answered with a sound, so the server's spoken reply must be dropped.
     bool OnVoiceText(const char* text);
     void OnTouch();  // the overlay was touched (also reachable from tests)
+    // CHIPO was shaken: with the dice or the coin on screen it throws again. True when it did.
+    bool OnShake(uint32_t now_ms);
 
     enum class Mode : uint8_t { Off, Boot, Lamp, Dice, Coin };
     Mode mode() const { return mode_; }
@@ -102,7 +104,7 @@ private:
     int eye_changes_ = 0;
     uint32_t last_oops_ms_ = 0;
     bool had_oops_ = false;
-    int w_ = 368, h_ = 448;  // screen size, kept from Start (object sizes read 0 before the first layout)
+    int w_ = 480, h_ = 480;  // screen size, kept from Start (object sizes read 0 before the first layout)
     lv_timer_t* timer_ = nullptr;
     lv_obj_t* root_ = nullptr;
     lv_obj_t* boot_ = nullptr;

@@ -8,7 +8,8 @@
 #define CHIPO_UPDATE_REPO "liderlyjr/CHIPO"  // owner/name; only this repository is trusted
 #endif
 #ifndef CHIPO_UPDATE_ASSET
-#define CHIPO_UPDATE_ASSET "chipo-os.bin"  // file attached to every Release (the app image)
+#define CHIPO_UPDATE_ASSET "chipo-os-2.16.bin"  // app image for the 2.16 board attached to every Release
+// (the board is in the name so a device can never download an image built for another board)
 #endif
 #ifndef CHIPO_UPDATE_AUTO_INSTALL
 #define CHIPO_UPDATE_AUTO_INSTALL 1  // 1 = install by itself when CHIPO is idle, 0 = only log it
@@ -18,6 +19,9 @@
 #endif
 #ifndef CHIPO_UPDATE_INTERVAL_MS
 #define CHIPO_UPDATE_INTERVAL_MS (6UL * 60UL * 60UL * 1000UL)  // then every 6 hours
+#endif
+#ifndef CHIPO_UPDATE_RETRY_MS
+#define CHIPO_UPDATE_RETRY_MS (15UL * 60UL * 1000UL)  // GitHub could not be asked (no Wi-Fi yet...): try again sooner
 #endif
 #ifndef CHIPO_UPDATE_IDLE_WAIT_MS
 #define CHIPO_UPDATE_IDLE_WAIT_MS (10UL * 60UL * 1000UL)  // wait up to 10 min for CHIPO to be idle

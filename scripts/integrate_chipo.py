@@ -5,15 +5,15 @@ import re
 import shutil
 import sys
 
-BOARDS = {
-    "1.8-v2": ("CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2=y", "Waveshare ESP32-S3 Touch AMOLED 1.8 V2"),
-    "2.16": ("CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16=y", "Waveshare ESP32-S3 Touch AMOLED 2.16"),
-}
+# CHIPO OS targets one board only: the Waveshare ESP32-S3 Touch AMOLED 2.16 (480 x 480).
+BOARD_SYMBOL = "CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16=y"
+BOARD_NAME = "Waveshare ESP32-S3 Touch AMOLED 2.16"
+# Symbols of boards CHIPO used to support: removed from sdkconfig.defaults if an older run left them there.
+OLD_BOARD_SYMBOLS = {"CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2=y"}
 args = [a for a in sys.argv[1:] if not a.startswith("--board=")]
 board_args = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--board=")]
-board = board_args[0] if board_args else "1.8-v2"
-if len(args) != 2 or board not in BOARDS:
-    raise SystemExit("Usage: integrate_chipo.py <CHIPO repo root> <xiaozhi checkout> [--board=1.8-v2|2.16]")
+if len(args) != 2 or any(b != "2.16" for b in board_args):
+    raise SystemExit("Usage: integrate_chipo.py <CHIPO repo root> <xiaozhi checkout>  (only the 2.16 board is supported)")
 chipo = Path(args[0]).resolve()
 xiaozhi = Path(args[1]).resolve()
 main = xiaozhi / "main"
@@ -31,7 +31,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings", "chipo_tools"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -50,6 +50,24 @@ if not chipo_version or not re.fullmatch(r"\d+\.\d+\.\d+", chipo_version):
     f'#define CHIPO_OS_VERSION "{chipo_version}"\n',
     encoding="utf-8", newline="\n")
 print(f"[generated] chipo_version.h = {chipo_version}")
+
+# std::atomic for chipo_keep_on_ (read by XiaoZhi's power-save timer on the esp_timer task).
+replace_once(
+    main / "application.h",
+    "#include <deque>\n",
+    "#include <atomic>\n#include <deque>\n",
+    "Application atomic header include",
+)
+# XiaoZhi's power-save timer asks this before dimming the screen and, 5 min later, powering the board off.
+replace_once(
+    main / "application.cc",
+    "bool Application::CanEnterSleepMode() {\n    if (GetDeviceState() != kDeviceStateIdle) {\n",
+    "bool Application::CanEnterSleepMode() {\n"
+    "    // CHIPO: a timer, pomodoro, alarm, reminder, clock or screen is pending, or the board is on USB power.\n"
+    "    if (chipo_keep_on_.load()) {\n        return false;\n    }\n"
+    "    if (GetDeviceState() != kDeviceStateIdle) {\n",
+    "Power save: CHIPO keeps the board on while something is pending",
+)
 
 adapter_src = chipo / "integration" / "xiaozhi" / "chipo_state_map.h"
 shutil.copy2(adapter_src, main / "chipo_state_map.h")
@@ -200,11 +218,12 @@ replace_once(
                     }
                     // CHIPO BUDDY (timers, alarm, bedtime), FUN (lamp, dice, coin) and Home Assistant: same rule, a sound answers
                     // and the server's spoken reply to that sentence is dropped.
-                    if ((chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_ || chipo_remind_ || chipo_ambient_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                    if ((chipo_tools_ || chipo_buddy_ || chipo_ha_ || chipo_fun_ || chipo_pet_ || chipo_remind_ || chipo_ambient_) && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
                         DisplayLockGuard lock(display);
                         if (lock) {
                             bool handled = false;
-                            if (chipo_remind_) handled = chipo_remind_->OnVoiceText(message.c_str());  // "recuérdame a las 18:30 ..."
+                            if (chipo_tools_) handled = chipo_tools_->OnVoiceText(message.c_str());  // "nivel", "bola mágica", "dibuja", "subtítulos"
+                            if (!handled && chipo_remind_) handled = chipo_remind_->OnVoiceText(message.c_str());  // "recuérdame a las 18:30 ..."
                             if (!handled && chipo_buddy_) handled = chipo_buddy_->OnVoiceText(message.c_str());
                             if (!handled && chipo_fun_) handled = chipo_fun_->OnVoiceText(message.c_str());
                             if (chipo_pet_) {  // mood and games: every sentence counts as attention
@@ -358,13 +377,13 @@ replace_once(
 replace_once(
     app_h,
     '#include "chipo_weather_controller.h"\n',
-    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_remind.h"\n#include "chipo_ambient.h"\n#include "chipo_scenes.h"\n#include "chipo_settings.h"\n#include "chipo_version.h"\n',
+    '#include "chipo_weather_controller.h"\n#include "chipo_drive.h"\n#include "chipo_buddy.h"\n#include "chipo_ha.h"\n#include "chipo_fun.h"\n#include "chipo_pet.h"\n#include "chipo_remind.h"\n#include "chipo_ambient.h"\n#include "chipo_scenes.h"\n#include "chipo_settings.h"\n#include "chipo_tools.h"\n#include "chipo_version.h"\n',
     "Application drive header include",
 )
 replace_once(
     app_h,
     "    std::unique_ptr<ChipoWeather> chipo_weather_;\n",
-    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoRemind> chipo_remind_;\n    std::unique_ptr<ChipoAmbient> chipo_ambient_;\n    std::unique_ptr<ChipoScenes> chipo_scenes_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n",
+    "    std::unique_ptr<ChipoWeather> chipo_weather_;\n    std::unique_ptr<ChipoDrive> chipo_drive_;\n    std::unique_ptr<ChipoBuddy> chipo_buddy_;\n    std::unique_ptr<ChipoHa> chipo_ha_;\n    std::unique_ptr<ChipoFun> chipo_fun_;\n    std::unique_ptr<ChipoPet> chipo_pet_;\n    std::unique_ptr<ChipoRemind> chipo_remind_;\n    std::unique_ptr<ChipoAmbient> chipo_ambient_;\n    std::unique_ptr<ChipoScenes> chipo_scenes_;\n    std::unique_ptr<ChipoSettings> chipo_settings_;\n    std::unique_ptr<ChipoTools> chipo_tools_;\n    int64_t chipo_drive_silence_until_us_ = 0;\n    std::atomic<bool> chipo_keep_on_{false};  // CHIPO has something going on: no dimming, no power-off\n",
     "Application drive members",
 )
 replace_once(
@@ -684,6 +703,99 @@ replace_once(
         }
     }
 
+    // CHIPO TOOLS: time and temperature around the face, pomodoro ring, spirit level, magic 8-ball, drawing canvas,
+    // subtitles, and "shake to throw again". Created before SETTINGS so the settings menu is drawn above it.
+    {
+        DisplayLockGuard lock(display);
+        if (lock) {
+            chipo_tools_ = std::make_unique<ChipoTools>();
+            ChipoTools::Hooks hooks;
+            // Same rule as BUDDY: XiaoZhi stores the local time as system time; a year near 1970 means "not set yet".
+            hooks.wall_time = [](int* hour, int* minute) {
+                struct timeval tv;
+                gettimeofday(&tv, nullptr);
+                if (tv.tv_sec < 1700000000) return false;
+                struct tm tm_now;
+                gmtime_r(&tv.tv_sec, &tm_now);
+                *hour = tm_now.tm_hour;
+                *minute = tm_now.tm_min;
+                return true;
+            };
+            hooks.temperature = [this](int* temp_c) {
+                WeatherData data;
+                if (!chipo_weather_ || !chipo_weather_->Latest(&data, 3u * 60u * 60u * 1000u)) return false;
+                *temp_c = data.temp;
+                return true;
+            };
+            hooks.refresh_weather = [this]() {
+                if (chipo_weather_ && GetDeviceState() == kDeviceStateIdle) chipo_weather_->Prefetch();
+            };
+            hooks.pomodoro = [this](float* remaining, bool* work) {
+                return chipo_buddy_ && chipo_buddy_->PomodoroProgress(remaining, work);
+            };
+            hooks.face_calm = [this]() {
+                if (GetDeviceState() != kDeviceStateIdle || !chipo_face_) return false;
+                const auto info = chipo_face_->Debug();
+                return info.shown_state == ChipoFace::State::Idle && info.mood == ChipoFace::Mood::Normal &&
+                       info.emotion == ChipoFace::Emotion::None && !info.fell && !info.drive_mode && !info.dancing;
+            };
+            hooks.other_screen = [this]() {
+                return (chipo_weather_ && chipo_weather_->IsShown()) || (chipo_fun_ && chipo_fun_->mode() != ChipoFun::Mode::Off) ||
+                       (chipo_buddy_ && (chipo_buddy_->screen_shown() || chipo_buddy_->bedtime())) ||
+                       (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
+            };
+            hooks.emotion = [this](const char* name, uint32_t ms) {
+                if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
+            };
+            hooks.play_clip = [this](const char* id) {
+                std::string_view clip = ChipoDriveClip(id);
+                if (clip.empty()) return false;
+                Schedule([this, clip]() { audio_service_.PlaySound(clip); });
+                return true;
+            };
+            hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
+            hooks.shake_other = [this](uint32_t now_ms) { return chipo_fun_ && chipo_fun_->OnShake(now_ms); };
+            // The display's own text font has the Spanish accents; without it CHIPO TOOLS folds them to plain letters.
+            hooks.text_font = [display]() -> const lv_font_t* {
+                Theme* theme = display->GetTheme();
+                if (!theme) return nullptr;
+                auto font = theme->GetTextFont();
+                return font ? font->font() : nullptr;
+            };
+            hooks.load_flag = [](const char* key, bool def) {
+                Settings settings("chipo", false);
+                return settings.GetBool(key, def);
+            };
+            hooks.save_flag = [](const char* key, bool value) {
+                Settings settings("chipo", true);
+                settings.SetBool(key, value);
+            };
+            if (!chipo_tools_->Start(lv_screen_active(), std::move(hooks))) {
+                chipo_tools_.reset();
+                ESP_LOGE(TAG, "Failed to initialize CHIPO Tools");
+            } else {
+#ifdef CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16  // always true: CHIPO only builds for the 2.16
+                // Waveshare documents GPIO18 on the 2.16" as a user key (10k pull-up, pressed = GND, "custom functions");
+                // XiaoZhi leaves it unused. One click cycles the tools. Lives as long as the firmware.
+                static Button* chipo_key = new Button(GPIO_NUM_18);
+                // The button callback runs in the esp_timer task: never wait for the display lock there.
+                chipo_key->OnClick([this]() {
+                    Schedule([this]() {
+                        DisplayLockGuard key_lock(Board::GetInstance().GetDisplay());
+                        if (key_lock && chipo_tools_) chipo_tools_->OnKey();
+                    });
+                });
+#endif
+            }
+            if (chipo_tools_ && chipo_face_) {
+                // Shaking (accelerometer): the face keeps the car mode's own listener, this one is separate.
+                chipo_face_->SetExtraSampleObserver([this](const ImuSample& sample, uint32_t now_ms) {
+                    if (chipo_tools_) chipo_tools_->OnSample(sample, now_ms);
+                });
+            }
+        }
+    }
+
     // CHIPO SETTINGS (last, so it is drawn above everything): long-press menu, battery, screen saver,
     // burn-in drift of the face and touch reactions of the face.
     {
@@ -740,9 +852,11 @@ replace_once(
             };
             auto overlay = [this]() {
                 return (chipo_weather_ && chipo_weather_->IsShown()) || (chipo_fun_ && chipo_fun_->mode() != ChipoFun::Mode::Off) ||
-                       (chipo_buddy_ && chipo_buddy_->screen_shown()) || (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
+                       (chipo_buddy_ && chipo_buddy_->screen_shown()) || (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active()) ||
+                       (chipo_tools_ && chipo_tools_->screen_shown());
             };
             hooks.overlay_active = overlay;
+            hooks.emotion = [this](const char* name, uint32_t ms) { if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms); };
             hooks.keep_awake = [this, overlay]() { return GetDeviceState() != kDeviceStateIdle || overlay(); };
             if (!chipo_settings_->Start(lv_screen_active(), std::move(hooks), CHIPO_OS_VERSION)) {
                 chipo_settings_.reset();
@@ -751,6 +865,38 @@ replace_once(
                 // The weather opens on a tap anywhere except on the face (which reacts) and over other screens.
                 chipo_weather_->SetTapBlocker([this](int y) { return chipo_settings_ && chipo_settings_->BlocksWeatherTap(y); });
             }
+            // CHIPO keeps the board awake. XiaoZhi's power-save timer (2.16 board code) dims the screen after 60 s and
+            // POWERS THE BOARD OFF after 5 min without a conversation; a timer, a pomodoro, an alarm, a reminder or the
+            // bedside clock would never ring. Once a second (LVGL task) CHIPO works out whether it has anything going
+            // on; CanEnterSleepMode() (esp_timer task) reads the flag. On USB power CHIPO always stays on.
+            lv_timer_create([](lv_timer_t* t) {
+                auto* app = static_cast<Application*>(lv_timer_get_user_data(t));
+                static uint32_t last_power_check_ms = 0;
+                static bool external_power = false;
+                const uint32_t now = lv_tick_get();
+                if (last_power_check_ms == 0 || now - last_power_check_ms >= 10000) {
+                    last_power_check_ms = now ? now : 1;
+                    int level = 0;
+                    bool charging = false, discharging = false;
+                    // No reading (no battery gauge): treat it as plugged in, never power off on a guess.
+                    external_power = !Board::GetInstance().GetBatteryLevel(level, charging, discharging) || charging || !discharging;
+                }
+                bool busy = external_power;
+                if (app->chipo_buddy_) {
+                    const auto& e = app->chipo_buddy_->engine();
+                    busy = busy || e.timer_active() || e.pomodoro_phase() != PomodoroPhase::Off || e.stopwatch_running() ||
+                           e.alarm_set() || app->chipo_buddy_->ringing() || app->chipo_buddy_->bedtime() ||
+                           app->chipo_buddy_->desk_clock() || app->chipo_buddy_->screen_shown();
+                }
+                if (app->chipo_remind_) busy = busy || !app->chipo_remind_->store().items().empty() || app->chipo_remind_->ringing();
+                if (app->chipo_ambient_) busy = busy || app->chipo_ambient_->playing();
+                if (app->chipo_drive_) busy = busy || app->chipo_drive_->active();
+                if (app->chipo_weather_) busy = busy || app->chipo_weather_->IsShown();
+                if (app->chipo_scenes_) busy = busy || app->chipo_scenes_->screen_shown();
+                if (app->chipo_fun_) busy = busy || app->chipo_fun_->mode() != ChipoFun::Mode::Off;
+                if (app->chipo_tools_) busy = busy || app->chipo_tools_->screen_shown();
+                app->chipo_keep_on_.store(busy);
+            }, 1000, this);
         }
     }
 """,
@@ -779,6 +925,44 @@ replace_once(
     "                        chipo_update\n",
     "                        chipo_update\n                        chipo_drive\n                        chipo_buddy\n                        chipo_ha\n                        chipo_fun\n                        chipo_pet\n                        chipo_remind\n                        chipo_ambient\n                        chipo_scenes\n                        chipo_settings\n",
     "Link chipo_drive component",
+)
+
+# --- CHIPO TOOLS: time/weather strip, pomodoro ring, level, magic 8-ball, canvas, subtitles, shaking -------------------
+replace_once(
+    cmake,
+    "                        chipo_settings\n",
+    "                        chipo_settings\n                        chipo_tools\n",
+    "Link chipo_tools component",
+)
+replace_once(
+    app_cc,
+    '#include "settings.h"\n',
+    '#include "settings.h"\n#include "lvgl_font.h"\n',
+    "Application font header include (subtitles use the display's own text font)",
+)
+replace_once(
+    app_cc,
+    '#include "lvgl_font.h"\n',
+    '#include "lvgl_font.h"\n#include "button.h"\n',
+    "Application button header include (user key on the 2.16\")",
+)
+replace_once(
+    app_cc,
+    """                    Schedule([display, message = std::string(text->valuestring),
+                              glyphs = std::move(glyphs), bpp]() {
+                        display->AddTextGlyphs(glyphs, bpp);
+                        display->SetChatMessage("assistant", message.c_str());
+""",
+    """                    Schedule([this, display, message = std::string(text->valuestring),
+                              glyphs = std::move(glyphs), bpp]() {
+                        display->AddTextGlyphs(glyphs, bpp);
+                        display->SetChatMessage("assistant", message.c_str());
+                        if (chipo_tools_) {  // subtitles (only when the owner turned them on)
+                            DisplayLockGuard lock(display);
+                            if (lock) chipo_tools_->ShowSubtitle(message.c_str());
+                        }
+""",
+    "Subtitles: the sentence CHIPO is saying",
 )
 
 ota_cc = main / "ota.cc"
@@ -812,7 +996,10 @@ else:
 defaults = xiaozhi / "sdkconfig.defaults"
 defaults_text = defaults.read_text(encoding="utf-8") if defaults.exists() else ""
 settings = [
-    BOARDS[board][0],
+    BOARD_SYMBOL,
+    # Spanish device language: XiaoZhi's on-screen texts and system voice prompts, and the Accept-Language
+    # header sent to the server (ota.cc). Without it the device is in English (the Kconfig default).
+    "CONFIG_LANGUAGE_ES_ES=y",
     "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
     # Wake word "Chipo": custom wake word through ESP-SR MultiNet (English model, written
     # phonetically). Needs tuning on the real board; see docs/WAKE_WORD.md.
@@ -825,20 +1012,19 @@ settings = [
     # Fonts for the weather screen (LVGL built-in Montserrat, ASCII).
     "CONFIG_LV_FONT_MONTSERRAT_20=y",
     "CONFIG_LV_FONT_MONTSERRAT_24=y",
+    "CONFIG_LV_FONT_MONTSERRAT_32=y",  # time and temperature strip, level, 8-ball
+    "CONFIG_LV_USE_CANVAS=y",          # drawing canvas
 ]
-# Only one board may be selected: drop the symbols of the other boards if an earlier run (with another
-# --board) left them in sdkconfig.defaults.
-other_boards = {cfg for key, (cfg, _) in BOARDS.items() if key != board}
-kept_lines = [ln for ln in defaults_text.splitlines() if ln.strip() not in other_boards]
+kept_lines = [ln for ln in defaults_text.splitlines() if ln.strip() not in OLD_BOARD_SYMBOLS]
 if len(kept_lines) != len(defaults_text.splitlines()):
     defaults_text = "\n".join(kept_lines) + "\n"
     defaults.write_text(defaults_text, encoding="utf-8", newline="\n")
-    print("[patched] removed the board symbol of another board from sdkconfig.defaults")
+    print("[patched] removed the symbol of a board CHIPO no longer supports from sdkconfig.defaults")
 missing = [line for line in settings if line not in defaults_text]
 if missing:
     with defaults.open("a", encoding="utf-8", newline="\n") as f:
         if defaults_text and not defaults_text.endswith("\n"):
             f.write("\n")
         f.write("\n".join(missing) + "\n")
-print(f"[configured] {BOARDS[board][1]}")
+print(f"[configured] {BOARD_NAME}")
 print("[done] CHIPO overlay integrated. Build with: idf.py set-target esp32s3 && idf.py build")

@@ -36,7 +36,7 @@ int main() {
 
     char url[200];
     CHECK(ChipoBuildDownloadUrl("v0.6.0", url, sizeof url));
-    CHECK(!strcmp(url, "https://github.com/liderlyjr/CHIPO/releases/download/v0.6.0/chipo-os.bin"));
+    CHECK(!strcmp(url, "https://github.com/liderlyjr/CHIPO/releases/download/v0.6.0/chipo-os-2.16.bin"));
     CHECK(!ChipoBuildDownloadUrl("../../evil", url, sizeof url));
     CHECK(ChipoIsTrustedReleaseUrl(url));
     CHECK(!ChipoBuildDownloadUrl("v0.6.0", url, 20));  // too small a buffer

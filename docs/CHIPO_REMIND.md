@@ -22,7 +22,9 @@ el asistente está hablando o escuchando). Hasta **8** recordatorios.
 - **Calendario**: no se ha hecho. Conectar Google Calendar u otro exige una cuenta y un acceso OAuth que no se puede probar
   aquí; queda fuera.
 - Necesita la **hora real** (la obtiene del servidor al conectarse). Sin ella no suena nada. Si CHIPO está **apagado** a la
-  hora del recordatorio, ese aviso se pierde (no hay reloj con pila).
+  hora del recordatorio, ese aviso se pierde. Con recordatorios guardados CHIPO ya no se apaga solo (ver
+  [HARDWARE_2_16.md](HARDWARE_2_16.md#energía-atenuar-y-apagarse-solo)); solo se pierde si se queda sin batería o lo
+  apagas tú. La placa tiene un reloj RTC (PCF85063), pero CHIPO todavía no lo usa: la hora viene del servidor.
 - El texto se guarda **en minúsculas y sin acentos** («llamar a mama») porque así normaliza la frase el reconocimiento; al
   mostrarlo solo se pone la primera letra en mayúscula.
 - Las llamadas «avísame en 10 minutos» siguen siendo de BUDDY (temporizador, no se guardan).

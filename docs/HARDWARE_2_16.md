@@ -44,3 +44,19 @@ el usuario, que tiene la placa.
 Reservar un bloque de **46 × 46 × 22,5 mm** para la caja de la placa, con acceso a los tres botones del canto
 superior, al USB-C del canto inferior, a la microSD del lateral y salida de sonido del altavoz de la placa. Las
 posiciones exactas de las salidas de sonido y micrófonos no están verificadas.
+
+## Energía: atenuar y apagarse solo
+
+El código de XiaoZhi para esta placa baja el brillo al 20 % tras 60 s sin conversación y **apaga la placa** (AXP2101)
+a los 5 min. CHIPO lo impide mientras tiene algo pendiente:
+
+- un temporizador, pomodoro, cronómetro o alarma puesta;
+- un recordatorio guardado o algo sonando;
+- el reloj de mesa o el modo dormir;
+- una pantalla abierta (clima, escenas, lámpara, herramientas) o el modo coche;
+- la placa conectada a USB (cargando o sin descargar la batería).
+
+Solo con batería y nada pendiente sigue el comportamiento de XiaoZhi (los minutos se cambian en la configuración web de
+XiaoZhi: `sleep_dim_min`, `sleep_off_min`). Con una alarma puesta CHIPO no se apaga, así que gasta batería toda la
+noche: para eso conviene dejarlo enchufado. El brillo nocturno lo gestiona el protector de pantalla de CHIPO.
+**Sin probar en la placa** (ni el consumo ni si el AXP2101 apaga con el USB conectado).

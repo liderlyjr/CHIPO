@@ -106,6 +106,21 @@ bool ChipoWeather::OnVoiceText(const char* text) {
     return true;
 }
 
+bool ChipoWeather::Latest(WeatherData* out, uint32_t max_age_ms) const {
+    if (!running_ || !have_cache_ || !cache_.valid) return false;
+    if (lv_tick_get() - cache_time_ms_ > max_age_ms) return false;
+    if (out) *out = cache_;
+    return true;
+}
+
+void ChipoWeather::Prefetch() {
+    if (!running_) return;
+    const uint32_t now = lv_tick_get();
+    if (have_cache_ && (now - cache_time_ms_) < CHIPO_WEATHER_CACHE_MS) return;
+    if (loading_) return;
+    LaunchFetch(now);
+}
+
 void ChipoWeather::Hide() {
     if (!running_) return;
     view_.Hide();

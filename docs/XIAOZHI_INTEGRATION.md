@@ -11,9 +11,11 @@ La integración está automatizada por `scripts/integrate_chipo.py`. No hace fal
 5. Actualiza la expresión desde `Application::HandleStateChangedEvent()`, también bajo el bloqueo de pantalla.
 6. Enlaza los componentes desde `main/CMakeLists.txt`.
 7. Crea `ChipoWeather` después de la cara y le pasa cada frase reconocida por voz (`stt`) para abrir el clima; ver [CHIPO_WEATHER.md](CHIPO_WEATHER.md).
-8. Activa las fuentes Montserrat 20 y 24 de LVGL (para la pantalla del clima).
-9. Activa el perfil `CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_1_8_v2` y el estilo de mensajes esperado por el perfil de la placa.
+8. Activa las fuentes Montserrat 20, 24 y 32 de LVGL (clima, herramientas) y el lienzo `LV_USE_CANVAS` (pizarra).
+9. Activa el perfil `CONFIG_BOARD_TYPE_WAVESHARE_ESP32_S3_TOUCH_AMOLED_2_16` (única placa) y el idioma español `CONFIG_LANGUAGE_ES_ES` (textos y avisos de voz del sistema, y la cabecera `Accept-Language` que se envía al servidor).
 10. Actualizador por GitHub Releases y bloqueo del OTA de XiaoZhi (`ota.cc`, `UpgradeFirmware`, `PROJECT_VER`); ver [CHIPO_UPDATE.md](CHIPO_UPDATE.md).
+11. `Application::CanEnterSleepMode()` devuelve `false` mientras CHIPO tiene algo pendiente o está enchufado (ver [HARDWARE_2_16.md](HARDWARE_2_16.md#energía-atenuar-y-apagarse-solo)): sin esto XiaoZhi apaga la placa a los 5 min.
+12. Botón de usuario GPIO18 (CHIPO TOOLS): el clic se pasa al hilo principal con `Schedule`, nunca bloquea la tarea de temporizadores.
 
 ## Estados
 

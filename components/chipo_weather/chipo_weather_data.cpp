@@ -49,7 +49,8 @@ int WeekdayFromDate(int year, int month, int day) {
     static const int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
     if (month < 1 || month > 12) return 0;
     if (month < 3) year -= 1;
-    return (year + year / 4 - year / 100 + year / 400 + t[month - 1] + day) % 7;
+    const int w = (year + year / 4 - year / 100 + year / 400 + t[month - 1] + day) % 7;
+    return w < 0 ? w + 7 : w;  // never a negative index, whatever the server sends
 }
 
 void AsciiFold(const char* in, char* out, size_t out_size) {

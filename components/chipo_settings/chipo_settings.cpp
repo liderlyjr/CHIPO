@@ -98,8 +98,8 @@ bool ChipoSettings::Start(lv_obj_t* parent, Hooks hooks, const char* version, co
 #endif
     if (!font) font = lv_font_get_default();
     int32_t w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
-    if (w <= 0) w = 368;
-    if (h <= 0) h = 448;
+    if (w <= 0) w = 480;
+    if (h <= 0) h = 480;
     (void)w; (void)h;
     Build(font, version ? version : "");
     if (!menu_ || !indicator_) {
@@ -142,7 +142,7 @@ void ChipoSettings::Stop() {
 }
 
 void ChipoSettings::Build(const lv_font_t* font, const char* version) {
-    // The menu layout was drawn for 368 x 448; on a bigger screen (2.16": 480 x 480) it is centred in
+    // The menu layout is in design pixels (368 x 448); on the 480 x 480 screen it is centred in
     // a full-screen black menu_, so nothing else shows through and the content stays clear of the corners.
     constexpr int kLayoutW = 368, kLayoutH = 448;
     int w = static_cast<int>(lv_display_get_horizontal_resolution(nullptr));
@@ -288,8 +288,8 @@ void ChipoSettings::OnTouchMove(int x, int y) {
     if (hooks_.overlay_active && hooks_.overlay_active()) return;
     int32_t w = lv_display_get_horizontal_resolution(nullptr);
     int32_t h = lv_display_get_vertical_resolution(nullptr);
-    if (w <= 0) w = 368;
-    if (h <= 0) h = 448;
+    if (w <= 0) w = 480;
+    if (h <= 0) h = 480;
     float nx = (static_cast<float>(x) - static_cast<float>(w) / 2.0f) / (static_cast<float>(w) / 2.0f);
     float ny = (static_cast<float>(y) - static_cast<float>(h) / 2.0f) / (static_cast<float>(h) / 2.0f);
     hooks_.gaze(nx < -1 ? -1 : (nx > 1 ? 1 : nx), ny < -1 ? -1 : (ny > 1 ? 1 : ny), true);
@@ -347,6 +347,16 @@ void ChipoSettings::UpdateBattery(uint32_t now_ms) {
         if (hooks_.play_clip) hooks_.play_clip("buddy_timer_done");
     }
     last_level_ = battery_.percent;
+    // Low battery: now and then the face looks tired (only when nothing else is going on; never while charging).
+    const uint32_t tired_every = TiredFaceIntervalMs(battery_.state);
+    if (tired_every == 0 || charging) {
+        tired_seen_ = false;
+    } else if (hooks_.emotion && !(hooks_.keep_awake && hooks_.keep_awake()) &&
+               (!tired_seen_ || now_ms - last_tired_ms_ >= tired_every)) {
+        tired_seen_ = true;
+        last_tired_ms_ = now_ms;
+        hooks_.emotion("tired", 7000);
+    }
     const bool show = BatteryIndicatorVisible(battery_);
     if (show != indicator_visible_) {
         indicator_visible_ = show;

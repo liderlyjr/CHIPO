@@ -36,11 +36,11 @@ constexpr uint32_t kSpeakStepMs = 140;
 constexpr uint32_t kStartleMs = 800;
 constexpr uint32_t kReliefMs = 900;
 // Falling off the screen (tilted past CHIPO_FALL_ANGLE_DEG): px/s^2 sideways and downwards, and how far
-// the face centre must travel for the whole face (glow included) to be out of the 368 px wide screen.
+// the face centre must travel for the whole face (glow included) to be out of the screen.
 constexpr float kFallAccelX = 1600.0f;
 constexpr float kFallAccelY = 500.0f;
 constexpr float kFallMaxDropY = 110.0f;
-constexpr float kGoneMargin = 146.0f;  // half the face canvas plus glow; gone_x = screen width / 2 + this (330 on 368 px)
+constexpr float kGoneMargin = 146.0f;  // half the face canvas plus glow; gone_x = screen width / 2 + this x face scale
 constexpr float kFallMinPush = 0.15f;  // less sideways pull than this: nothing to slide towards
 constexpr float kNormalRangeX = 90.0f; // beyond this the face is flying in from the edge
 
@@ -178,13 +178,13 @@ bool ChipoFace::Start(lv_obj_t* parent) {
 #endif
 
     {
-        // The face was drawn for the 368 px wide screen; larger panels get a proportionally bigger face
-        // (never smaller, never so big that the canvas would not fit the height).
+        // Sizes are in design pixels (scale 1); the face is scaled to the panel (never smaller than 1,
+        // never so big that the canvas would not fit the height).
         int32_t pw = lv_obj_get_width(parent), ph = lv_obj_get_height(parent);
-        if (pw <= 0) pw = 368;
-        if (ph <= 0) ph = 448;
-        // The eyes and mouth (about 158 px wide at scale 1) fill ~58 % of the screen width: 1.35 on the 1.8"
-        // (368 px), 1.76 on the 2.16" (480 px). The 300 x 220 canvas must still fit 85 % of the height.
+        if (pw <= 0) pw = 480;
+        if (ph <= 0) ph = 480;
+        // The eyes and mouth (about 158 px wide at scale 1) fill ~58 % of the screen width: 1.76 on the
+        // 2.16" (480 px). The 300 x 220 canvas must still fit 85 % of the height.
         fs_ = std::min(static_cast<float>(pw) * 0.58f / 158.0f, static_cast<float>(ph) * 0.85f / 220.0f);
         fs_ = Clamp(fs_, 1.0f, 2.0f);
     }
@@ -370,8 +370,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
 
     {
         int32_t pw = lv_obj_get_width(parent), ph = lv_obj_get_height(parent);
-        fx_w_ = pw > 0 ? pw : 368;
-        fx_h_ = ph > 0 ? ph : 448;
+        fx_w_ = pw > 0 ? pw : 480;
+        fx_h_ = ph > 0 ? ph : 480;
         fx_.Clear();
         fx_view_.Start(parent, fx_w_, fx_h_);  // above the face; without it the decorations just do not show
     }
@@ -926,6 +926,7 @@ void ChipoFace::Step(uint32_t now_ms) {
         for (int guard = 0; guard < 8 && tilt_source_(&sample); ++guard) {
             const uint32_t t = sample.t_ms != 0 ? sample.t_ms : now_ms;
             if (sample_observer_) sample_observer_(sample, t);
+            if (extra_sample_observer_) extra_sample_observer_(sample, t);
             tilt_.Update(sample, t);
             startle_seen = startle_seen || tilt_.output().startle;  // a later sample would clear it
             if (sample.has_gyro) {
@@ -1386,8 +1387,8 @@ void ChipoFace::UpdateGlasses(const Layout& l, float dt) {
 
 void ChipoFace::CreateRoad(lv_obj_t* parent) {
     int32_t w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
-    if (w <= 0) w = 368;
-    if (h <= 0) h = 448;
+    if (w <= 0) w = 480;
+    if (h <= 0) h = 480;
     road_ = lv_obj_create(parent);
     if (road_ == nullptr) return;
     lv_obj_remove_style_all(road_);
@@ -1943,7 +1944,7 @@ ChipoFace::DebugInfo ChipoFace::Debug() const {
     d.face_dy = applied_.face_dy;
     d.fall_dir = fall_dir_;
     d.fell = fell_;
-    // Sizes in design pixels (scale 1, as drawn for the 368 px screen) so they mean the same on every panel;
+    // Sizes in design pixels (scale 1) so they mean the same on every panel;
     // face_scale says how big they really are on this screen.
     auto design = [this](int v) { return static_cast<int>(std::lround(static_cast<float>(v) / fs_)); };
     d.face_scale = fs_;

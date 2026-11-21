@@ -14,6 +14,8 @@ struct BatteryView {
 };
 // valid=false when the fuel gauge gave no reading (no battery connected, driver error).
 BatteryView ClassifyBattery(bool valid, int level, bool charging, bool discharging);
+// How often the face shows a tired look while the battery is low: 0 = never (normal, charging, full, unknown).
+uint32_t TiredFaceIntervalMs(BatteryState state);
 // True when the level just crossed 15 % or 5 % going down (one warning per threshold).
 bool BatteryCrossedWarning(int previous_percent, int percent, int* threshold);
 bool BatteryIndicatorVisible(const BatteryView& v);  // only charging or low: otherwise stay out of the way
