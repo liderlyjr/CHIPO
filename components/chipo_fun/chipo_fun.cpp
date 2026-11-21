@@ -61,8 +61,8 @@ bool ChipoFun::Start(lv_obj_t* parent, Hooks hooks, const char* version, const l
 #endif
     if (!font) font = lv_font_get_default();
     int32_t w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
-    if (w <= 0) w = 368;
-    if (h <= 0) h = 448;
+    if (w <= 0) w = 480;
+    if (h <= 0) h = 480;
     w_ = w;
     h_ = h;
     root_ = lv_obj_create(parent);

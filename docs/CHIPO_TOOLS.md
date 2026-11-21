@@ -1,6 +1,6 @@
 # CHIPO TOOLS (V0.6.x, sin probar en la placa)
 
-Herramientas pensadas para la pantalla cuadrada de 480×480 (funcionan también en la 1,8" V2). Todo está en `components/chipo_tools`.
+Herramientas pensadas para la pantalla cuadrada de 480×480. Todo está en `components/chipo_tools`.
 
 | Herramienta | Cómo se usa |
 |---|---|

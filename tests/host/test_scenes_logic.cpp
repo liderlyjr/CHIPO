@@ -56,7 +56,7 @@ int main() {
 
     std::printf("== aquarium\n");
     AquariumModel aq;
-    aq.Init(368, 448, Rnd);
+    aq.Init(480, 480, Rnd);
     bool turned = false, inside = true;
     int dir0[AquariumModel::kFish];
     for (int i = 0; i < AquariumModel::kFish; ++i) dir0[i] = aq.fish[i].dir;
@@ -64,9 +64,9 @@ int main() {
         aq.Update(0.04f, Rnd);
         for (int k = 0; k < AquariumModel::kFish; ++k) {
             if (aq.fish[k].dir != dir0[k]) turned = true;
-            if (aq.fish[k].x < -5 || aq.fish[k].x > 373 || aq.fish[k].y < 20 || aq.fish[k].y > 430) inside = false;
+            if (aq.fish[k].x < -5 || aq.fish[k].x > 485 || aq.fish[k].y < 20 || aq.fish[k].y > 462) inside = false;
         }
-        for (const Bubble& b : aq.bubble) if (b.y < -30 || b.y > 480 || b.x < 0 || b.x > 368) inside = false;
+        for (const Bubble& b : aq.bubble) if (b.y < -30 || b.y > 512 || b.x < 0 || b.x > 480) inside = false;
     }
     CHECK(turned, "fish never turned around");
     CHECK(inside, "a fish or bubble left the tank");
@@ -76,13 +76,13 @@ int main() {
 
     std::printf("== lava\n");
     LavaModel lava;
-    lava.Init(368, 448, Rnd);
+    lava.Init(480, 480, Rnd);
     bool in_lamp = true;
     float miny = 999, maxy = -999;
     for (int i = 0; i < 6000; ++i) {
         lava.Update(0.04f);
         for (const LavaBlob& b : lava.blob) {
-            if (b.x < 0 || b.x > 368 || b.y < 0 || b.y > 448) in_lamp = false;
+            if (b.x < 0 || b.x > 480 || b.y < 0 || b.y > 480) in_lamp = false;
             miny = std::fmin(miny, b.y); maxy = std::fmax(maxy, b.y);
         }
     }

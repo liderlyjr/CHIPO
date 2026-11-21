@@ -50,8 +50,8 @@ lv_obj_t* Text(lv_obj_t* parent, const lv_font_t* font) {
 bool ChipoBuddyView::Create(lv_obj_t* parent, const lv_font_t* font) {
     if (root_ || !parent) return false;
     int32_t w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
-    if (w <= 0) w = 368;
-    if (h <= 0) h = 448;
+    if (w <= 0) w = 480;
+    if (h <= 0) h = 480;
     screen_w_ = static_cast<int>(w);
     screen_h_ = static_cast<int>(h);
     root_ = lv_obj_create(parent);

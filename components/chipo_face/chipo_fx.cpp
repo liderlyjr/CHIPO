@@ -32,7 +32,7 @@ bool ChipoFx::Start(lv_obj_t* parent, int32_t width, int32_t height) {
     layer_ = lv_obj_create(parent);
     if (!layer_) return false;
     lv_obj_remove_style_all(layer_);
-    lv_obj_set_size(layer_, width > 0 ? width : 368, height > 0 ? height : 448);
+    lv_obj_set_size(layer_, width > 0 ? width : 480, height > 0 ? height : 480);
     lv_obj_set_pos(layer_, 0, 0);
     lv_obj_remove_flag(layer_, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(layer_, LV_OBJ_FLAG_SCROLLABLE);

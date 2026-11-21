@@ -11,7 +11,7 @@ static int g_failures = 0;
 
 static uint32_t g_now = 1000;
 static uint32_t FakeTick() { return g_now; }
-static uint8_t g_buf[368 * 40 * 4];
+static uint8_t g_buf[480 * 40 * 4];
 static void Flush(lv_display_t* d, const lv_area_t*, uint8_t*) { lv_display_flush_ready(d); }
 
 struct Rig {
@@ -50,7 +50,7 @@ struct Rig {
 int main() {
     lv_init();
     lv_tick_set_cb(FakeTick);
-    lv_display_t* d = lv_display_create(368, 448);
+    lv_display_t* d = lv_display_create(480, 480);
     lv_display_set_buffers(d, g_buf, nullptr, sizeof(g_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(d, Flush);
 
@@ -122,7 +122,7 @@ int main() {
     std::printf("== finger gaze\n");
     {
         Rig r; r.Start();
-        r.s.OnTouchMove(368, 224);
+        r.s.OnTouchMove(480, 240);
         CHECK(r.gazes == 1 && r.gnx > 0.99f && std::fabs(r.gny) < 0.01f, "right edge: gaze (%.2f, %.2f)", r.gnx, r.gny);
         r.s.OnTouchMove(0, 0);
         CHECK(r.gnx < -0.99f && r.gny < -0.99f, "top left corner");

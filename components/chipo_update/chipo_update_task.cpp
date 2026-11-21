@@ -115,7 +115,8 @@ void UpdaterTask(void* arg) {
     vTaskDelay(pdMS_TO_TICKS(CHIPO_UPDATE_FIRST_CHECK_MS));
     for (;;) {
         char tag[32];
-        if (FetchLatestTag(tag, sizeof tag)) {
+        const bool asked = FetchLatestTag(tag, sizeof tag);
+        if (asked) {
             if (!ChipoIsNewer(CHIPO_OS_VERSION, tag)) {
                 ESP_LOGI(TAG, "up to date (%s, latest release %s)", CHIPO_OS_VERSION, tag);
             } else if (strcmp(failed_tag, tag) == 0 && tries >= CHIPO_UPDATE_MAX_TRIES) {
@@ -147,7 +148,7 @@ void UpdaterTask(void* arg) {
 #endif
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(CHIPO_UPDATE_INTERVAL_MS));
+        vTaskDelay(pdMS_TO_TICKS(asked ? CHIPO_UPDATE_INTERVAL_MS : CHIPO_UPDATE_RETRY_MS));
     }
 }
 

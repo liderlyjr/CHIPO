@@ -110,8 +110,8 @@ bool ChipoTools::Start(lv_obj_t* parent, Hooks hooks) {
     hooks_ = std::move(hooks);
     parent_ = parent;
     int w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
-    if (w <= 0) w = 368;
-    if (h <= 0) h = 448;
+    if (w <= 0) w = 480;
+    if (h <= 0) h = 480;
     w_ = w;
     h_ = h;
 #if LV_FONT_MONTSERRAT_32

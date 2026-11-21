@@ -28,8 +28,9 @@
 #endif
 
 // The IMU sits on the board's main I2C bus, already opened by the XiaoZhi board code
-// (Waveshare ESP32-S3 Touch AMOLED 1.8: I2C port 0, SDA 15, SCL 14, QMI8658 at 0x6B,
-// 0x6A as fallback; source: Waveshare's esp-idf example 92_qmi8658_imu).
+// (Waveshare ESP32-S3 Touch AMOLED 2.16: I2C port 0, SDA 15, SCL 14 - XiaoZhi's board code and Waveshare's
+// docs. The QMI8658 address is not documented for this board: 0x6B is tried first, then 0x6A - the two
+// addresses the chip can have).
 #ifndef CHIPO_IMU_I2C_PORT
 #define CHIPO_IMU_I2C_PORT 0
 #endif

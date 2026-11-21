@@ -65,9 +65,9 @@ bool ChipoScenes::Start(lv_obj_t* parent, Hooks hooks) {
     if (running_) return true;
     hooks_ = std::move(hooks);
     int32_t w = lv_obj_get_width(parent), h = lv_obj_get_height(parent);
-    w_ = w > 0 ? w : 368;
-    h_ = h > 0 ? h : 448;
-    {   // drawn for 368 x 448: bars and plants keep their proportions on bigger panels (2.16": 480 x 480)
+    w_ = w > 0 ? w : 480;
+    h_ = h > 0 ? h : 480;
+    {   // design pixels 368 x 448: bars and plants keep their proportions on the 480 x 480 panel
         const float sc = static_cast<float>(w_) / 368.0f;
         bar_w_ = static_cast<int>(34 * sc + 0.5f);
         bar_gap_ = static_cast<int>(8 * sc + 0.5f);

@@ -65,7 +65,7 @@ private:
 
     static constexpr int kBars = BarsModel::kBars;
     Hooks hooks_;
-    int w_ = 368, h_ = 448;
+    int w_ = 480, h_ = 480;
     int bar_w_ = 34, bar_gap_ = 8, base_y_ = 392, max_bar_h_ = 300, plant_x0_ = 40, plant_dx_ = 140;
     lv_obj_t* root_ = nullptr;
     lv_timer_t* timer_ = nullptr;

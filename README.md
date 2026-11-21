@@ -1,6 +1,6 @@
 # CHIPO OS
 
-CHIPO es un asistente de voz DIY basado en el firmware de XiaoZhi y adaptado a las placas **Waveshare ESP32-S3 Touch AMOLED 2.16** (480 × 480, la que se está usando ahora) y **1.8 V2** (368 × 448).
+CHIPO es un asistente de voz DIY basado en el firmware de XiaoZhi y adaptado a la placa **Waveshare ESP32-S3 Touch AMOLED 2.16** (480 × 480). Es la única placa soportada.
 
 ## Objetivo
 
@@ -8,14 +8,14 @@ Construir una experiencia e interfaz propia llamada CHIPO OS aprovechando los co
 
 ## Hardware objetivo
 
-| | 2.16" (480 × 480) | 1.8" V2 (368 × 448) |
-|---|---|---|
-| Microcontrolador | ESP32-S3 | ESP32-S3 |
-| Pantalla AMOLED | 480 × 480, controlador CO5300 | 368 × 448, controlador CO5300 |
-| Táctil | CST9220 | CST820 |
-| Audio | ES8311 + ES7210 (dos micrófonos), altavoz integrado | ES8311, micrófono integrado |
-| Gestión de energía | AXP2101 | AXP2101 |
-| Sensor de movimiento | QMI8658 | QMI8658 |
+| | Waveshare ESP32-S3 Touch AMOLED 2.16 |
+|---|---|
+| Microcontrolador | ESP32-S3 |
+| Pantalla AMOLED | 480 × 480, controlador CO5300 |
+| Táctil | CST9220 |
+| Audio | ES8311 + ES7210 (dos micrófonos), altavoz integrado |
+| Gestión de energía | AXP2101 |
+| Sensor de movimiento | QMI8658 |
 
 Hardware de la 2,16" con caja, altavoz y batería: [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md).
 
@@ -24,13 +24,11 @@ No se deben inventar pines ni sustituir controladores de la placa.
 ## Base de firmware
 
 - Proyecto original: https://github.com/78/xiaozhi-esp32
-- Perfiles de placa: `esp32-s3-touch-amoled-1.8-v2` (por defecto al integrar con el script) y `esp32-s3-touch-amoled-2.16`
-- **Elegir la 2,16" (480×480)** al integrar:
-  `python scripts/integrate_chipo.py <CHIPO> <xiaozhi> --board=2.16` (sin `--board` = 1,8" V2). En Windows: `build_chipo.ps1 -Board 2.16` (por defecto) o `-Board 1.8-v2`.
-  El CI compila las dos placas (artefacto `CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16`).
-  Diferencias que absorbe XiaoZhi: pantalla 480×480 con margen de esquinas, táctil CST9220, ES8311 + ES7210
-  (doble micro). Los ajustes se centran en pantallas mayores y la caída de la cara usa el ancho real.
-  **Sin probar en la placa física.** La cara, los ajustes, el clima, las escenas, el drive y el reloj de mesa se escalan a la pantalla (ver `docs/CHIPO_FACE.md`).
+- Perfil de placa de XiaoZhi: `esp32-s3-touch-amoled-2.16`, en español (`CONFIG_LANGUAGE_ES_ES`).
+- Integrar a mano: `python scripts/integrate_chipo.py <CHIPO> <xiaozhi>`. En Windows: `scripts\build_chipo.ps1`.
+- Versión de XiaoZhi fijada en el archivo `XIAOZHI_REF` (la misma en GitHub Actions y en Windows): cada compilación
+  usa exactamente la base con la que se comprobaron los parches de CHIPO.
+- Artefacto de GitHub Actions: `CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16`. **Sin probar en la placa física.**
 - Compilación recomendada: GitHub Actions con ESP-IDF 6.1
 - Grabación posterior: Espressif ESPTool-JS en el navegador
 
@@ -57,7 +55,7 @@ clima o con un toque; datos de Open-Meteo, ubicación por IP o fija).
 
 Qué se ha comprobado:
 
-- `scripts/integrate_chipo.py` se aplica sin errores (y repetido, sin cambios) sobre XiaoZhi `aaf1eb7`.
+- `scripts/integrate_chipo.py` se aplica sin errores (y repetido, sin cambios) sobre XiaoZhi `92d400d` (`XIAOZHI_REF`).
 - La pantalla del clima (lectura de datos, voz, toque, caché, errores) pasa sus pruebas en PC.
 - La lógica de inclinación y la cara completa pasan sus pruebas en PC con AddressSanitizer y UBSan
   (`tests/host/run.sh`, también en GitHub Actions antes de cada compilación).
@@ -104,4 +102,4 @@ Consulta la [guía de integración](docs/XIAOZHI_INTEGRATION.md) y el adaptador 
 
 ## Altavoz
 
-La Waveshare 2.16" trae **altavoz integrado** (confirmado por el soporte de Waveshare, ver [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md)), así que no se usa altavoz externo. En la 1,8" V2 no se ha verificado: no conectes un altavoz externo hasta confirmarlo en el esquema y en la placa. ES8311 es el códec; por sí solo no demuestra que haya un altavoz instalado. El sonido real no se ha probado en ninguna de las dos placas.
+La Waveshare 2.16" trae **altavoz integrado** (confirmado por el soporte de Waveshare, ver [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md)), así que no se usa altavoz externo. El sonido real no se ha probado todavía.

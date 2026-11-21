@@ -141,7 +141,7 @@ Ver [CHIPO_ANIMACIONES.md](CHIPO_ANIMACIONES.md). API nueva de `ChipoFace`: `Loo
 Pensado para aprovechar el negro real del AMOLED: fondo negro, ojos lilas con pupila negra y dos brillos, y una
 boca de media luna rosa con lengua roja (la boca es una ventana que recorta la mitad inferior de una elipse).
 El color del estado (escuchando, error, amor…) sigue tiñendo ojos y boca. Imagen: `docs/img/chipo_cute_skin.png`
-(simulación en PC, 368×448). **Sin ver en la pantalla real.** Las mejillas se probaron y se quitaron.
+(simulación en PC). **Sin ver en la pantalla real.** Las mejillas se probaron y se quitaron.
 
 ## Revisión de diseño (2.16", 480×480)
 
@@ -175,6 +175,6 @@ El color del estado (escuchando, error, amor…) sigue tiñendo ojos y boca. Ima
   apagan en orden inverso, de derecha a izquierda, con los dos puntos al final (~0,4 s). Solo cambia la opacidad
   de cada pieza (sin capas), barato para el ESP32. Al levantar CHIPO el reloj se apaga todavía girado y después
   la vista vuelve a vertical.
-- Cara más grande: ojos y boca ocupan ~58 % del ancho de la pantalla (escala 1,35 en la 1,8" y 1,76 en la 2,16").
+- Cara más grande: ojos y boca ocupan ~58 % del ancho de la pantalla (escala 1,76 en la 2,16").
   El halo no crece con la escala (borde suave, no mancha). En drive la cara sube lo justo para que la boca quede
   sobre el sol. `Debug()` informa los tamaños en píxeles de diseño y `face_scale` aparte.

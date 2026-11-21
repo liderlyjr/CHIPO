@@ -104,7 +104,7 @@ private:
     int eye_changes_ = 0;
     uint32_t last_oops_ms_ = 0;
     bool had_oops_ = false;
-    int w_ = 368, h_ = 448;  // screen size, kept from Start (object sizes read 0 before the first layout)
+    int w_ = 480, h_ = 480;  // screen size, kept from Start (object sizes read 0 before the first layout)
     lv_timer_t* timer_ = nullptr;
     lv_obj_t* root_ = nullptr;
     lv_obj_t* boot_ = nullptr;

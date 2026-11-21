@@ -36,7 +36,7 @@ Cuando la ejecución esté en verde:
 
 1. Abre la ejecución completada.
 2. Baja hasta **Artifacts**, al final de la página.
-3. Descarga **CHIPO-OS-Waveshare-ESP32-S3-AMOLED-1.8-V2**.
+3. Descarga **CHIPO-OS-Waveshare-ESP32-S3-AMOLED-2.16**.
 4. Windows descargará un ZIP.
 5. Descomprime el ZIP en una carpeta fácil de encontrar, por ejemplo el Escritorio.
 
@@ -58,4 +58,4 @@ Conecta la Waveshare al PC mediante un cable USB que transmita datos. En la pág
 
 ## Importante
 
-Esta compilación es para **Waveshare ESP32-S3 Touch AMOLED 1.8 V2**. No uses binarios de otra revisión de placa. La compilación todavía debe superar una ejecución real en GitHub y una prueba en la placa antes de considerar CHIPO OS validado.
+Esta compilación es para **Waveshare ESP32-S3 Touch AMOLED 2.16**. No uses binarios de otra placa. La compilación todavía debe superar una ejecución real en GitHub y una prueba en la placa antes de considerar CHIPO OS validado.

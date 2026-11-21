@@ -118,7 +118,7 @@ private:
     lv_timer_t* timer_ = nullptr;
     lv_obj_t* parent_ = nullptr;
     bool running_ = false;
-    int w_ = 368, h_ = 448;
+    int w_ = 480, h_ = 480;
     Tool tool_ = Tool::None;
 
     const lv_font_t* font_big_ = nullptr;

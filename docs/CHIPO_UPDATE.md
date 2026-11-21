@@ -6,8 +6,8 @@ CHIPO se actualiza solo desde las **Releases de GitHub** de este repositorio. Xi
 
 1. Subes tus cambios a `main` (merge del PR).
 2. Subes el número en `VERSION` (`CHIPO_OS_VERSION=0.6.1`, por ejemplo). **Sin subir ese número no se publica nada.**
-3. GitHub Actions compila la **Waveshare 2,16" (480×480)** y, si todo sale bien, crea la Release `v0.6.1` con el archivo `chipo-os.bin`. La Release lleva siempre el firmware de la 2,16": es la placa en uso.
-4. CHIPO, conectado a Wi-Fi, mira GitHub unos 90 s después de arrancar y luego cada 6 horas. Si hay una versión **mayor** que la suya y está en reposo (sin conversación), la descarga, la graba y se reinicia.
+3. GitHub Actions compila la **Waveshare 2,16" (480×480)** y, si todo sale bien, crea la Release `v0.6.1` con el archivo `chipo-os-2.16.bin`. La placa va en el nombre: CHIPO solo descarga ese archivo, así que nunca puede instalar un firmware hecho para otra placa.
+4. CHIPO, conectado a Wi-Fi, mira GitHub unos 90 s después de arrancar y luego cada 6 horas (si no pudo preguntar, por ejemplo sin Wi-Fi todavía, vuelve a intentarlo a los 15 min). Si hay una versión **mayor** que la suya y está en reposo (sin conversación), la descarga, la graba y se reinicia.
 
 Resumen: `VERSION` más alto + merge a `main` = CHIPO se actualiza solo.
 
@@ -38,11 +38,11 @@ Los **assets** de XiaoZhi (temas, fuentes, palabras de activación) siguen pudie
 
 ## Ajustes (`components/chipo_update/include/chipo_update_config.h`)
 
-`CHIPO_UPDATE_ENABLED`, `CHIPO_UPDATE_AUTO_INSTALL` (0 = solo avisar en el log), `CHIPO_UPDATE_FIRST_CHECK_MS`, `CHIPO_UPDATE_INTERVAL_MS`, `CHIPO_UPDATE_REPO`, `CHIPO_UPDATE_ASSET`.
+`CHIPO_UPDATE_ENABLED`, `CHIPO_UPDATE_AUTO_INSTALL` (0 = solo avisar en el log), `CHIPO_UPDATE_FIRST_CHECK_MS`, `CHIPO_UPDATE_INTERVAL_MS`, `CHIPO_UPDATE_RETRY_MS`, `CHIPO_UPDATE_REPO`, `CHIPO_UPDATE_ASSET`.
 
 ## Sin probar en la placa
 
 Los tests de PC cubren comparación de versiones, lectura de la Release, validación de URL y la autorización. Lo que **no** está probado en hardware: la descarga real desde tu red, la redirección de GitHub, el aviso en pantalla durante la grabación (es el de XiaoZhi) y el reinicio posterior.
 
 ## Nota sobre la Release v0.6.0
-La `v0.6.0` publicada antes de este cambio se compiló para la 1,8" V2, no para la 2,16". CHIPO solo instala versiones **mayores** que la suya, así que una placa con 0.6.0 nunca la descarga. A partir del siguiente número de `VERSION`, la Release es de la 2,16".
+La `v0.6.0` publicada antes de este cambio se compiló para la 1,8" V2 (placa ya no soportada) y su archivo se llama `chipo-os.bin`. CHIPO solo instala versiones **mayores** que la suya y solo busca `chipo-os-2.16.bin`, así que nunca la descarga. A partir del siguiente número de `VERSION`, la Release es de la 2,16".

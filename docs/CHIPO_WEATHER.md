@@ -2,7 +2,7 @@
 
 ![Pantallas del clima](img/clima.png)
 
-*Capturas hechas en un PC con el mismo código de LVGL y a 368 × 448 (los datos de las capturas son de ejemplo).
+*Capturas hechas en un PC con el mismo código de LVGL (los datos de las capturas son de ejemplo).
 Los colores y el brillo del AMOLED real pueden verse algo distintos.*
 
 Una pantalla de clima al estilo de las apps de móvil, dibujada encima de la cara de CHIPO:

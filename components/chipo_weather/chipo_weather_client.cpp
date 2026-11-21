@@ -22,7 +22,7 @@ bool HttpGet(const char* url, char* buf, size_t cap) {
     cfg.url = url;
     cfg.timeout_ms = CHIPO_WEATHER_FETCH_TIMEOUT_MS;
     cfg.crt_bundle_attach = esp_crt_bundle_attach;
-    cfg.user_agent = "CHIPO-OS/0.5 (ESP32-S3)";
+    cfg.user_agent = "CHIPO-OS (ESP32-S3)";
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client) return false;
 

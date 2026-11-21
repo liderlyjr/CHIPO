@@ -21,7 +21,7 @@ static int g_failures = 0;
 
 static uint32_t g_now = 1000;
 static uint32_t FakeTick() { return g_now; }
-static uint8_t g_buf[368 * 40 * 4];
+static uint8_t g_buf[480 * 40 * 4];
 static void Flush(lv_display_t* d, const lv_area_t*, uint8_t*) { lv_display_flush_ready(d); }
 
 // ---- fake car: gravity on +Y, forward along +Z, car-left along +X ----------------------------------
@@ -125,7 +125,7 @@ struct Harness {
 int main() {
     lv_init();
     lv_tick_set_cb(FakeTick);
-    lv_display_t* d = lv_display_create(368, 448);
+    lv_display_t* d = lv_display_create(480, 480);
     lv_display_set_buffers(d, g_buf, nullptr, sizeof(g_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(d, Flush);
 
