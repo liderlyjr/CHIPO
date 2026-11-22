@@ -136,6 +136,14 @@ bool ChipoTools::Start(lv_obj_t* parent, Hooks hooks) {
     Build(w, h);
     if (!root_) return false;
     timer_ = lv_timer_create(TimerCallback, kTickMs, this);
+    if (timer_ == nullptr) {
+        // Without the tick the clock, the pomodoro ring and the tools would never update. Remove what Build()
+        // made and drop the hooks, so Start() can be called again later.
+        Stop();
+        hooks_ = Hooks{};
+        parent_ = nullptr;
+        return false;
+    }
     next_prefetch_ms_ = Now() + 20000;  // first silent weather download a little after start-up (Wi-Fi needs a moment)
     running_ = true;
     return true;
