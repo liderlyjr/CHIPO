@@ -113,6 +113,14 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_tools
     "$OUT"/obj/*.o -o "$OUT/test_tools"
 "$OUT/test_tools"
 
+echo "== small modules when lv_timer_create fails (ambient, pet, reminders, BUDDY clock effect)"
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_ambient/include -Icomponents/chipo_pet/include \
+    -Icomponents/chipo_remind/include -Icomponents/chipo_buddy/include -Icomponents/chipo_drive/include -w -Wl,--wrap=lv_timer_create \
+    tests/host/test_timer_failures.cpp components/chipo_ambient/*.cpp components/chipo_pet/*.cpp components/chipo_remind/*.cpp \
+    components/chipo_buddy/chipo_buddy_voice.cpp components/chipo_buddy/chipo_buddy_engine.cpp components/chipo_buddy/chipo_buddy_view.cpp \
+    components/chipo_drive/chipo_drive_voice.cpp "$OUT"/obj/*.o -o "$OUT/test_timer_failures"
+"$OUT/test_timer_failures"
+
 echo "== Home Assistant controller (async call, result text, off when not configured)"
 g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include -w \
     tests/host/test_ha.cpp components/chipo_ha/chipo_ha.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_ha/chipo_ha_state.cpp components/chipo_ha/chipo_ha_media.cpp components/chipo_drive/chipo_drive_voice.cpp \

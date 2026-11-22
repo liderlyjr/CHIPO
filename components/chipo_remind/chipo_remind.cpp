@@ -17,8 +17,14 @@ bool ChipoRemind::Start(Hooks hooks) {
     hooks_ = std::move(hooks);
     if (hooks_.load) store_.Load(hooks_.load());
     timer_ = lv_timer_create(TimerCallback, 1000, this);
-    running_ = timer_ != nullptr;
-    return running_;
+    if (timer_ == nullptr) {
+        // Without the tick nothing here would ever run: undo what Start() set up so it can be called again.
+        Stop();
+        hooks_ = Hooks{};
+        return false;
+    }
+    running_ = true;
+    return true;
 }
 
 void ChipoRemind::Stop() {
