@@ -8,6 +8,7 @@
 #include "chipo_tilt.h"
 #include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 
 /**
@@ -22,6 +23,11 @@
  *
  * If the sensor is missing or does not answer, Start() returns false and CHIPO simply works
  * without tilt reactions.
+ *
+ * Shutdown: Stop() wakes the task at once (it sleeps on a semaphore, even in the slow 1 s mode after
+ * repeated errors) and waits until it has really finished before it releases the I2C device. The wait is
+ * bounded (a stuck bus cannot hang the caller): in that case Stop() returns false and the object MUST
+ * NOT be destroyed, because the task still uses it (ChipoFace leaks it on purpose instead).
  */
 class ChipoImu {
 public:
@@ -31,7 +37,9 @@ public:
     ChipoImu& operator=(const ChipoImu&) = delete;
 
     bool Start();
-    void Stop();
+    // True once the task has finished and the I2C device is released; false if the task could not be
+    // stopped in time (bus stuck). Safe to call again.
+    bool Stop();
 
     // True and fills `out` when an unread sample is available (oldest first). Every sample the
     // task read is kept (a small queue), so a faster rate really delivers every sample.
@@ -48,6 +56,7 @@ private:
 
     i2c_master_dev_handle_t dev_ = nullptr;
     TaskHandle_t task_ = nullptr;
+    SemaphoreHandle_t wake_ = nullptr;  // Stop() gives it to end the task's sleep early
     std::atomic<bool> running_{false};
     std::atomic<bool> task_done_{true};
     static constexpr uint32_t kRingSize = 16;

@@ -18,6 +18,21 @@
 namespace {
 constexpr char TAG[] = "ChipoFace";
 
+#ifdef ESP_PLATFORM
+// The sensor task uses its ChipoImu object, so the object may only be freed once the task has finished. If the
+// I2C bus is stuck and the task cannot be stopped, leak the small object on purpose rather than free memory a
+// running task still touches (a use-after-free would reboot the device).
+void ReleaseImu(std::unique_ptr<ChipoImu>& imu) {
+    if (!imu) return;
+    if (!imu->Stop()) {
+        ESP_LOGE(TAG, "IMU task still running: leaving its object allocated");
+        (void)imu.release();
+        return;
+    }
+    imu.reset();
+}
+#endif
+
 constexpr int32_t kCanvasWidth = 300;
 constexpr int32_t kCanvasHeight = 220;
 constexpr float kCenterX = kCanvasWidth / 2.0f;
@@ -442,7 +457,7 @@ void ChipoFace::Stop() {
     }
 #ifdef ESP_PLATFORM
     tilt_source_ = nullptr;
-    imu_.reset();
+    ReleaseImu(imu_);
 #endif
     fx_view_.Stop();
     fx_.Clear();
@@ -468,7 +483,8 @@ void ChipoFace::Stop() {
 
 void ChipoFace::SetTiltSource(TiltSource source) {
 #ifdef ESP_PLATFORM
-    imu_.reset();
+    tilt_source_ = nullptr;  // it holds a raw pointer to the sensor object released below
+    ReleaseImu(imu_);
 #endif
     tilt_source_ = std::move(source);
 }
