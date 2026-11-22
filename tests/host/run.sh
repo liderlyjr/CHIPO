@@ -120,7 +120,8 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Icomponents/chipo_ha/include -Icomponents
 "$OUT/test_ha"
 
 echo "== weather screen (LVGL $(basename "$LVGL_DIR"))"
-g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w \
+# --wrap lets the test make lv_timer_create fail (the "timer cannot be created" cases).
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w -Wl,--wrap=lv_timer_create \
     tests/host/test_weather_ui.cpp components/chipo_weather/chipo_weather_view.cpp \
     components/chipo_weather/chipo_weather_controller.cpp components/chipo_weather/chipo_weather_data.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_weather_ui"
@@ -186,7 +187,7 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_scene
 "$OUT/test_scenes"
 
 echo "== chipo_settings (LVGL)"
-g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_settings/include -w \
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_settings/include -w -Wl,--wrap=lv_timer_create \
     tests/host/test_settings.cpp components/chipo_settings/chipo_settings.cpp components/chipo_settings/chipo_settings_logic.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_settings"
 "$OUT/test_settings"

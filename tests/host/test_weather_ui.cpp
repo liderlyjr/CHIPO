@@ -18,6 +18,23 @@ static int g_failures = 0;
         }                                             \
     } while (0)
 
+// The linker (-Wl,--wrap=lv_timer_create) routes the component's calls here, so a test can make the timer fail.
+static bool g_fail_timer = false;
+extern "C" lv_timer_t* __real_lv_timer_create(lv_timer_cb_t cb, uint32_t period, void* user_data);
+extern "C" lv_timer_t* __wrap_lv_timer_create(lv_timer_cb_t cb, uint32_t period, void* user_data) {
+    return g_fail_timer ? nullptr : __real_lv_timer_create(cb, period, user_data);
+}
+static int CountTimers() {
+    int n = 0;
+    for (lv_timer_t* t = lv_timer_get_next(nullptr); t; t = lv_timer_get_next(t)) ++n;
+    return n;
+}
+static int CountIndevCallbacks() {
+    int n = 0;
+    for (lv_indev_t* in = lv_indev_get_next(nullptr); in; in = lv_indev_get_next(in)) n += lv_indev_get_event_count(in);
+    return n;
+}
+
 static uint32_t g_now = 1000;
 static uint32_t FakeTick() { return g_now; }
 static uint8_t g_buf[480 * 40 * 2];
@@ -177,6 +194,49 @@ int main() {
         Tap();
         delete w;
         Tap();
+    }
+
+    // ---- the timer cannot be created: Start() must fail cleanly and be retryable -----------------------------------
+    std::printf("== lv_timer_create fails\n");
+    {
+        g_fetches = 0;
+        g_fetch_ok = true;
+        g_now += 10000;
+        auto fetcher = [](WeatherData* out) {
+            ++g_fetches;
+            *out = Sample();
+            return true;
+        };
+        const uint32_t children = lv_obj_get_child_count(lv_screen_active());
+        const int timers = CountTimers();
+        const int callbacks = CountIndevCallbacks();
+        ChipoWeather w;
+        g_fail_timer = true;
+        const bool started = w.Start(lv_screen_active(), fetcher);
+        g_fail_timer = false;
+        CHECK(!started, "Start must report the failure");
+        CHECK(!w.IsShown() && !w.OnVoiceText("dime el clima") && !w.OnVoiceText("va a llover"),
+              "a module that did not start must not react to voice");
+        w.Show();  // must be harmless
+        Advance(500);
+        CHECK(g_fetches == 0, "no download without a timer (%d)", g_fetches);
+        CHECK(lv_obj_get_child_count(lv_screen_active()) == children, "the view must be removed (%u -> %u)",
+              children, lv_obj_get_child_count(lv_screen_active()));
+        CHECK(CountTimers() == timers, "no timer left behind (%d -> %d)", timers, CountTimers());
+        CHECK(CountIndevCallbacks() == callbacks, "no input callback registered (%d -> %d)", callbacks, CountIndevCallbacks());
+        Tap();  // a tap must not reach a module that is not running
+        Advance(300);
+        CHECK(!w.IsShown() && g_fetches == 0, "tap on a module that did not start");
+        w.Stop();  // harmless on a module that did not start
+
+        // Retrying later works like a first start.
+        CHECK(w.Start(lv_screen_active(), fetcher), "second Start must succeed once timers work");
+        CHECK(w.OnVoiceText("dime el clima") && w.IsShown(), "works after the retry");
+        Advance(500);
+        CHECK(g_fetches == 1, "downloads after the retry (%d)", g_fetches);
+        w.Stop();
+        CHECK(lv_obj_get_child_count(lv_screen_active()) == children, "Stop leaves nothing behind");
+        CHECK(CountTimers() == timers && CountIndevCallbacks() == callbacks, "Stop leaves no timer or callback");
     }
 
     if (g_failures) {
