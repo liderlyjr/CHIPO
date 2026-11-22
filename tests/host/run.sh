@@ -44,6 +44,10 @@ echo "== Home Assistant requests and spoken commands"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include tests/host/test_ha_logic.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_ha_logic"
 "$OUT/test_ha_logic"
 
+echo "== IMU task lifecycle (fake FreeRTOS + I2C: Stop with a silent sensor, stuck bus, restarts)"
+g++ -std=c++17 -Wall -Wextra $SAN -DESP_PLATFORM -Itests/host/esp_stub -Itests/host/stub $INC tests/host/test_imu_lifecycle.cpp components/chipo_face/chipo_imu.cpp -o "$OUT/test_imu_lifecycle" -pthread
+"$OUT/test_imu_lifecycle" | grep -vE "^QMI8658 ready"
+
 echo "== tilt maths"
 g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_tilt.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_tilt"
 "$OUT/test_tilt"
@@ -104,7 +108,7 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_fun/i
 "$OUT/test_fun"
 
 echo "== chipo_tools (LVGL): info strip, pomodoro ring, level, 8-ball, canvas, subtitles"
-g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_tools/include -Icomponents/chipo_drive/include -Icomponents/chipo_face/include -w \
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_tools/include -Icomponents/chipo_drive/include -Icomponents/chipo_face/include -w -Wl,--wrap=lv_timer_create \
     tests/host/test_tools.cpp components/chipo_tools/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_tools"
 "$OUT/test_tools"
@@ -116,7 +120,8 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Icomponents/chipo_ha/include -Icomponents
 "$OUT/test_ha"
 
 echo "== weather screen (LVGL $(basename "$LVGL_DIR"))"
-g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w \
+# --wrap lets the test make lv_timer_create fail (the "timer cannot be created" cases).
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS $INC -Icomponents/chipo_weather/include -w -Wl,--wrap=lv_timer_create \
     tests/host/test_weather_ui.cpp components/chipo_weather/chipo_weather_view.cpp \
     components/chipo_weather/chipo_weather_controller.cpp components/chipo_weather/chipo_weather_data.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_weather_ui"
@@ -182,7 +187,7 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_scene
 "$OUT/test_scenes"
 
 echo "== chipo_settings (LVGL)"
-g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_settings/include -w \
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_settings/include -w -Wl,--wrap=lv_timer_create \
     tests/host/test_settings.cpp components/chipo_settings/chipo_settings.cpp components/chipo_settings/chipo_settings_logic.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_settings"
 "$OUT/test_settings"

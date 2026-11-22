@@ -39,12 +39,18 @@ constexpr uint8_t kCtrl7Value = 0x01;
 constexpr uint8_t kCtrl7WithGyroValue = 0x03;
 
 constexpr int kI2cTimeoutMs = 50;
+// Stop(): the task only has to finish the I2C transfer in progress (kI2cTimeoutMs), so this is generous.
+constexpr int kStopWaitMs = 1000;
+constexpr int kStopPollMs = 5;
 constexpr uint32_t kSamplePeriodMs = 40;  // 25 Hz
 constexpr uint32_t kFastSamplePeriodMs = CHIPO_DRIVE_SAMPLE_MS;  // car mode
 }  // namespace
 
 ChipoImu::~ChipoImu() {
-    Stop();
+    // The task uses this object: never let it die while the task still runs. ChipoFace already leaves a
+    // stuck object alone; this loop is the last line of defence for any other owner.
+    while (!Stop()) {
+    }
 }
 
 bool ChipoImu::WriteReg(uint8_t reg, uint8_t value) {
@@ -58,6 +64,7 @@ bool ChipoImu::ReadRegs(uint8_t reg, uint8_t* data, size_t length) {
 
 bool ChipoImu::Start() {
     if (running_.load()) return true;
+    if (!task_done_.load() && !Stop()) return false;  // an earlier task is still alive: do not start a second one
 
     i2c_master_bus_handle_t bus = nullptr;
     esp_err_t err = i2c_master_get_bus_handle(static_cast<i2c_port_num_t>(CHIPO_IMU_I2C_PORT), &bus);
@@ -125,12 +132,18 @@ bool ChipoImu::Start() {
     }
     vTaskDelay(pdMS_TO_TICKS(30));
 
+    wake_ = xSemaphoreCreateBinary();
     running_.store(true);
     task_done_.store(false);
-    if (xTaskCreate(TaskEntry, "chipo_imu", 3072, this, tskIDLE_PRIORITY + 1, &task_) != pdPASS) {
+    if (wake_ == nullptr || xTaskCreate(TaskEntry, "chipo_imu", 3072, this, tskIDLE_PRIORITY + 1, &task_) != pdPASS) {
         ESP_LOGW(TAG, "Could not start the IMU task");
         running_.store(false);
         task_done_.store(true);
+        if (wake_ != nullptr) {
+            vSemaphoreDelete(wake_);
+            wake_ = nullptr;
+        }
+        task_ = nullptr;
         i2c_master_bus_rm_device(dev_);
         dev_ = nullptr;
         return false;
@@ -140,15 +153,27 @@ bool ChipoImu::Start() {
     return true;
 }
 
-void ChipoImu::Stop() {
-    if (running_.exchange(false)) {
-        for (int i = 0; i < 50 && !task_done_.load(); ++i) vTaskDelay(pdMS_TO_TICKS(10));
+bool ChipoImu::Stop() {
+    running_.store(false);
+    if (wake_ != nullptr) xSemaphoreGive(wake_);  // end the task's sleep now, even in the 1 s slow mode
+    for (int waited = 0; !task_done_.load() && waited < kStopWaitMs; waited += kStopPollMs) {
+        vTaskDelay(pdMS_TO_TICKS(kStopPollMs));
     }
+    if (!task_done_.load()) {
+        ESP_LOGE(TAG, "IMU task did not stop (I2C bus stuck?): keeping the device and the object alive");
+        return false;
+    }
+    // The task has finished: nothing uses the semaphore or the I2C device any more.
     task_ = nullptr;
-    if (dev_ != nullptr && task_done_.load()) {
+    if (wake_ != nullptr) {
+        vSemaphoreDelete(wake_);
+        wake_ = nullptr;
+    }
+    if (dev_ != nullptr) {
         i2c_master_bus_rm_device(dev_);
         dev_ = nullptr;
     }
+    return true;
 }
 
 bool ChipoImu::Poll(ImuSample* out) {
@@ -191,8 +216,12 @@ void ChipoImu::Run() {
         }
         // After a long run of errors poll once per second instead of hammering the shared bus.
         const uint32_t period = consecutive_errors >= 25 ? 1000 : (fast_.load() ? kFastSamplePeriodMs : kSamplePeriodMs);
-        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(period));
+        // Same cadence as vTaskDelayUntil, but Stop() can end the sleep at once by giving wake_.
+        last_wake += pdMS_TO_TICKS(period);
+        const TickType_t wait = last_wake - xTaskGetTickCount();
+        if (static_cast<int32_t>(wait) > 0) xSemaphoreTake(wake_, wait);
     }
+    // Last use of this object: after this flag Stop() may free the semaphore and the I2C device.
     task_done_.store(true);
     vTaskDelete(nullptr);
 }

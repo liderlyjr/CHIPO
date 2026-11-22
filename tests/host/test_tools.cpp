@@ -10,6 +10,18 @@
 static int g_failures = 0;
 #define CHECK(c, ...) do { if (!(c)) { ++g_failures; std::printf("FAIL line %d: ", __LINE__); std::printf(__VA_ARGS__); std::printf("\n"); } } while (0)
 
+// The linker (-Wl,--wrap=lv_timer_create) routes the component's calls here, so a test can make the timer fail.
+static bool g_fail_timer = false;
+extern "C" lv_timer_t* __real_lv_timer_create(lv_timer_cb_t cb, uint32_t period, void* user_data);
+extern "C" lv_timer_t* __wrap_lv_timer_create(lv_timer_cb_t cb, uint32_t period, void* user_data) {
+    return g_fail_timer ? nullptr : __real_lv_timer_create(cb, period, user_data);
+}
+static int CountTimers() {
+    int n = 0;
+    for (lv_timer_t* t = lv_timer_get_next(nullptr); t; t = lv_timer_get_next(t)) ++n;
+    return n;
+}
+
 static uint32_t g_now = 1000;
 static uint32_t FakeTick() { return g_now; }
 static uint8_t g_buf[480 * 40 * 4];
@@ -268,6 +280,35 @@ int main() {
         CHECK(r.tools.tool() == ChipoTools::Tool::Level, "but the level opened");
         r.tools.Stop();
         r.tools.Stop();  // twice is fine
+    }
+
+    std::printf("== lv_timer_create fails\n");
+    {
+        const uint32_t children = lv_obj_get_child_count(lv_screen_active());
+        const int timers = CountTimers();
+        Rig r;
+        g_fail_timer = true;
+        const bool started = r.Start();
+        g_fail_timer = false;
+        CHECK(!started, "Start must report the failure");
+        CHECK(lv_obj_get_child_count(lv_screen_active()) == children, "everything Build() made must be removed (%u -> %u)",
+              children, lv_obj_get_child_count(lv_screen_active()));
+        CHECK(CountTimers() == timers, "no timer left behind (%d -> %d)", timers, CountTimers());
+        CHECK(!r.tools.OnVoiceText("pon el nivel") && r.tools.tool() == ChipoTools::Tool::None,
+              "a module that did not start must ignore voice");
+        r.Run(30000);
+        CHECK(r.prefetches == 0 && r.clips.empty() && r.notes.empty(), "no hook may fire (prefetches=%d)", r.prefetches);
+        r.tools.Stop();  // harmless on a module that did not start
+
+        // Retrying later works like a first start.
+        CHECK(r.Start(), "second Start must succeed once timers work");
+        CHECK(CountTimers() == timers + 1, "the tick timer exists after the retry (%d -> %d)", timers, CountTimers());
+        CHECK(r.tools.OnVoiceText("pon el nivel") && r.tools.tool() == ChipoTools::Tool::Level, "works after the retry");
+        r.Run(30000);
+        CHECK(r.prefetches == 1, "the tick runs after the retry (%d)", r.prefetches);
+        r.tools.Stop();
+        CHECK(lv_obj_get_child_count(lv_screen_active()) == children, "Stop leaves nothing behind");
+        CHECK(CountTimers() == timers, "Stop leaves no timer");
     }
 
     if (g_failures == 0) std::printf("ALL TOOLS TESTS PASSED\n");

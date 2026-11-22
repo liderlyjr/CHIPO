@@ -9,6 +9,23 @@
 static int g_failures = 0;
 #define CHECK(c, ...) do { if (!(c)) { ++g_failures; std::printf("FAIL line %d: ", __LINE__); std::printf(__VA_ARGS__); std::printf("\n"); } } while (0)
 
+// The linker (-Wl,--wrap=lv_timer_create) routes the component's calls here, so a test can make the timer fail.
+static bool g_fail_timer = false;
+extern "C" lv_timer_t* __real_lv_timer_create(lv_timer_cb_t cb, uint32_t period, void* user_data);
+extern "C" lv_timer_t* __wrap_lv_timer_create(lv_timer_cb_t cb, uint32_t period, void* user_data) {
+    return g_fail_timer ? nullptr : __real_lv_timer_create(cb, period, user_data);
+}
+static int CountTimers() {
+    int n = 0;
+    for (lv_timer_t* t = lv_timer_get_next(nullptr); t; t = lv_timer_get_next(t)) ++n;
+    return n;
+}
+static int CountIndevCallbacks() {
+    int n = 0;
+    for (lv_indev_t* in = lv_indev_get_next(nullptr); in; in = lv_indev_get_next(in)) n += lv_indev_get_event_count(in);
+    return n;
+}
+
 static uint32_t g_now = 1000;
 static uint32_t FakeTick() { return g_now; }
 static uint8_t g_buf[480 * 40 * 4];
@@ -23,6 +40,7 @@ struct Rig {
     std::vector<TapKind> reactions;
     int shifts = 0, sdx = 0, sdy = 0;
     int gazes = 0, lifts = 0;
+    int clock_calls = 0;
     float gnx = 9, gny = 9;
     bool Start() {
         ChipoSettings::Hooks h;
@@ -41,7 +59,7 @@ struct Rig {
         h.shift = [this](int dx, int dy) { ++shifts; sdx = dx; sdy = dy; };
         h.keep_awake = [this] { return awake; };
         h.overlay_active = [this] { return overlay; };
-        h.clock = [] { return g_now; };
+        h.clock = [this] { ++clock_calls; return g_now; };
         return s.Start(lv_screen_active(), std::move(h), "0.6.0");
     }
     void Run(uint32_t ms) { for (uint32_t t = 0; t < ms; t += 1000) { g_now += 1000; s.Step(g_now); } lv_timer_handler(); }
@@ -211,6 +229,45 @@ int main() {
         r.Run(60000);
         CHECK(!r.s.Debug().dimmed || !r.s.open(), "no dimming while the menu is open");
         r.s.Stop();
+    }
+
+    std::printf("== lv_timer_create fails\n");
+    {
+        const uint32_t children = lv_obj_get_child_count(lv_screen_active());
+        const int timers = CountTimers();
+        const int callbacks = CountIndevCallbacks();
+        Rig r;
+        g_fail_timer = true;
+        const bool started = r.Start();
+        g_fail_timer = false;
+        CHECK(!started, "Start must report the failure");
+        CHECK(lv_obj_get_child_count(lv_screen_active()) == children, "menu and indicator must be removed (%u -> %u)",
+              children, lv_obj_get_child_count(lv_screen_active()));
+        CHECK(CountTimers() == timers, "no timer left behind (%d -> %d)", timers, CountTimers());
+        CHECK(CountIndevCallbacks() == callbacks, "no input callback registered (%d -> %d)", callbacks, CountIndevCallbacks());
+        CHECK(!r.s.open(), "closed");
+        r.s.OnLongPress();  // a module that did not start must ignore input
+        CHECK(!r.s.open(), "long press must not open a menu that was never built");
+        r.Run(5000);
+        CHECK(r.shifts == 0 && r.notes.empty() && r.clips.empty() && r.emotions.empty(), "no hook may fire (shifts=%d)", r.shifts);
+        r.s.Stop();  // harmless on a module that did not start
+
+        // Retrying later works like a first start.
+        CHECK(r.Start(), "second Start must succeed once timers work");
+        CHECK(lv_obj_get_child_count(lv_screen_active()) > children, "menu built on the retry");
+        r.s.OnLongPress();
+        CHECK(r.s.open(), "long press opens the menu after the retry");
+        r.s.Close();
+        CHECK(CountTimers() == timers + 1, "the tick timer exists after the retry (%d -> %d)", timers, CountTimers());
+        const int clock_before = r.clock_calls;
+        for (int i = 0; i < 20; ++i) {  // driven by LVGL's own timer, not by calling Step() by hand
+            g_now += 1000;
+            lv_timer_handler();
+        }
+        CHECK(r.clock_calls > clock_before, "the 1 s tick runs after the retry (%d calls)", r.clock_calls - clock_before);
+        r.s.Stop();
+        CHECK(lv_obj_get_child_count(lv_screen_active()) == children, "Stop leaves nothing behind");
+        CHECK(CountTimers() == timers && CountIndevCallbacks() == callbacks, "Stop leaves no timer or callback");
     }
 
     if (g_failures == 0) std::printf("ALL SETTINGS TESTS PASSED\n");

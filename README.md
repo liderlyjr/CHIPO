@@ -6,7 +6,7 @@ añade una cara animada, pantallas propias, juegos, temporizadores y Home Assist
 
 **Placa: Waveshare ESP32-S3 Touch AMOLED 2.16** (pantalla cuadrada de 480 × 480). Es la única placa soportada.
 
-> **Estado: V1.0.0. Compila en GitHub Actions y pasa 28 grupos de pruebas en PC, pero todavía no se ha probado en la
+> **Estado: V1.0.0. Compila en GitHub Actions y pasa 29 grupos de pruebas en PC, pero todavía no se ha probado en la
 > placa física.** Lo que solo se puede confirmar con ella está en [Qué falta por probar](#qué-falta-por-probar).
 
 ## Hardware
@@ -78,7 +78,7 @@ punto de anclaje no coincide, el script se detiene en lugar de parchear a ciegas
 ## Qué está comprobado
 
 - El script de integración se aplica sin errores sobre XiaoZhi `92d400d` y, ejecutado otra vez, no cambia nada.
-- 28 grupos de pruebas en PC, a 480 × 480, con AddressSanitizer y UBSan (`tests/host/run.sh`, también en GitHub
+- 29 grupos de pruebas en PC, a 480 × 480, con AddressSanitizer y UBSan (`tests/host/run.sh`, también en GitHub
   Actions antes de cada compilación).
 - El firmware completo compila con ESP-IDF 6.1 en GitHub Actions.
 
