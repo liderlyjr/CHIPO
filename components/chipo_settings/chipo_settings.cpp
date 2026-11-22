@@ -107,6 +107,14 @@ bool ChipoSettings::Start(lv_obj_t* parent, Hooks hooks, const char* version, co
         return false;
     }
     timer_ = lv_timer_create(TimerCallback, kTickMs, this);
+    if (timer_ == nullptr) {
+        // Without the tick the battery check, the screen saver and the idle handling would never run.
+        // Nothing is registered on the input devices yet: remove the menu and the indicator and drop the
+        // hooks, so Start() can be called again later.
+        Stop();
+        hooks_ = Hooks{};
+        return false;
+    }
     for (lv_indev_t* in = lv_indev_get_next(nullptr); in; in = lv_indev_get_next(in)) {
         if (lv_indev_get_type(in) == LV_INDEV_TYPE_POINTER) {
             lv_indev_add_event_cb(in, IndevCallback, LV_EVENT_PRESSED, this);

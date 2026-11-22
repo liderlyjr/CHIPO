@@ -55,6 +55,13 @@ bool ChipoWeather::Start(lv_obj_t* parent, Fetcher fetcher, const WeatherFonts* 
     shared_ = std::make_shared<Shared>();
     shared_->fetcher = std::move(fetcher);
     timer_ = lv_timer_create(TimerCallback, kTimerPeriodMs, this);
+    if (timer_ == nullptr) {
+        // Without the timer the weather screen would never update or hide. Nothing else is registered yet,
+        // so undo the view and the shared state: Start() can simply be called again later.
+        view_.Destroy();
+        shared_.reset();
+        return false;
+    }
     // Indev-level click: fires for every tap wherever it lands, without taking over any object.
     for (lv_indev_t* in = lv_indev_get_next(nullptr); in; in = lv_indev_get_next(in)) {
         if (lv_indev_get_type(in) == LV_INDEV_TYPE_POINTER) {
