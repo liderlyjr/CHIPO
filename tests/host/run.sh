@@ -108,7 +108,7 @@ g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_fun/i
 "$OUT/test_fun"
 
 echo "== chipo_tools (LVGL): info strip, pomodoro ring, level, 8-ball, canvas, subtitles"
-g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_tools/include -Icomponents/chipo_drive/include -Icomponents/chipo_face/include -w \
+g++ -std=gnu++23 -O1 -g $SAN $LVFLAGS -Itests/host/stub -Icomponents/chipo_tools/include -Icomponents/chipo_drive/include -Icomponents/chipo_face/include -w -Wl,--wrap=lv_timer_create \
     tests/host/test_tools.cpp components/chipo_tools/*.cpp components/chipo_drive/chipo_drive_voice.cpp \
     "$OUT"/obj/*.o -o "$OUT/test_tools"
 "$OUT/test_tools"
