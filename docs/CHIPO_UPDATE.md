@@ -45,4 +45,4 @@ Los **assets** de XiaoZhi (temas, fuentes, palabras de activación) siguen pudie
 Los tests de PC cubren comparación de versiones, lectura de la Release, validación de URL y la autorización. Lo que **no** está probado en hardware: la descarga real desde tu red, la redirección de GitHub, el aviso en pantalla durante la grabación (es el de XiaoZhi) y el reinicio posterior.
 
 ## Nota sobre la Release v0.6.0
-La `v0.6.0` publicada antes de este cambio se compiló para la 1,8" V2 (placa ya no soportada) y su archivo se llama `chipo-os.bin`. CHIPO solo instala versiones **mayores** que la suya y solo busca `chipo-os-2.16.bin`, así que nunca la descarga. A partir del siguiente número de `VERSION`, la Release es de la 2,16".
+La `v0.6.0` publicada antes de este cambio se compiló para la 1,8" V2 (placa ya no soportada) y su archivo se llama `chipo-os.bin`. CHIPO solo instala versiones **mayores** que la suya y solo busca `chipo-os-2.16.bin`, así que nunca la descarga. La `v1.0.0` es la primera Release de la 2,16".
