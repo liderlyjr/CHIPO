@@ -36,6 +36,10 @@ g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_buddy/include -Icomponents/
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_fun/include -Icomponents/chipo_drive/include tests/host/test_fun_logic.cpp components/chipo_fun/chipo_fun_voice.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_fun_logic"
 "$OUT/test_fun_logic"
 
+echo "== CHIPO boot summary (text of the serial report)"
+g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_boot/include tests/host/test_boot_report.cpp components/chipo_boot/chipo_boot_report.cpp -o "$OUT/test_boot_report"
+"$OUT/test_boot_report"
+
 echo "== CHIPO TOOLS logic (shake, level, 8-ball, voice)"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_tools/include -Icomponents/chipo_drive/include tests/host/test_tools_logic.cpp components/chipo_tools/chipo_tools_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_tools_logic"
 "$OUT/test_tools_logic"

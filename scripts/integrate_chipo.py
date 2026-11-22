@@ -31,7 +31,7 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
-for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings", "chipo_tools"):
+for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings", "chipo_tools", "chipo_boot"):
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -945,6 +945,49 @@ replace_once(
     '#include "lvgl_font.h"\n',
     '#include "lvgl_font.h"\n#include "button.h"\n',
     "Application button header include (user key on the 2.16\")",
+)
+
+# --- Boot summary: a few clear lines in the serial log (version, memory, modules started / failed) -------------------
+replace_once(
+    cmake,
+    "                        chipo_tools\n",
+    "                        chipo_tools\n                        chipo_boot\n",
+    "Link chipo_boot component",
+)
+replace_once(
+    app_cc,
+    '#include "lvgl_font.h"\n#include "button.h"\n',
+    '#include "lvgl_font.h"\n#include "button.h"\n#include "chipo_boot_report.h"\n',
+    "Application boot report include",
+)
+replace_once(
+    app_cc,
+    """            }, 1000, this);
+        }
+    }
+""",
+    """            }, 1000, this);
+        }
+    }
+
+    // CHIPO boot summary: version, free memory and which modules started (a module that failed to start left its
+    // pointer empty). A few lines instead of searching the whole log.
+    ChipoLogBootReport(CHIPO_OS_VERSION, {
+        {"face", chipo_face_ != nullptr},
+        {"weather", chipo_weather_ != nullptr},
+        {"drive", chipo_drive_ != nullptr},
+        {"ha", chipo_ha_ != nullptr},
+        {"fun", chipo_fun_ != nullptr},
+        {"pet", chipo_pet_ != nullptr},
+        {"remind", chipo_remind_ != nullptr},
+        {"ambient", chipo_ambient_ != nullptr},
+        {"buddy", chipo_buddy_ != nullptr},
+        {"scenes", chipo_scenes_ != nullptr},
+        {"tools", chipo_tools_ != nullptr},
+        {"settings", chipo_settings_ != nullptr},
+    });
+""",
+    "Log the CHIPO boot summary after the last module",
 )
 replace_once(
     app_cc,
