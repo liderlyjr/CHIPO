@@ -44,6 +44,10 @@ echo "== Home Assistant requests and spoken commands"
 g++ -std=c++17 -Wall -Wextra $SAN -Icomponents/chipo_ha/include -Icomponents/chipo_drive/include tests/host/test_ha_logic.cpp components/chipo_ha/chipo_ha_logic.cpp components/chipo_drive/chipo_drive_voice.cpp -o "$OUT/test_ha_logic"
 "$OUT/test_ha_logic"
 
+echo "== IMU task lifecycle (fake FreeRTOS + I2C: Stop with a silent sensor, stuck bus, restarts)"
+g++ -std=c++17 -Wall -Wextra $SAN -DESP_PLATFORM -Itests/host/esp_stub -Itests/host/stub $INC tests/host/test_imu_lifecycle.cpp components/chipo_face/chipo_imu.cpp -o "$OUT/test_imu_lifecycle" -pthread
+"$OUT/test_imu_lifecycle" | grep -vE "^QMI8658 ready"
+
 echo "== tilt maths"
 g++ -std=c++17 -Wall -Wextra $SAN $INC tests/host/test_tilt.cpp components/chipo_face/chipo_tilt.cpp -o "$OUT/test_tilt"
 "$OUT/test_tilt"
