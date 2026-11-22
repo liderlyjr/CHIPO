@@ -18,8 +18,14 @@ bool ChipoAmbient::Start(Hooks hooks) {
     if (running_) return true;
     hooks_ = std::move(hooks);
     timer_ = lv_timer_create(TimerCallback, kTickMs, this);
-    running_ = timer_ != nullptr;
-    return running_;
+    if (timer_ == nullptr) {
+        // Without the tick nothing here would ever run: undo what Start() set up so it can be called again.
+        Stop();
+        hooks_ = Hooks{};
+        return false;
+    }
+    running_ = true;
+    return true;
 }
 
 void ChipoAmbient::Stop() {

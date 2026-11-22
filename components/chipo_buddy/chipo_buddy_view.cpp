@@ -239,7 +239,12 @@ void ChipoBuddyView::StartFx(Fx fx) {
         SetPieceOpa(footer_, 255);
         return;
     }
-    if (!fx_timer_) fx_timer_ = lv_timer_create(FxTimerCallback, kFxTickMs, this);
+    if (!fx_timer_) {
+        fx_timer_ = lv_timer_create(FxTimerCallback, kFxTickMs, this);
+        // No timer to animate with: jump to the end of the effect, so the digits are never left invisible
+        // (switch-on) or half faded and still shown (switch-off).
+        if (!fx_timer_) fx_t0_ = lv_tick_get() - 10000;
+    }
     StepFx();
 }
 
