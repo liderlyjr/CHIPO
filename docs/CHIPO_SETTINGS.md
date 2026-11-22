@@ -47,7 +47,7 @@ cualquier otro sitio (arriba o abajo) o por voz, y un toque cierra el clima dond
 
 ## Qué no está verificado
 
-Nada se ha probado en la placa: si la pulsación larga se siente bien en el CST820, el ajuste real del brillo y del volumen,
+Nada se ha probado en la placa: si la pulsación larga se siente bien en el CST9220, el ajuste real del brillo y del volumen,
 la lectura de batería del AXP2101 en esta revisión, el consumo del protector, y que la fuente de XiaoZhi muestre bien los
 avisos con tildes.
 
