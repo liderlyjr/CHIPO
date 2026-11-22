@@ -42,6 +42,10 @@ constexpr float kMouthCenterY = 162.0f;
 constexpr int32_t kDotsY = 196;
 
 constexpr uint32_t kStepPeriodMs = 40;  // 25 animation steps per second
+// Asleep the face only breathes (a 4 s swing of a couple of pixels): 10 steps per second look the same and cost far
+// less CPU and display traffic. It matters most on the charger, where CHIPO stays asleep for good. Must stay <= 100 ms
+// (Step() clamps dt to 0.1 s) and short enough that a touch or a jolt still wakes it up promptly.
+constexpr uint32_t kSleepStepPeriodMs = 100;
 constexpr uint32_t kBlinkMinMs = 2800;
 constexpr uint32_t kBlinkJitterMs = 3400;
 constexpr float kBlinkCloseMs = 70.0f;
@@ -439,6 +443,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
 #endif
 
     motion_timer_ = lv_timer_create(MotionTimerCallback, kStepPeriodMs, this);
+    motion_period_ms_ = kStepPeriodMs;
     if (motion_timer_ == nullptr) {
         Stop();
         ESP_LOGE(TAG, "Could not create animation timer");
@@ -1028,6 +1033,13 @@ void ChipoFace::Step(uint32_t now_ms) {
     if (thinking_ && now_ms - thinking_since_ms_ > CHIPO_THINKING_TIMEOUT_MS) thinking_ = false;
     const State shown = ShownState(now_ms);
     shown_ = shown;
+    {
+        const uint32_t want = shown == State::Sleep ? kSleepStepPeriodMs : kStepPeriodMs;
+        if (motion_timer_ != nullptr && motion_period_ms_ != want) {
+            lv_timer_set_period(motion_timer_, want);
+            motion_period_ms_ = want;
+        }
+    }
 
     Mood mood = Mood::Normal;
     if (state_ != State::Error) {
@@ -1954,6 +1966,7 @@ void ChipoFace::SetPixelShift(int dx, int dy) {
 
 ChipoFace::DebugInfo ChipoFace::Debug() const {
     DebugInfo d{};
+    d.step_period_ms = motion_period_ms_;
     d.shown_state = shown_;
     d.mood = mood_;
     d.face_dx = applied_.face_dx;

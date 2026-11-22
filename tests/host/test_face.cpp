@@ -555,8 +555,12 @@ int main() {
         Advance(*face, 3000);
         CHECK(face->Debug().shown_state == State::Sleep, "did not fall asleep");
         CHECK(face->Debug().eye_h <= 6, "sleeping eyes still open (%d)", face->Debug().eye_h);
+        CHECK(face->Debug().step_period_ms > 40 && face->Debug().step_period_ms <= 100,
+              "asleep it should step more slowly, within the 0.1 s dt clamp (%u ms)", face->Debug().step_period_ms);
         face->SetState(State::Listening);
         Advance(*face, 800);
+        CHECK(face->Debug().step_period_ms == 40, "awake it must animate at 25 steps per second (%u ms)",
+              face->Debug().step_period_ms);
         CHECK(face->Debug().shown_state == State::Listening && face->Debug().eye_h >= 70,
               "did not wake up");
         face->SetState(State::Idle);
@@ -565,6 +569,7 @@ int main() {
         g_imu = {0.0f, 0.1f, 0.9f};  // knocked over: a jolt wakes it
         Advance(*face, 200);
         CHECK(face->Debug().shown_state != State::Sleep, "a jolt should wake CHIPO");
+        CHECK(face->Debug().step_period_ms == 40, "after the jolt it animates at full rate (%u ms)", face->Debug().step_period_ms);
         SetPose(0, 0);
         Advance(*face, 3000);
 

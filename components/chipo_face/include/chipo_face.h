@@ -85,6 +85,7 @@ public:
     void SetFastSampling(bool fast);
 
     struct DebugInfo {
+        uint32_t step_period_ms;  // animation timer period: slower while asleep
         State shown_state;
         Mood mood;
         float face_scale;  // geometry below is in design pixels; multiply by this for real screen pixels
@@ -256,6 +257,7 @@ private:
     static constexpr int kGlassesPieces = 8;
     lv_obj_t* glasses_[kGlassesPieces] = {};
     lv_timer_t* motion_timer_ = nullptr;
+    uint32_t motion_period_ms_ = 0;
 
     State state_ = State::Idle;
     State shown_ = State::Idle;
