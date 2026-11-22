@@ -51,6 +51,11 @@ La placa viene montada en su caja de 46 × 46 × 22,5 mm. Detalles, fuentes y lo
   enchufado, no se apaga solo. [HARDWARE_2_16](docs/HARDWARE_2_16.md#energía-atenuar-y-apagarse-solo)
 - **Actualización automática** desde las Releases de este repositorio. [CHIPO_UPDATE](docs/CHIPO_UPDATE.md)
 
+## Cuando llegue la placa
+
+- [docs/PRIMER_ARRANQUE.md](docs/PRIMER_ARRANQUE.md): grabar, activar, qué comprobar por orden y qué registro enviar si algo falla.
+- [docs/XIAOZHI_AGENTE.md](docs/XIAOZHI_AGENTE.md): personalidad, voz e idioma del agente en xiaozhi.me.
+
 ## Compilar
 
 - **Sin instalar nada:** GitHub compila el firmware. Guía paso a paso: [docs/BUILD_GITHUB.md](docs/BUILD_GITHUB.md).
