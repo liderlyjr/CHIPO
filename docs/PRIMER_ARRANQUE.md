@@ -69,6 +69,10 @@ Lo más útil es el **registro serie** desde el arranque:
   dispositivos). Para salir, `Ctrl+]`.
 - Sin instalar nada: la consola serie de ESPTool-JS (el mismo sitio que se usa para grabar), a 115200.
 
+Al terminar de arrancar CHIPO imprime un **resumen** de unas pocas líneas (busca `boot summary` en el registro): versión,
+motivo del reinicio (encendido, pánico, brownout...), memoria libre (interna y PSRAM) y qué módulos arrancaron y
+cuáles **FAILED**. Si algo no funciona, copia primero ese bloque. Esto aún no se ha visto en la placa real.
+
 Copia el texto desde que se enciende hasta que ocurre el fallo y, si es visual, una foto de la pantalla. Con eso se
 puede corregir sin adivinar.
 
