@@ -107,7 +107,7 @@ bool IsDefaultGlow(uint32_t rgb) {
 }
 
 // Mouth shapes: the half-moon smile only fits happy faces; sad ones get it upside down.
-enum MouthKind : uint8_t { kMouthSmile = 0, kMouthFrown = 1, kMouthO = 2, kMouthFlat = 3, kMouthGrin = 4 };
+enum MouthKind : uint8_t { kMouthSmile = 0, kMouthFrown = 1, kMouthO = 2, kMouthFlat = 3, kMouthGrin = 4, kMouthWave = 5 };
 constexpr uint32_t kRingCyan = 0x5CF0FF;   // ring + halo while listening / speaking (calm colour)
 constexpr uint32_t kHappyArc = 0xFFD2B0;   // closed happy eyes (peach)
 constexpr uint32_t kSleepArc = 0xC9B0FF;   // closed sleeping eyes (lilac)
@@ -337,6 +337,20 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         MakeInert(arc);
         lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
     }
+    auto make_arc = [&](lv_obj_t*& arc, int width) {
+        arc = lv_arc_create(root_);
+        if (!arc) return;
+        lv_obj_remove_style_all(arc);
+        lv_obj_set_style_arc_opa(arc, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_arc_width(arc, std::max(2, S(width)), LV_PART_INDICATOR);
+        lv_obj_set_style_arc_rounded(arc, true, LV_PART_INDICATOR);
+        lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR);
+        lv_arc_set_bg_angles(arc, 0, 360);
+        MakeInert(arc);
+        lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
+    };
+    for (auto& arc : spiral_) make_arc(arc, 4);
+    for (auto& arc : wave_) make_arc(arc, 4);
     for (int i = 0; i < 3; ++i) {
         StyleGlow(dots_[i], kEyeLilac, 0);
         lv_obj_set_size(dots_[i], S(8), S(8));
@@ -474,6 +488,10 @@ void ChipoFace::Stop() {
     road_shown_ = false;
     root_ = left_eye_ = right_eye_ = left_pupil_ = right_pupil_ = mouth_ = tongue_ = bowl_ = inner_ = nullptr;
     eye_arc_[0] = eye_arc_[1] = nullptr;
+    for (auto& o : spiral_) o = nullptr;
+    for (auto& o : wave_) o = nullptr;
+    dizzy_fx_visible_ = false;
+    wave_flip_ = -1;
     for (auto& o : halo_) o = nullptr;
     for (auto& o : brow_) o = nullptr;
     for (auto& o : blush_) o = nullptr;
@@ -938,6 +956,62 @@ void ChipoFace::UpdateDots(uint32_t now_ms, bool visible) {
     }
 }
 
+void ChipoFace::UpdateDizzyFx(uint32_t now_ms, bool visible) {
+    if (visible != dizzy_fx_visible_) {
+        dizzy_fx_visible_ = visible;
+        for (lv_obj_t* o : spiral_) {
+            if (!o) continue;
+            if (visible) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+        }
+        for (lv_obj_t* o : wave_) {
+            if (!o) continue;
+            if (visible) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+        }
+        wave_flip_ = -1;
+    }
+    if (!visible) return;
+    // Spirals: two arcs per eye turning against each other, centred on the (squashed) eye.
+    const int d_max = std::max(8, std::min<int>(applied_.eye_w, applied_.eye_h) - S(8));
+    for (int i = 0; i < 2; ++i) {
+        const int x = i == 0 ? applied_.left_eye_x : applied_.right_eye_x;
+        const int y = i == 0 ? applied_.eye_y : applied_.right_eye_y;
+        const int h = i == 0 ? applied_.eye_h : applied_.right_eye_h;
+        const int cx = x + applied_.eye_w / 2, cy = y + h / 2;
+        const float turn = static_cast<float>(now_ms % 900) / 900.0f * 360.0f;
+        for (int k = 0; k < 2; ++k) {
+            lv_obj_t* arc = spiral_[i * 2 + k];
+            if (!arc) continue;
+            const int d = k == 0 ? d_max : std::max(6, d_max * 5 / 11);
+            lv_obj_set_size(arc, d, d);
+            lv_obj_set_pos(arc, cx - d / 2, cy - d / 2);
+            lv_obj_set_style_arc_color(arc, lv_color_hex(0x2A1B4D), LV_PART_INDICATOR);
+            lv_arc_set_angles(arc, 0, 270);
+            const int rot = k == 0 ? static_cast<int>(turn) : 360 - static_cast<int>(turn * 1.3f) % 360;
+            lv_arc_set_rotation(arc, rot % 360);
+        }
+    }
+    // Wavy mouth: half circles that flip up / down a few times a second.
+    const int flip = static_cast<int>(now_ms / 230) & 1;
+    const int w = std::max(S(12), applied_.mouth_w / 2 + S(4));
+    const int cx = applied_.mouth_x + applied_.mouth_w / 2;
+    const int cy = applied_.mouth_y + applied_.mouth_h / 2;
+    if (flip != wave_flip_) {
+        wave_flip_ = flip;
+        for (int i = 0; i < 3; ++i) {
+            lv_obj_t* arc = wave_[i];
+            if (!arc) continue;
+            const bool down = ((i + flip) & 1) == 0;  // bottom half (a "u") or top half (an "n")
+            lv_obj_set_size(arc, w, w);
+            lv_obj_set_pos(arc, cx + (i - 1) * w - w / 2, cy - w / 2 + (down ? -w / 4 : w / 4));
+            lv_obj_set_style_arc_color(arc, lv_color_hex(kMouthLip), LV_PART_INDICATOR);
+            if (down) lv_arc_set_angles(arc, 20, 160);
+            else lv_arc_set_angles(arc, 200, 340);
+        }
+    }
+}
+
 void ChipoFace::MotionTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
     if (self) self->Step(lv_tick_get());
@@ -1334,7 +1408,8 @@ void ChipoFace::Step(uint32_t now_ms) {
             break;
         default: break;
         }
-        if (mood == Mood::Startled || mood == Mood::Dizzy) mk = kMouthO;  // "oh!"
+        if (mood == Mood::Startled) mk = kMouthO;  // "oh!"
+        if (mood == Mood::Dizzy) mk = kMouthWave;  // wobbly mouth
         if (drive_mode_ && mk == kMouthSmile) mk = kMouthGrin;  // cool driver: closed grin, no tongue over the sun
         layout.mouth_kind = mk;
         uint8_t arc = 0;
@@ -1347,7 +1422,7 @@ void ChipoFace::Step(uint32_t now_ms) {
                       (emotion == Emotion::None
                            ? (shown == State::Listening || shown == State::Speaking || shown == State::Error)
                            : emotion != Emotion::Tired);
-        if (arc) layout.pupils_visible = layout.right_pupil_visible = false;
+        if (arc || mood == Mood::Dizzy) layout.pupils_visible = layout.right_pupil_visible = false;  // spirals instead
         if (arc) layout.brows_visible = false;
         layout.blush_visible = emotion == Emotion::Happy || emotion == Emotion::Laugh || emotion == Emotion::Love ||
                                emotion == Emotion::Wink || emotion == Emotion::Dance;
@@ -1364,6 +1439,7 @@ void ChipoFace::Step(uint32_t now_ms) {
     ApplyLayout(layout);
 
     UpdateDots(now_ms, shown == State::Thinking && mood == Mood::Normal);
+    UpdateDizzyFx(now_ms, mood == Mood::Dizzy && shown != State::Sleep);
     EmitStateFx(shown, mood, now_ms);
     UpdateCostumes(now_ms);
     fx_.Step(dt);
@@ -1689,7 +1765,10 @@ void ChipoFace::ApplyLayout(const Layout& l) {
         const int w = l.mouth_w, h = l.mouth_h, rim = S(3);
         const bool open = h >= S(14) && w >= S(20);
         bool show_inner = false, show_tongue = false;
+        if (l.mouth_kind == kMouthWave) lv_obj_add_flag(bowl_, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_remove_flag(bowl_, LV_OBJ_FLAG_HIDDEN);
         switch (l.mouth_kind) {
+        case kMouthWave: break;  // drawn by UpdateDizzyFx
         case kMouthFrown:  // upside-down half-moon: the top half of an ellipse
             lv_obj_set_size(bowl_, w, 2 * h);
             lv_obj_set_pos(bowl_, 0, 0);
@@ -1899,6 +1978,21 @@ void ChipoFace::EmitStateFx(State shown, Mood mood, uint32_t now_ms) {
                   cy - kCanvasHeight * fs_ / 2.0f + kEyeCenterY * fs_ + eye_h * 0.5f - 2.0f, 12.0f * fs_, 0x8FD0FF);
         tear_side_ ^= 1;
         next_tear_ms_ = now_ms + 420;
+    }
+    // Sweat drop on the temple while being tipped over.
+    if (worry_ > 0.55f && mood == Mood::Normal && shown != State::Sleep && now_ms >= next_sweat_ms_ &&
+        fx_.alive(FxKind::Sweat) < 2) {
+        const float rx = (kCenterX + kEyeGap / 2.0f) * fs_ + static_cast<float>(applied_.eye_w) * 0.5f + 10.0f * fs_;
+        fx_.Spawn(FxKind::Sweat, cx - kCanvasWidth * fs_ / 2.0f + rx,
+                  cy - kCanvasHeight * fs_ / 2.0f + (kEyeCenterY - 30.0f) * fs_, 14.0f * fs_, 0xBFE6FF);
+        next_sweat_ms_ = now_ms + 800;
+    }
+    // Dizzy: little stars circle above the eyes.
+    fx_.SetOrbit(cx, cy - kCanvasHeight * fs_ / 2.0f + 28.0f * fs_);
+    if (mood == Mood::Dizzy && shown != State::Sleep) {
+        if (fx_.alive(FxKind::Star) == 0) fx_.SpawnStars(3, 15.0f * fs_, 62.0f * fs_);
+    } else {
+        fx_.Release(FxKind::Star);
     }
     // Asleep: a Z floats up now and then.
     if (shown == State::Sleep) {

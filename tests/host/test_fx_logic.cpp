@@ -39,6 +39,25 @@ int main() {
     const float y1 = e.at(t).y;
     e.Step(0.2f);
     CHECK(e.at(t).y - y1 > y1 - 50.0f, "tear accelerates");
+    // Sweat slides down; stars circle the orbit centre and fade out on Release().
+    e.Clear();
+    const int sw = e.Spawn(FxKind::Sweat, 10, 10, 12, 0xBFE6FF);
+    for (int i = 0; i < 10; ++i) e.Step(0.05f);
+    CHECK(e.at(sw).y > 10.5f, "sweat slides down");
+    e.Clear();
+    e.SetOrbit(100, 50);
+    CHECK(e.SpawnStars(3, 15, 60) == 3 && e.alive(FxKind::Star) == 3, "three stars");
+    for (int i = 0; i < 40; ++i) e.Step(0.05f);
+    bool orbit_ok = true;
+    for (int i = 0; i < 3; ++i) {
+        const float dx = e.at(i).x - 100, dy = (e.at(i).y - 50) / 0.4f;
+        orbit_ok = orbit_ok && std::fabs(std::sqrt(dx * dx + dy * dy) - 60.0f) < 1.0f;
+    }
+    CHECK(orbit_ok && e.alive(FxKind::Star) == 3, "stars stay on their orbit");
+    CHECK(FxEngine::Alpha(e.at(0)) > 0.99f, "stars are opaque while dizzy");
+    e.Release(FxKind::Star);
+    for (int i = 0; i < 10; ++i) e.Step(0.05f);
+    CHECK(e.alive(FxKind::Star) == 0, "stars fade out after Release");
     // Zzz drifts up and right and grows.
     e.Clear();
     const int z = e.Spawn(FxKind::Zzz, 50, 50, 14, 0xFFFFFF);

@@ -49,10 +49,38 @@ int FxEngine::Spawn(FxKind kind, float x, float y, float size, uint32_t rgb) {
             p.vy = -22.0f;
             p.life = 2.6f;
             break;
+        case FxKind::Sweat:
+            p.vy = 6.0f;
+            p.life = 1.5f;
+            break;
+        case FxKind::Star:
+            p.vx = size * 4.0f;  // orbit radius (px)
+            p.life = 600.0f;     // until Release()
+            break;
         }
         return i;
     }
     return -1;
+}
+
+int FxEngine::SpawnStars(int count, float size, float radius) {
+    int made = 0;
+    for (int k = 0; k < count; ++k) {
+        const int slot = Spawn(FxKind::Star, orbit_x_, orbit_y_, size, 0xFFE066);
+        if (slot < 0) break;
+        slots_[slot].vx = radius;
+        slots_[slot].phase = kTwoPi * static_cast<float>(k) / static_cast<float>(count > 0 ? count : 1);
+        slots_[slot].x = orbit_x_ + std::cos(slots_[slot].phase) * radius;
+        slots_[slot].y = orbit_y_ + std::sin(slots_[slot].phase) * radius * 0.4f;
+        ++made;
+    }
+    return made;
+}
+
+void FxEngine::Release(FxKind kind) {
+    for (FxParticle& p : slots_) {
+        if (p.alive && p.kind == kind && p.life - p.age > 0.35f) p.life = p.age + 0.35f;
+    }
 }
 
 int FxEngine::Burst(FxKind kind, int count, float cx, float cy, float radius) {
@@ -107,6 +135,16 @@ void FxEngine::Step(float dt) {
             p.x += (p.vx + 6.0f * std::sin(p.phase + p.age * 2.0f)) * dt;
             p.y += p.vy * dt;
             break;
+        case FxKind::Sweat:
+            p.vy += 120.0f * dt;  // slides slowly down the temple, then speeds up
+            p.y += p.vy * dt;
+            break;
+        case FxKind::Star: {
+            const float a = p.phase + p.age * 4.4f;
+            p.x = orbit_x_ + std::cos(a) * p.vx;
+            p.y = orbit_y_ + std::sin(a) * p.vx * 0.4f;
+            break;
+        }
         }
     }
 }
@@ -129,6 +167,10 @@ int FxEngine::alive(FxKind kind) const {
 
 float FxEngine::Alpha(const FxParticle& p) {
     if (!p.alive || p.life <= 0) return 0;
+    if (p.kind == FxKind::Star) {  // fixed fade times: the life is "forever" until released
+        const float a = std::fmin(std::fmin(1.0f, p.age / 0.25f), (p.life - p.age) / 0.35f);
+        return a < 0 ? 0 : a;
+    }
     const float t = p.age / p.life;
     const float in = std::fmin(1.0f, t / 0.12f);
     const float out = std::fmin(1.0f, (1.0f - t) / 0.35f);
@@ -143,6 +185,8 @@ float FxEngine::Scale(const FxParticle& p) {
     case FxKind::Zzz: return 0.6f + 0.6f * t;
     case FxKind::Heart: return 0.7f + 0.4f * std::fmin(1.0f, t * 4.0f);
     case FxKind::Tear: return 1.0f;
+    case FxKind::Sweat: return 0.8f + 0.2f * std::fmin(1.0f, t * 3.0f);
+    case FxKind::Star: return 0.85f + 0.2f * std::sin(p.age * 9.0f + p.phase);
     }
     return 1.0f;
 }

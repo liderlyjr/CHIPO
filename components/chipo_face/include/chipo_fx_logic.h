@@ -7,7 +7,7 @@
  * CHIPO FX: little floating decorations over the face (hearts, sparkles, tears, "Zzz").
  * Pure logic (no LVGL, no ESP-IDF): positions are screen pixels, unit tested on a PC.
  */
-enum class FxKind : uint8_t { Heart, Sparkle, Tear, Zzz };
+enum class FxKind : uint8_t { Heart, Sparkle, Tear, Zzz, Sweat, Star };
 
 struct FxParticle {
     bool alive = false;
@@ -34,6 +34,12 @@ public:
     void Step(float dt);
     void Clear();
 
+    // Dizzy stars orbit one centre (an ellipse above the eyes): `count` evenly spread, kept until Release().
+    int SpawnStars(int count, float size, float radius);
+    void SetOrbit(float cx, float cy) { orbit_x_ = cx; orbit_y_ = cy; }
+    // Lets every particle of that kind fade out in a moment (instead of vanishing).
+    void Release(FxKind kind);
+
     int alive() const;
     int alive(FxKind kind) const;
     const FxParticle& at(int i) const { return slots_[i]; }
@@ -46,6 +52,7 @@ public:
 private:
     int R(int lo, int hi) const;
     Rand rand_;
+    float orbit_x_ = 0, orbit_y_ = 0;
     FxParticle slots_[kMax];
 };
 

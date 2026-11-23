@@ -126,6 +126,16 @@ void ChipoFx::Draw(Slot& slot, const FxParticle& p, float scale, float alpha) {
         Rect(o[2], x - core / 2, y - core / 2, core, core, LV_RADIUS_CIRCLE);
         break;
     }
+    case FxKind::Star: {  // two squares, one turned 45 degrees: an 8-point star
+        const int q = std::max(4, static_cast<int>(size * 0.62f));
+        Rect(o[0], x - q / 2, y - q / 2, q, q, 1);
+        Rect(o[1], x - q / 2, y - q / 2, q, q, 1);
+        Turn(o[1], q, q, 450);
+        Rect(o[2], x - q / 5, y - q / 5, std::max(3, q * 2 / 5), std::max(3, q * 2 / 5), LV_RADIUS_CIRCLE);
+        if (restyle) lv_obj_set_style_bg_color(o[2], lv_color_white(), LV_PART_MAIN);
+        break;
+    }
+    case FxKind::Sweat:
     case FxKind::Tear: {
         const int w = std::max(5, size * 6 / 10);
         Rect(o[0], x - w / 2, y - size / 2, w, size, LV_RADIUS_CIRCLE);

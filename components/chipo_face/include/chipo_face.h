@@ -238,6 +238,7 @@ private:
     float BlinkAmount(uint32_t now_ms);
     void ApplyLayout(const Layout& layout);
     void UpdateDots(uint32_t now_ms, bool visible);
+    void UpdateDizzyFx(uint32_t now_ms, bool visible);  // spiral eyes + wavy mouth
 
     lv_obj_t* root_ = nullptr;
     lv_obj_t* left_eye_ = nullptr;
@@ -253,6 +254,10 @@ private:
     lv_obj_t* blush_[2] = {nullptr, nullptr};  // soft translucent blush under the eyes
     lv_obj_t* bowl_ = nullptr;        // lower half of an ellipse, clipped by mouth_: the smile
     lv_obj_t* dots_[3] = {nullptr, nullptr, nullptr};
+    lv_obj_t* spiral_[4] = {};  // per eye: outer + inner arc, turning against each other
+    lv_obj_t* wave_[3] = {};    // wavy mouth: three half circles, up / down / up
+    bool dizzy_fx_visible_ = false;
+    int wave_flip_ = -1;
     // Aviator sunglasses: left lens, right lens, bridge, brow bar, left arm, right arm, left glint, right glint.
     static constexpr int kGlassesPieces = 8;
     lv_obj_t* glasses_[kGlassesPieces] = {};
@@ -291,7 +296,8 @@ private:
     uint32_t startle_until_ms_ = 0;
     uint32_t relief_until_ms_ = 0;
     uint32_t dizzy_until_ms_ = 0;  // dizzy after a long spin
-    float worry_ = 0;              // 0..1: nervousness while being tipped over (builds up with the tilt)
+    float worry_ = 0;
+    uint32_t next_sweat_ms_ = 0;              // 0..1: nervousness while being tipped over (builds up with the tilt)
     Mood mood_ = Mood::Normal;
     bool calibrated_logged_ = false;
     uint32_t next_debug_log_ms_ = 0;

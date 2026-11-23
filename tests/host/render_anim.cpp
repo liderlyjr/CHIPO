@@ -119,6 +119,13 @@ int main(int argc, char** argv) {
     face.ShowEmotion(ChipoFace::Emotion::None);
     play(800);
 
+    // Lying flat for a few seconds: it comes back dizzy (spiral eyes, stars, wavy mouth).
+    begin("dizzy");
+    g_imu = {0, 0, 1};
+    play(5000);
+    g_imu = {0, 1, 0};
+    play(2500);
+
     // Tilted past 45 degrees the face slides off the side, then comes back when CHIPO stands up.
     begin("fall");
     SetRoll(0);
