@@ -319,6 +319,8 @@ private:
     uint32_t side_lying_ms_ = 0;
     bool drive_mode_ = false;
     float drive_lean_ = 0;       // target, from the motion detector
+    float shape_v_[6] = {};  // spring velocities of eyes / pupils / mouth
+    float drive_lean_v_ = 0, glasses_jolt_v_ = 0, road_jolt_v_ = 0;  // spring velocities
     float drive_lean_cur_ = 0;   // eased
     float glasses_t_ = 0;        // 0..1 progress of the sunglasses
     float glasses_jolt_ = 0;     // glasses bumped by a jolt (+: down, -: up), decays

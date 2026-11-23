@@ -120,6 +120,17 @@ void Ease(float& current, float target, float dt, float tau) {
     current += (target - current) * (1.0f - std::exp(-dt / tau));
 }
 
+// Damped spring towards `target` (semi-implicit Euler, sub-stepped so a slow frame cannot blow it up).
+void Spring(float& pos, float& vel, float target, float dt, float stiffness, float damping) {
+    int steps = static_cast<int>(dt / 0.012f) + 1;
+    if (steps > 8) steps = 8;
+    const float h = dt / static_cast<float>(steps);
+    for (int i = 0; i < steps; ++i) {
+        vel += (stiffness * (target - pos) - damping * vel) * h;
+        pos += vel * h;
+    }
+}
+
 // The face overlays XiaoZhi's own UI: it must never swallow touches or scroll events.
 void MakeInert(lv_obj_t* object) {
     lv_obj_remove_flag(object, LV_OBJ_FLAG_CLICKABLE);
@@ -391,6 +402,7 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     side_lying_ = desk_clock_ = false;
     side_lying_ms_ = 0;
     drive_lean_ = drive_lean_cur_ = glasses_t_ = glasses_jolt_ = 0;
+    drive_lean_v_ = glasses_jolt_v_ = road_jolt_v_ = 0;
     glasses_shown_ = false;
     for (int& v : glasses_applied_) v = -9999;
     road_speed_ = road_boost_ = road_jolt_ = wheel_angle_ = 0;
@@ -521,6 +533,7 @@ void ChipoFace::SetDriveMode(bool on) {
         fall_dir_ = 0;
     } else {
         drive_lean_ = drive_lean_cur_ = 0;
+        drive_lean_v_ = glasses_jolt_v_ = road_jolt_v_ = 0;
     }
 }
 
@@ -533,26 +546,26 @@ void ChipoFace::DriveReact(DriveReaction reaction, float intensity) {
         case DriveReaction::Accelerate:
             StartEmotion(Emotion::Happy, now, 1300);
             vel_y_ += 90.0f + 90.0f * k;   // pushed back into the seat
-            glasses_jolt_ = -0.4f * k;
+            glasses_jolt_v_ -= 9.0f * k;     // an impulse: the glasses swing up, overshoot, settle
             road_boost_ += 0.5f * k;   // the scenery streams by faster
             break;
         case DriveReaction::Brake:
             StartEmotion(Emotion::Surprised, now, 900);
             vel_y_ -= 120.0f + 120.0f * k;  // thrown forward
-            glasses_jolt_ = 1.0f * k;       // glasses slide down the nose
+            glasses_jolt_v_ += 22.0f * k;   // glasses slide down the nose and bounce back
             road_boost_ -= 0.45f * k;       // and the scenery slows
             break;
         case DriveReaction::Bump:
             vel_y_ -= 160.0f + 180.0f * k;  // bounce
-            glasses_jolt_ = -0.8f * k;
-            road_jolt_ = k;                 // the road jumps
+            glasses_jolt_v_ -= 18.0f * k;
+            road_jolt_v_ += 20.0f * k;      // the road bounces on its springs
             break;
         case DriveReaction::Abrupt:
             if (k > 0.75f) dizzy_until_ms_ = now + 1100;
             else StartEmotion(Emotion::Surprised, now, 1100);
             vel_y_ -= 200.0f;
-            glasses_jolt_ = 1.0f;
-            road_jolt_ = 1.0f;
+            glasses_jolt_v_ += 22.0f;
+            road_jolt_v_ += 20.0f;
             break;
     }
 }
@@ -1053,7 +1066,7 @@ void ChipoFace::Step(uint32_t now_ms) {
     GyroOutput gyro = gyro_.output();
     if (drive_mode_) {
         // In the car the road would set off every reaction below: only the lean of the curves is used.
-        Ease(drive_lean_cur_, drive_lean_, dt, 0.12f);
+        Spring(drive_lean_cur_, drive_lean_v_, drive_lean_, dt, 95.0f, 12.5f);  // leans into the curve with a small overshoot
         nodded = shook = spin_ended = false;
         gyro.spinning = false;
         tilt.startle = false;
@@ -1256,14 +1269,32 @@ void ChipoFace::Step(uint32_t now_ms) {
                             : emotion != Emotion::None ? 0.07f
                                                        : 0.09f;
     const float tau_mouth = shown == State::Speaking && mood == Mood::Normal ? 0.045f : tau_shape;
-    Ease(cur_.eye_w, target.eye_w, dt, tau_shape);
-    Ease(cur_.eye_h, target.eye_h, dt, tau_shape);
-    Ease(cur_.pupil_w, target.pupil_w, dt, tau_shape);
-    Ease(cur_.pupil_h, target.pupil_h, dt, tau_shape);
-    Ease(cur_.pupil_x, target.pupil_x, dt, 0.05f);
-    Ease(cur_.pupil_y, target.pupil_y, dt, 0.05f);
-    Ease(cur_.mouth_w, target.mouth_w, dt, tau_mouth);
-    Ease(cur_.mouth_h, target.mouth_h, dt, tau_mouth);
+    // Eyes and mouth are springs, not plain easing: a change starts quickly, overshoots a touch and settles
+    // (anticipation and follow-through), which is what makes the faces feel alive instead of linear.
+    {
+        const float omega = snappy ? 40.0f : mood == Mood::Relieved ? 14.0f : emotion != Emotion::None ? 24.0f : 19.0f;
+        const float k = omega * omega, c = 2.0f * 0.66f * omega;
+        const bool talking = shown == State::Speaking && mood == Mood::Normal;
+        Spring(cur_.eye_w, shape_v_[0], target.eye_w, dt, k, c);
+        Spring(cur_.eye_h, shape_v_[1], target.eye_h, dt, k, c);
+        Spring(cur_.pupil_w, shape_v_[2], target.pupil_w, dt, k, c);
+        Spring(cur_.pupil_h, shape_v_[3], target.pupil_h, dt, k, c);
+        cur_.eye_w = std::max(cur_.eye_w, 0.0f);
+        cur_.eye_h = std::max(cur_.eye_h, 0.0f);
+        cur_.pupil_w = std::max(cur_.pupil_w, 0.0f);
+        cur_.pupil_h = std::max(cur_.pupil_h, 0.0f);
+        Ease(cur_.pupil_x, target.pupil_x, dt, 0.07f);
+        Ease(cur_.pupil_y, target.pupil_y, dt, 0.07f);
+        if (talking) {  // the voice drives the mouth: quick, no overshoot
+            Ease(cur_.mouth_w, target.mouth_w, dt, tau_mouth);
+            Ease(cur_.mouth_h, target.mouth_h, dt, tau_mouth);
+        } else {
+            Spring(cur_.mouth_w, shape_v_[4], target.mouth_w, dt, k, c);
+            Spring(cur_.mouth_h, shape_v_[5], target.mouth_h, dt, k, c);
+            cur_.mouth_w = std::max(cur_.mouth_w, 0.0f);
+            cur_.mouth_h = std::max(cur_.mouth_h, 0.0f);
+        }
+    }
     Ease(cur_.mouth_cy, target.mouth_cy, dt, tau_mouth);
     Ease(cur_.glow_w, target.glow_w, dt, 0.15f);
     Ease(cur_.glow_opa, target.glow_opa, dt, 0.15f);
@@ -1462,7 +1493,7 @@ void ChipoFace::UpdateGlasses(const Layout& l, float dt) {
     const float speed = dt / (drive_mode_ ? kGlassesInS : kGlassesOutS);
     if (glasses_t_ < target) glasses_t_ = std::min(target, glasses_t_ + speed);
     else if (glasses_t_ > target) glasses_t_ = std::max(target, glasses_t_ - speed);
-    Ease(glasses_jolt_, 0.0f, dt, 0.18f);
+    Spring(glasses_jolt_, glasses_jolt_v_, 0.0f, dt, 230.0f, 11.0f);
 
     const bool visible = glasses_t_ > 0.001f;
     if (visible != glasses_shown_) {
@@ -1603,7 +1634,7 @@ void ChipoFace::UpdateRoad(float dt, uint32_t now_ms) {
     const float target = drive_mode_ ? Clamp(0.5f + road_boost_, 0.08f, 1.4f) : 0.0f;
     Ease(road_boost_, 0.0f, dt, 1.8f);
     Ease(road_speed_, target, dt, 0.5f);
-    Ease(road_jolt_, 0.0f, dt, 0.25f);
+    Spring(road_jolt_, road_jolt_v_, 0.0f, dt, 150.0f, 8.5f);
     const bool visible = glasses_t_ > 0.02f && (drive_mode_ || road_speed_ > 0.02f);  // costume sunglasses bring no road
     if (visible != road_shown_) {
         if (visible) lv_obj_remove_flag(road_, LV_OBJ_FLAG_HIDDEN);
