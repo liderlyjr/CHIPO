@@ -395,12 +395,17 @@ private:
     static constexpr int kMilitaryPieces = 5;
     lv_obj_t* military_[kMilitaryPieces] = {};
     bool military_shown_ = false;
+    // Costumes slide in and out on springs (0 = off the face, 1 = worn): military, Santa hat, moustache.
+    float costume_t_[3] = {}, costume_v_[3] = {};
+    int costume_off_[3] = {1 << 14, 1 << 14, 1 << 14};
+    // Eyebrows ease in and out and swing on springs instead of popping to their next pose.
+    float brow_in_ = 0, brow_in_v_ = 0, brow_rot_f_ = 60, brow_rot_v_ = 0, brow_lift_f_ = 0, brow_lift_v_ = 0;
     lv_obj_t* hat_[kHatPieces] = {};
     lv_obj_t* moustache_[kMoustachePieces] = {};
     int hat_bob_applied_ = -9999;
     bool hat_shown_ = false, moustache_shown_ = false;
     void CreateCostumes();
-    void UpdateCostumes(uint32_t now_ms);
+    void UpdateCostumes(uint32_t now_ms, float dt);
     void EmitStateFx(State shown, Mood mood, uint32_t now_ms);
 
     uint32_t speak_step_ms_ = 0;

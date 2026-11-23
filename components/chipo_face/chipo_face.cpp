@@ -1458,8 +1458,18 @@ void ChipoFace::Step(uint32_t now_ms) {
         if (arc) layout.brows_visible = false;
         layout.blush_visible = emotion == Emotion::Happy || emotion == Emotion::Laugh || emotion == Emotion::Love ||
                                emotion == Emotion::Wink || emotion == Emotion::Dance;
-        layout.brow_rot = static_cast<int16_t>(rot);
-        layout.brow_lift = Round16(static_cast<float>(lift) * fs_);
+        // Springs: the brows slide up into place with a small overshoot, swing to the next pose and fade
+        // away by sinking, instead of appearing and jumping.
+        {
+            const bool want = layout.brows_visible;
+            Spring(brow_in_, brow_in_v_, want ? 1.0f : 0.0f, dt, 380.0f, 24.0f);
+            Spring(brow_rot_f_, brow_rot_v_, want ? static_cast<float>(rot) : brow_rot_f_, dt, 260.0f, 19.0f);
+            Spring(brow_lift_f_, brow_lift_v_, want ? static_cast<float>(lift) : brow_lift_f_, dt, 260.0f, 19.0f);
+            if (blink > 0.5f) { brow_in_ = 0.0f; brow_in_v_ = 0.0f; }  // a blink takes them away at once
+            layout.brows_visible = want || brow_in_ > 0.04f;
+            layout.brow_rot = static_cast<int16_t>(std::lround(brow_rot_f_));
+            layout.brow_lift = Round16((brow_lift_f_ - 7.0f * (1.0f - brow_in_)) * fs_);
+        }
     }
     layout.face_dx = Round16(face_x_);
     float sway = 0;  // the car rocks the face gently while driving
@@ -1473,7 +1483,7 @@ void ChipoFace::Step(uint32_t now_ms) {
     UpdateDots(now_ms, shown == State::Thinking && mood == Mood::Normal);
     UpdateDizzyFx(now_ms, mood == Mood::Dizzy && shown != State::Sleep);
     EmitStateFx(shown, mood, now_ms);
-    UpdateCostumes(now_ms);
+    UpdateCostumes(now_ms, dt);
     fx_.Step(dt);
     fx_view_.Render(fx_);
 
@@ -2090,7 +2100,7 @@ void ChipoFace::CreateCostumes() {
     hat_bob_applied_ = -9999;
 }
 
-void ChipoFace::UpdateCostumes(uint32_t now_ms) {
+void ChipoFace::UpdateCostumes(uint32_t now_ms, float dt) {
     // The calendar picks the costume unless the owner chose one.
     if (!costume_manual_ && date_source_ && now_ms >= next_date_check_ms_) {
         next_date_check_ms_ = now_ms + 60000;
@@ -2100,31 +2110,43 @@ void ChipoFace::UpdateCostumes(uint32_t now_ms) {
     const bool want_hat = costume_ == Costume::SantaHat && shown_ != State::Sleep;
     const bool want_moustache = costume_ == Costume::Mustache;
     const bool want_military = costume_ == Costume::Military && shown_ != State::Sleep;
-    if (want_military != military_shown_) {
-        for (auto* o : military_) {
-            if (!o) continue;
-            if (want_military) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
-            else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+    // Each costume is a spring: it drops in from above (or rises from below) with a small bounce when put on
+    // and slides away when taken off. Only translation is animated: no opacity or scaling, which would force
+    // the renderer to draw the pieces through an extra layer.
+    auto glide = [&](int idx, bool want, lv_obj_t* const* pieces, int count, bool* shown, const int* from_below,
+                     int distance) {
+        Spring(costume_t_[idx], costume_v_[idx], want ? 1.0f : 0.0f, dt, 150.0f, 13.0f);
+        const bool moving = std::fabs(costume_v_[idx]) > 0.03f;
+        const bool visible = want || costume_t_[idx] > 0.02f || (moving && costume_t_[idx] > 0.0f);
+        if (visible != *shown) {
+            for (int k = 0; k < count; ++k) {
+                if (!pieces[k]) continue;
+                if (visible) lv_obj_remove_flag(pieces[k], LV_OBJ_FLAG_HIDDEN);
+                else lv_obj_add_flag(pieces[k], LV_OBJ_FLAG_HIDDEN);
+            }
+            *shown = visible;
+            costume_off_[idx] = 1 << 14;
+            if (idx == 1) hat_bob_applied_ = -9999;
         }
-        military_shown_ = want_military;
-    }
-    if (want_hat != hat_shown_) {
-        for (auto* o : hat_) {
-            if (!o) continue;
-            if (want_hat) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
-            else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+        if (!visible) {
+            if (!want) { costume_t_[idx] = 0.0f; costume_v_[idx] = 0.0f; }
+            return;
         }
-        hat_shown_ = want_hat;
-        hat_bob_applied_ = -9999;
-    }
-    if (want_moustache != moustache_shown_) {
-        for (auto* o : moustache_) {
-            if (!o) continue;
-            if (want_moustache) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
-            else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+        const int off = Round16((1.0f - costume_t_[idx]) * static_cast<float>(distance) * fs_);
+        if (off == costume_off_[idx]) return;
+        costume_off_[idx] = off;
+        for (int k = 0; k < count; ++k) {
+            if (!pieces[k]) continue;
+            lv_obj_set_style_translate_y(pieces[k], from_below && from_below[k] ? -off : off, LV_PART_MAIN);
         }
-        moustache_shown_ = want_moustache;
-    }
+    };
+    // Military: beret and pompom come down from above, the uniform rises from below (negated offset).
+    static const int kMilitaryFromBelow[kMilitaryPieces] = {0, 0, 1, 1, 1};
+    static const int kNone[4] = {0, 0, 0, 0};
+    static const int kMoustacheFromBelow[2] = {1, 1};
+    glide(0, want_military, military_, kMilitaryPieces, &military_shown_, kMilitaryFromBelow, -90);
+    glide(1, want_hat, hat_, 4, &hat_shown_, kNone, -90);
+    glide(2, want_moustache, moustache_, 2, &moustache_shown_, kMoustacheFromBelow, -70);
     if (hat_shown_ && hat_[3]) {  // the pompom bobs
         const int bob = Round16(2.0f * std::sin(static_cast<float>(now_ms) * 0.004f));
         if (bob != hat_bob_applied_) {
