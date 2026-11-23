@@ -60,3 +60,41 @@ Solo con batería y nada pendiente sigue el comportamiento de XiaoZhi (los minut
 XiaoZhi: `sleep_dim_min`, `sleep_off_min`). Con una alarma puesta CHIPO no se apaga, así que gasta batería toda la
 noche: para eso conviene dejarlo enchufado. El brillo nocturno lo gestiona el protector de pantalla de CHIPO.
 **Sin probar en la placa** (ni el consumo ni si el AXP2101 apaga con el USB conectado).
+
+## Documentación oficial de la placa
+
+- Página de producto y pinout: https://docs.waveshare.com/ESP32-S3-Touch-AMOLED-2.16
+- Recursos y documentos: https://docs.waveshare.com/ESP32-S3-Touch-AMOLED-2.16/Resources-And-Documents
+- Esquema (PDF): https://files.waveshare.com/wiki/ESP32-S3-Touch-AMOLED-2.16/ESP32-S3-Touch-AMOLED-2.16-Schematic.pdf
+- Ejemplos oficiales: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.16/tree/main/examples
+- ESP32-S3 datasheet: https://documentation.espressif.com/esp32-s3_datasheet_en.pdf
+- ESP32-S3 manual técnico: https://documentation.espressif.com/esp32-s3_technical_reference_manual_en.pdf
+- QMI8658 (IMU): https://files.waveshare.com/wiki/common/QMI8658C.pdf
+- AXP2101 (energía): https://files.waveshare.com/wiki/common/X-power-AXP2101_SWcharge_V1.0.pdf
+- ES8311 (códec): https://files.waveshare.com/wiki/common/ES8311.DS.pdf y guía de usuario https://files.waveshare.com/wiki/common/ES8311.user.Guide.pdf
+
+No hay dibujos 2D/3D en la página de recursos.
+
+## Pinout (según la documentación de Waveshare)
+
+| GPIO | Función |
+|---|---|
+| 0 | BOOT / modo descarga |
+| 1, 2, 3, 41 | Tarjeta SD (SPI; 41 = CS) |
+| 4, 5, 6, 7 | Pantalla QSPI datos 0–3 |
+| 38 | Pantalla QSPI reloj |
+| 12 | Pantalla CS |
+| 39 | Pantalla reset |
+| 11 / 40 | Táctil INT / reset |
+| 14 / 15 | I2C compartido SCL / SDA (táctil, AXP2101, QMI8658, PCF85063, ES8311/ES7210) |
+| 8, 9, 10, 42, 45 | Audio I2S |
+| 46 | Control del amplificador |
+| 13 | RTC INT |
+| 16 | SYS_OUT |
+| 17 / 21 | IMU INT1 / INT2 |
+| 18 | KEY3 (botón de usuario, pull-up, a GND al pulsar) |
+| 19 / 20 | USB nativo (no usar como GPIO) |
+| 43 / 44 | UART0 TX / RX |
+
+Direcciones I2C: AXP2101 0x34 (datasheet), ES8311 0x18 o 0x19 (según CE), ES7210 0x40 (esquema).
+Las de QMI8658, PCF85063 y CST9220 no están verificadas.
