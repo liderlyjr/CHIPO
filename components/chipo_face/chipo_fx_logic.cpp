@@ -203,6 +203,7 @@ const char* CostumeName(Costume c) {
     case Costume::SantaHat: return "el gorro de Papa Noel";
     case Costume::Sunglasses: return "las gafas de sol";
     case Costume::Mustache: return "el bigote";
+    case Costume::Military: return "el uniforme militar";
     case Costume::None: return "el disfraz";
     }
     return "";
@@ -260,11 +261,12 @@ CostumeCommand ParseCostumeCommand(const char* text) {
     CostumeCommand cmd;
     const auto w = Words(Normalize(text));
     if (w.size() < 2 || w.size() > 8) return cmd;
-    const bool put = Has(w, "ponte") || Has(w, "pontelo") || Has(w, "disfrazate") || Has(w, "colocate");
+    const bool put = Has(w, "ponte") || Has(w, "disfrazate") || Has(w, "pontelo") || Has(w, "disfrazate") || Has(w, "colocate");
     const bool take = Has(w, "quitate") || Has(w, "sacate") || Has(w, "quita");
     if (!put && !take) return cmd;
     Costume which = Costume::None;
-    if (Has(w, "gorro") || Has(w, "gorrito") || Has(w, "noel") || Has(w, "navidad") || Has(w, "navideno")) which = Costume::SantaHat;
+    if (Has(w, "casco") || Has(w, "militar") || Has(w, "soldado") || Has(w, "ejercito")) which = Costume::Military;
+    else if (Has(w, "gorro") || Has(w, "gorrito") || Has(w, "noel") || Has(w, "navidad") || Has(w, "navideno")) which = Costume::SantaHat;
     else if (Has(w, "gafas") || Has(w, "lentes")) which = Costume::Sunglasses;
     else if (Has(w, "bigote") || Has(w, "mostacho")) which = Costume::Mustache;
     if (take) {

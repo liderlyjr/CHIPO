@@ -57,11 +57,11 @@ private:
 };
 
 // ---- costumes ----------------------------------------------------------------------------------------
-enum class Costume : uint8_t { None, SantaHat, Sunglasses, Mustache };
+enum class Costume : uint8_t { None, SantaHat, Sunglasses, Mustache, Military };
 
 // The costume that belongs to a calendar day (month 1..12, day 1..31): Santa hat from 1 Dec to 6 Jan.
 Costume CostumeForDate(int month, int day);
-// Voice: "ponte el gorro de Papá Noel", "ponte las gafas de sol", "ponte bigote", "quítate el gorro/las gafas/el bigote",
+// Voice: "ponte el gorro de Papá Noel", "ponte las gafas de sol", "ponte bigote", "ponte el casco militar" / "disfrázate de soldado", "quítate el gorro/las gafas/el bigote",
 // "quítate el disfraz". `none_on_off` is set when the command takes the costume off.
 struct CostumeCommand {
     bool matched = false;

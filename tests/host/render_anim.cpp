@@ -120,6 +120,12 @@ int main(int argc, char** argv) {
     play(800);
 
     // Lying flat for a few seconds: it comes back dizzy (spiral eyes, stars, wavy mouth).
+    begin("military");
+    face.SetCostume(Costume::Military);
+    play(1500);
+    face.SetCostume(Costume::None);
+    play(300);
+
     begin("dizzy");
     g_imu = {0, 0, 1};
     play(5000);

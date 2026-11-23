@@ -511,7 +511,8 @@ void ChipoFace::Stop() {
     for (auto& piece : glasses_) piece = nullptr;
     for (auto& piece : hat_) piece = nullptr;
     for (auto& piece : moustache_) piece = nullptr;
-    hat_shown_ = moustache_shown_ = false;
+    for (auto& piece : military_) piece = nullptr;
+    hat_shown_ = moustache_shown_ = military_shown_ = false;
     dots_visible_ = false;
     for (int& o : dots_opa_) o = -1;
 }
@@ -2048,6 +2049,20 @@ void ChipoFace::CreateCostumes() {
     };
     for (auto& o : hat_) o = lv_obj_create(root_);
     for (auto& o : moustache_) o = lv_obj_create(root_);
+    for (auto& o : military_) o = lv_obj_create(root_);
+    // Military: red beret on top (tilted), green uniform with collar and yellow epaulettes at the bottom.
+    if (military_[0]) {
+        flat(military_[0], 0xC62828, 50);
+        lv_obj_set_size(military_[0], S(176), S(56));
+        lv_obj_set_pos(military_[0], S(62), S(-8));
+        lv_obj_set_style_transform_pivot_x(military_[0], S(88), LV_PART_MAIN);
+        lv_obj_set_style_transform_pivot_y(military_[0], S(28), LV_PART_MAIN);
+        lv_obj_set_style_transform_rotation(military_[0], -80, LV_PART_MAIN);
+    }
+    if (military_[1]) { flat(military_[1], 0x8E1B1B, 6); lv_obj_set_size(military_[1], S(14), S(14)); lv_obj_set_pos(military_[1], S(150), S(-18)); }
+    if (military_[2]) { flat(military_[2], 0x56662F, 30); lv_obj_set_size(military_[2], S(300), S(40)); lv_obj_set_pos(military_[2], S(0), S(196)); }
+    if (military_[3]) { flat(military_[3], 0xF2C230, 4); lv_obj_set_size(military_[3], S(44), S(12)); lv_obj_set_pos(military_[3], S(24), S(200)); }
+    if (military_[4]) { flat(military_[4], 0xF2C230, 4); lv_obj_set_size(military_[4], S(44), S(12)); lv_obj_set_pos(military_[4], S(232), S(200)); }
     // Santa hat above the eyes (inside the 300 x 220 face canvas).
     if (hat_[0]) { flat(hat_[0], 0xE0262B, 40); lv_obj_set_size(hat_[0], S(130), S(36)); lv_obj_set_pos(hat_[0], S(85), S(2)); }
     if (hat_[1]) { flat(hat_[1], 0xF4F4F4, 9); lv_obj_set_size(hat_[1], S(146), S(18)); lv_obj_set_pos(hat_[1], S(77), S(30)); }
@@ -2071,7 +2086,7 @@ void ChipoFace::CreateCostumes() {
         lv_obj_set_style_transform_pivot_y(o, S(10), LV_PART_MAIN);
         lv_obj_set_style_transform_rotation(o, i == 0 ? 120 : -120, LV_PART_MAIN);  // tips curl up
     }
-    hat_shown_ = moustache_shown_ = false;
+    hat_shown_ = moustache_shown_ = military_shown_ = false;
     hat_bob_applied_ = -9999;
 }
 
@@ -2084,6 +2099,15 @@ void ChipoFace::UpdateCostumes(uint32_t now_ms) {
     }
     const bool want_hat = costume_ == Costume::SantaHat && shown_ != State::Sleep;
     const bool want_moustache = costume_ == Costume::Mustache;
+    const bool want_military = costume_ == Costume::Military && shown_ != State::Sleep;
+    if (want_military != military_shown_) {
+        for (auto* o : military_) {
+            if (!o) continue;
+            if (want_military) lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+            else lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+        }
+        military_shown_ = want_military;
+    }
     if (want_hat != hat_shown_) {
         for (auto* o : hat_) {
             if (!o) continue;

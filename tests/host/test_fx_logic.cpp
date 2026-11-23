@@ -87,6 +87,9 @@ int main() {
     CHECK(put("Ponte el gorro de navidad", Costume::SantaHat), "gorro navidad");
     CHECK(put("ponte las gafas de sol", Costume::Sunglasses), "gafas");
     CHECK(put("ponte un bigote", Costume::Mustache), "bigote");
+    CHECK(put("ponte el uniforme militar", Costume::Military), "uniforme militar");
+    CHECK(put("disfrazate de soldado", Costume::Military), "soldado");
+    CHECK(CostumeName(Costume::Military)[0] != 0, "military has a name");
     CHECK(off("quítate el gorro"), "quitar gorro");
     CHECK(off("quítate las gafas"), "quitar gafas");
     CHECK(off("quítate el disfraz"), "quitar disfraz");

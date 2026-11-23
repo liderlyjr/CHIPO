@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
     fresh([&](ChipoFace& f) { f.SetCostume(Costume::SantaHat); Run(1500); Shot("b_santa"); });
     fresh([&](ChipoFace& f) { f.SetCostume(Costume::Sunglasses); Run(2000); Shot("b_sunglasses"); });
     fresh([&](ChipoFace& f) { f.SetCostume(Costume::Mustache); Run(1500); Shot("b_moustache"); });
+    fresh([&](ChipoFace& f) { f.SetCostume(Costume::Military); Run(1500); Shot("b_military"); });
     // C: dance to a fake beat
     g_frame = 0;
     fresh([&](ChipoFace& f) {

@@ -26,8 +26,8 @@ Animados: [baile](img/chipo_dance.gif), [visualizador](img/chipo_visualizer.gif)
 | Rabieta | CHIPO pierde (**ganas tú** a piedra-papel-tijera o adivinas el número): enfado 1,8 s con la cara temblando y luego lágrimas 3 s. |
 | Sueño profundo | Dormido: respiración suave (la cara sube y baja ±2 px cada 4 s, la boca late) y Zzz que suben. |
 | Gorro de Papá Noel | Automático del 1 dic al 6 ene (necesita la hora puesta por Internet). "Ponte el gorro de Papá Noel". |
-| Gafas de sol / bigote | "Ponte las gafas de sol", "ponte un bigote". |
-| Quitar | "Quítate el gorro / las gafas / el bigote / el disfraz". Lo que tú elijas **gana a la fecha** hasta el próximo arranque (no se guarda). |
+| Gafas de sol / bigote / casco militar | "Ponte las gafas de sol", "ponte un bigote", "ponte el uniforme militar" (boina roja y uniforme verde con charreteras amarillas). |
+| Quitar | "Quítate el gorro / las gafas / el bigote / el casco / el disfraz". Lo que tú elijas **gana a la fecha** hasta el próximo arranque (no se guarda). |
 
 ## Lote C: sonido
 **Baile**: "baila", "ponte a bailar" / "para de bailar", "quieto". La cara rebota y se balancea, la boca sigue el volumen, el brillo cambia

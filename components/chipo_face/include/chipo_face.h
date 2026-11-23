@@ -392,6 +392,9 @@ private:
     // Hat: dome, band, tip, pompom. Moustache: two curls.
     static constexpr int kHatPieces = 4;
     static constexpr int kMoustachePieces = 2;
+    static constexpr int kMilitaryPieces = 5;
+    lv_obj_t* military_[kMilitaryPieces] = {};
+    bool military_shown_ = false;
     lv_obj_t* hat_[kHatPieces] = {};
     lv_obj_t* moustache_[kMoustachePieces] = {};
     int hat_bob_applied_ = -9999;
