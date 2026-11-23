@@ -105,27 +105,35 @@ void ChipoFun::Build(const lv_font_t* font, const char* version, int w, int h) {
     lv_obj_set_style_border_width(screen, 3, 0);
     boot_parts_[0] = body;
     boot_parts_[1] = screen;
-    // CHIPO's own eyes in the little Mac: lilac with a violet pupil and a glint, like the face.
-    boot_parts_[2] = Box(boot_, cx - 34, by + 46, 24, 26, LV_RADIUS_CIRCLE, 0xE2C8FF);  // left eye
-    boot_parts_[3] = Box(boot_, cx + 10, by + 46, 24, 26, LV_RADIUS_CIRCLE, 0xE2C8FF);  // right eye
-    for (int e = 2; e <= 3; ++e) {
-        lv_obj_t* pupil = Box(boot_parts_[e], 6, 7, 12, 14, LV_RADIUS_CIRCLE, 0x2B0F52);
-        Box(pupil, 2, 2, 5, 5, LV_RADIUS_CIRCLE, 0xFFFFFF);
-        Glow(boot_parts_[e], kNeonCyan, 14, 160);
-    }
-    lv_obj_t* smile = lv_arc_create(boot_);                                // smile
-    lv_obj_remove_style_all(smile);
-    lv_obj_set_size(smile, 64, 64);
-    lv_obj_set_pos(smile, cx - 32, by + 48);
-    lv_arc_set_bg_angles(smile, 0, 360);
-    lv_arc_set_angles(smile, 28, 152);
-    lv_obj_set_style_arc_opa(smile, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(smile, 7, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(smile, lv_color_hex(0xF0828C), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_rounded(smile, true, LV_PART_INDICATOR);
-    lv_obj_set_style_bg_opa(smile, LV_OPA_TRANSP, LV_PART_KNOB);
-    lv_obj_remove_flag(smile, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE));
-    boot_parts_[4] = smile;
+    // CHIPO's real face (same shapes and colours as ChipoFace idle, scaled 0.6): tall lilac eyes with a deep violet
+    // pupil and two glints, and the open half-moon smile with a tongue. Only the eyes and mouth are drawn here.
+    const int ew = 37, eh = 42, eyc = by + 62;  // eye size and vertical centre
+    const int eo = 29;                          // eye centre distance from the middle
+    auto make_eye = [&](int cxe) {
+        lv_obj_t* eye = Box(boot_, cxe - ew / 2, eyc - eh / 2, ew, eh, ew * 40 / 100, 0xE2C8FF);
+        lv_obj_set_style_bg_grad_color(eye, lv_color_hex(0xC9A6FF), 0);
+        lv_obj_set_style_bg_grad_dir(eye, LV_GRAD_DIR_VER, 0);
+        lv_obj_set_style_bg_main_stop(eye, 40, 0);
+        lv_obj_set_style_bg_grad_stop(eye, 255, 0);
+        const int pw = 18, ph = 23;
+        lv_obj_t* pupil = Box(eye, (ew - pw) / 2, (eh - ph) / 2, pw, ph, LV_RADIUS_CIRCLE, 0x2B0F52);
+        lv_obj_set_style_bg_grad_color(pupil, lv_color_hex(0x8A55D8), 0);
+        lv_obj_set_style_bg_grad_dir(pupil, LV_GRAD_DIR_VER, 0);
+        lv_obj_set_style_bg_main_stop(pupil, 60, 0);
+        lv_obj_set_style_bg_grad_stop(pupil, 255, 0);
+        Box(pupil, 2, 3, 7, 7, LV_RADIUS_CIRCLE, 0xFFFFFF);                        // big glint
+        Box(pupil, pw - 8, ph - 8, 3, 3, LV_RADIUS_CIRCLE, 0xFFFFFF, 178);         // small glint
+        return eye;
+    };
+    boot_parts_[2] = make_eye(cx - eo);  // left eye
+    boot_parts_[3] = make_eye(cx + eo);  // right eye
+    const int mw = 34, mh = 14, rim = 2;  // mouth window: the bottom half of an ellipse
+    lv_obj_t* mouth = Box(boot_, cx - mw / 2, by + 100, mw, mh, 0, 0x000000, 0);
+    Box(mouth, 0, -mh, mw, 2 * mh, LV_RADIUS_CIRCLE, 0xF0828C);                      // lip
+    Box(mouth, rim, -mh + rim, mw - 2 * rim, 2 * (mh - rim), LV_RADIUS_CIRCLE, 0x5E1530);  // inside
+    const int tw = 15, vh = 7;
+    Box(mouth, (mw - tw) / 2, mh - vh - rim, tw, 2 * vh, LV_RADIUS_CIRCLE, 0xFF7A88);  // tongue
+    boot_parts_[4] = mouth;
     boot_parts_[5] = Box(boot_, bx + 30, by + bh - 36, 70, 8, 4, 0xA27CF0);     // floppy slot
     boot_parts_[6] = Box(boot_, bx + bw - 52, by + bh - 36, 16, 8, 4, kNeonPink);  // power light
     Glow(boot_parts_[6], kNeonPink, 16, 230);
