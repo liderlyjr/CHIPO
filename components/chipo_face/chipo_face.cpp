@@ -759,10 +759,11 @@ ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, Emotion emotion, u
         p.glow_w = 30; p.glow_opa = 85;
         break;
     case Mood::Dizzy:
-        p.eye_w = 62; p.eye_h = 16;
-        p.pupil_w = 22; p.pupil_h = 12;
-        p.pupil_x = 9 * std::sin(kTwoPi * t / 1100.0f); p.pupil_y = 0;
-        p.mouth_w = 22; p.mouth_h = 6; p.mouth_cy = 168;
+        // Eyes half open with the pupils going round in circles (and a wobbly mouth): clearly dizzy.
+        p.eye_w = 62; p.eye_h = 36;
+        p.pupil_w = 22; p.pupil_h = 16;
+        p.pupil_x = 9 * std::sin(kTwoPi * t / 700.0f); p.pupil_y = 7 * std::cos(kTwoPi * t / 700.0f);
+        p.mouth_w = 22 + 4 * std::sin(kTwoPi * t / 500.0f); p.mouth_h = 6; p.mouth_cy = 168;
         p.glow_w = 14; p.glow_opa = 40;
         break;
     case Mood::Relieved:
@@ -775,6 +776,17 @@ ChipoFace::Pose ChipoFace::TargetPose(State shown, Mood mood, Emotion emotion, u
             // Leaning: the eyes follow the pull of gravity a little.
             p.pupil_x += tilt.push_x * 14.0f;
             if (tilt.angle_deg > 8.0f) p.pupil_y += 3.0f;
+        }
+        if (worry_ > 0.02f && shown != State::Sleep) {
+            // Being tipped over: the closer to the fall angle, the wider the eyes, the smaller the pupils
+            // and the mouth turns into a small "o". It all builds up gradually (see worry_).
+            p.eye_w += 6.0f * worry_;
+            p.eye_h += 14.0f * worry_;
+            p.pupil_w = std::max(8.0f, p.pupil_w - 3.0f * worry_);
+            p.pupil_h = std::max(8.0f, p.pupil_h - 3.0f * worry_);
+            p.pupil_x += tilt.push_x * 10.0f * worry_;
+            p.mouth_w += (26.0f - p.mouth_w) * worry_;
+            p.mouth_h += (8.0f + 16.0f * worry_ - p.mouth_h) * worry_;
         }
         break;
     }
@@ -1156,6 +1168,13 @@ void ChipoFace::Step(uint32_t now_ms) {
     }
 
     // ---- ease the pose towards its target --------------------------------------------------
+    {
+        // Nervousness grows with the tilt, from 12 degrees up to the fall angle. Not in the car or when lying.
+        const float want = (tilt.calibrated && !tilt.lying && !fell_ && !drive_mode_ && mood == Mood::Normal)
+                               ? Clamp((tilt.angle_deg - 12.0f) / (static_cast<float>(CHIPO_FALL_ANGLE_DEG) - 12.0f), 0.0f, 1.0f)
+                               : 0.0f;
+        Ease(worry_, want, dt, 0.10f);
+    }
     const Pose target = TargetPose(shown, mood, emotion, now_ms, tilt);
     const bool snappy = mood == Mood::Startled;
     const float tau_shape = snappy ? 0.04f
@@ -1197,6 +1216,10 @@ void ChipoFace::Step(uint32_t now_ms) {
     }
     if (shown == State::Sleep && !falling) ty += 2.5f * std::sin(kTwoPi * static_cast<float>(now_ms) / 4000.0f);  // soft breathing
     if (!falling && gaze_on_ && !tilt.lying) tx += gaze_lean_;
+    if (!falling) {
+        tx += 1.6f * worry_ * std::sin(kTwoPi * static_cast<float>(now_ms) / 380.0f);   // trembling
+        if (mood_ == Mood::Dizzy) tx += 12.0f * std::sin(kTwoPi * static_cast<float>(now_ms) / 1100.0f);  // swaying
+    }
     const bool flying_in = !falling && std::fabs(face_x_) > kNormalRangeX;
     if (falling) {
         vel_x_ += static_cast<float>(fall_dir_) * kFallAccelX * dt;
@@ -1291,6 +1314,11 @@ void ChipoFace::Step(uint32_t now_ms) {
         case Emotion::Suspicious: brows = true; rot = -90; break;
         case Emotion::Surprised: brows = true; rot = 0; lift = 9; break;
         default: break;
+        }
+        if (emotion == Emotion::None && worry_ > 0.25f) {  // worried brows while being tipped over
+            brows = true;
+            rot = 60 + static_cast<int>(90.0f * worry_);
+            lift = static_cast<int>(5.0f * worry_);
         }
         if (blink > 0.5f) brows = brows && false;
         layout.brows_visible = brows;

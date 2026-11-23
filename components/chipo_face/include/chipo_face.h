@@ -291,6 +291,7 @@ private:
     uint32_t startle_until_ms_ = 0;
     uint32_t relief_until_ms_ = 0;
     uint32_t dizzy_until_ms_ = 0;  // dizzy after a long spin
+    float worry_ = 0;              // 0..1: nervousness while being tipped over (builds up with the tilt)
     Mood mood_ = Mood::Normal;
     bool calibrated_logged_ = false;
     uint32_t next_debug_log_ms_ = 0;

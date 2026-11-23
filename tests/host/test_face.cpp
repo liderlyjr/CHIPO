@@ -274,7 +274,7 @@ int main() {
         SetPose(-90, 0);
         Advance(*face, 4000);
         CHECK(face->Debug().mood == Mood::Dizzy, "not dizzy when lying");
-        CHECK(face->Debug().eye_h <= 20, "dizzy eyes too open (%d)", face->Debug().eye_h);
+        CHECK(face->Debug().eye_h <= 40, "dizzy eyes too open (%d)", face->Debug().eye_h);
         SetPose(0, 0);
         Advance(*face, 3000);
         CHECK(face->Debug().mood == Mood::Normal, "dizziness did not end");
