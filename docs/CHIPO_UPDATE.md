@@ -9,7 +9,9 @@ CHIPO se actualiza solo desde las **Releases de GitHub** de este repositorio. Xi
 3. GitHub Actions compila la **Waveshare 2,16" (480×480)** y, si todo sale bien, crea la Release `v0.6.1` con el archivo `chipo-os-2.16.bin`. La placa va en el nombre: CHIPO solo descarga ese archivo, así que nunca puede instalar un firmware hecho para otra placa.
 4. CHIPO, conectado a Wi-Fi, mira GitHub unos 90 s después de arrancar y luego cada 6 horas (si no pudo preguntar, por ejemplo sin Wi-Fi todavía, vuelve a intentarlo a los 15 min). Si hay una versión **mayor** que la suya y está en reposo (sin conversación), la descarga, la graba y se reinicia.
 
-Resumen: `VERSION` más alto + merge a `main` = CHIPO se actualiza solo.
+**Las Releases se crean como «pre-release» a propósito.** CHIPO pregunta a GitHub por la última Release *normal* (`/releases/latest`), que ignora las pre-release, así que ninguna placa instala nada hasta que tú lo decidas. Para liberar una versión ya probada en la placa: GitHub > Releases > la versión > Edit > marcar **Set as the latest release** > Update release.
+
+Resumen: `VERSION` más alto + merge a `main` = Release en pre-release; al marcarla como «latest», CHIPO se actualiza solo.
 
 ## Qué necesita
 
@@ -33,6 +35,7 @@ Los **assets** de XiaoZhi (temas, fuentes, palabras de activación) siguen pudie
 - Solo se acepta una URL de `github.com/liderlyjr/CHIPO/releases/` y su redirección a un servidor de GitHub (`*.githubusercontent.com`).
 - No se instala nunca una versión igual o menor, ni una etiqueta con formato raro (`0.6.0-beta`).
 - **El firmware no va firmado.** Quien pueda publicar Releases en el repositorio puede cambiar el firmware de CHIPO: protege tu cuenta de GitHub con 2FA.
+- **Tampoco hay comprobación de hash** del archivo descargado más allá de TLS y del tamaño de la imagen que valida ESP-IDF. Añadir SHA-256 firmado (o Secure Boot) queda pendiente.
 - Tras grabar, el arranque normal marca la versión como válida; si la nueva no arranca, ESP-IDF vuelve a la anterior (rollback de XiaoZhi).
 - Si falla 3 veces la misma versión, deja de intentarlo hasta el siguiente arranque.
 
