@@ -51,6 +51,66 @@ if not chipo_version or not re.fullmatch(r"\d+\.\d+\.\d+", chipo_version):
     encoding="utf-8", newline="\n")
 print(f"[generated] chipo_version.h = {chipo_version}")
 
+# The Waveshare AXP2101 battery monitor shares I2C with the touch controller and other devices.
+# A transient bus timeout must not become an unconditional ESP_ERROR_CHECK abort/reboot.
+i2c_device_cc = main / "boards" / "common" / "i2c_device.cc"
+replace_once(
+    i2c_device_cc,
+    """uint8_t I2cDevice::ReadReg(uint8_t reg) {
+    uint8_t buffer[1];
+    ESP_ERROR_CHECK(i2c_master_transmit_receive(i2c_device_, &reg, 1, buffer, 1, 100));
+    return buffer[0];
+}""",
+    """uint8_t I2cDevice::ReadReg(uint8_t reg) {
+    uint8_t buffer[1] = {0xFF};
+    esp_err_t err = i2c_master_transmit_receive(i2c_device_, &reg, 1, buffer, 1, 100);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "I2C read timeout/error at address 0x%02X register 0x%02X: %s",
+                 device_address_, reg, esp_err_to_name(err));
+        return 0xFF;  // invalid-read sentinel; do not reboot the whole device for a transient bus fault
+    }
+    return buffer[0];
+}""",
+    "I2C: tolerate transient single-register read failures",
+)
+axp2101_cc = main / "boards" / "common" / "axp2101.cc"
+replace_once(
+    axp2101_cc,
+    """int Axp2101::GetBatteryCurrentDirection() {
+    return (ReadReg(0x01) & 0b01100000) >> 5;
+}""",
+    """int Axp2101::GetBatteryCurrentDirection() {
+    const uint8_t value = ReadReg(0x01);
+    if (value == 0xFF) return 0;  // unknown; never report charging/discharging from a failed read
+    return (value & 0b01100000) >> 5;
+}""",
+    "AXP2101: reject invalid battery-current status",
+)
+replace_once(
+    axp2101_cc,
+    """int Axp2101::GetBatteryLevel() {
+    return ReadReg(0xA4);
+}""",
+    """int Axp2101::GetBatteryLevel() {
+    const uint8_t value = ReadReg(0xA4);
+    return value == 0xFF ? -1 : value;
+}""",
+    "AXP2101: report failed battery-level reads as unavailable",
+)
+board_cc = main / "boards" / "waveshare" / "esp32-s3-touch-amoled-2.16" / "esp32-s3-touch-amoled-2.16.cc"
+replace_once(
+    board_cc,
+    """        level = pmic_->GetBatteryLevel();
+        return true;""",
+    """        level = pmic_->GetBatteryLevel();
+        if (level < 0 || level > 100) {
+            ESP_LOGW(TAG, "Battery level unavailable (AXP2101 I2C read failed)");
+            return false;
+        }
+        return true;""",
+    "Waveshare 2.16: do not publish an invalid battery percentage",
+)
+
 # std::atomic for chipo_keep_on_ (read by XiaoZhi's power-save timer on the esp_timer task).
 replace_once(
     main / "application.h",
