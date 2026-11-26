@@ -200,3 +200,21 @@ Capturar por puerto serie a 115200 desde antes de iniciar una respuesta larga ha
 El repositorio ya incorpora `chipo_update` y un flujo de Releases de GitHub para la Waveshare 2.16. Las Releases se publican como pre-release y no se instalan automáticamente hasta promoverlas a latest. La descarga real, instalación y rollback siguen pendientes de prueba física. Cualquier parche correctivo se publicará primero como pre-release; no se promoverá ni se afirmará que está arreglado hasta validarlo en la placa.
 
 | 26-11-2026 | CHIPO-AUDIO-002 | Usuario informa reinicio al hablar durante mucho tiempo; registrar motivo de reset/backtrace antes de atribuir causa. |
+
+
+### CHIPO-TOOLS-LEVEL-001 — Calibración manual del nivel de burbuja
+
+**Estado:** Implementado en rama de corrección; pendiente de compilación y prueba física.
+
+**Cambio realizado**
+
+- Al abrir NIVEL, la pantalla indica «Toca para calibrar - Mantén para salir».
+- Un toque con CHIPO apoyado y estable captura la gravedad actual como cero de referencia de esa sesión.
+- Si el dispositivo no está suficientemente plano, no acepta la calibración y muestra «Ponme plano para calibrar».
+- Una pulsación larga sigue cerrando NIVEL.
+- La calibración se conserva mientras NIVEL permanezca abierto; al volver a abrirlo se solicita calibrar de nuevo. Todavía no se guarda en memoria persistente.
+
+**Limitación conocida**
+
+Esta primera implementación permite compensar una mesa ligeramente desnivelada durante la sesión, pero no guarda el cero tras reiniciar. La calibración persistente queda pendiente de integrar con el almacenamiento de ajustes y probar en la placa.
+
