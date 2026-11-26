@@ -213,14 +213,8 @@ app_cc = main / "application.cc"
 replace_once(
     app_cc,
     '#include "application.h"\n',
-    '#include "application.h"\n#include "chipo_state_map.h"\n',
+    '#include "application.h"\n#include "chipo_state_map.h"\n#include "chipo_drive_voice.h"\n',
     "Application source include",
-)
-replace_once(
-    app_cc,
-    '#include "application.h"\\n',
-    '#include "application.h"\\n#include "chipo_drive_voice.h"\\n',
-    "Include CHIPO voice text normalizer",
 )
 replace_once(
     app_cc,
