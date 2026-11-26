@@ -218,6 +218,12 @@ replace_once(
 )
 replace_once(
     app_cc,
+    '#include "application.h"\\n',
+    '#include "application.h"\\n#include "chipo_drive_voice.h"\\n',
+    "Include CHIPO voice text normalizer",
+)
+replace_once(
+    app_cc,
     "    display->SetupUI();\n",
     """    display->SetupUI();
 
@@ -295,6 +301,20 @@ replace_once(
                         if (lock && chipo_drive_->OnVoiceText(message.c_str())) {
                             chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
                             if (chipo_face_) chipo_face_->SetThinking(false);
+                        }
+                    }
+                    // Explicit face neutral recalibration; only fires on a clear two-word command.
+                    if (chipo_face_ && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                        const std::string normalized = DriveNormalizeText(message.c_str());
+                        if (normalized.find("recalibra") != std::string::npos &&
+                            normalized.find("cara") != std::string::npos) {
+                            DisplayLockGuard lock(display);
+                            if (lock) {
+                                chipo_face_->RecalibrateTilt();
+                                display->ShowNotification("Ponte de pie y quieto para calibrar la cara", 3500);
+                                chipo_face_->SetThinking(false);
+                                chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                            }
                         }
                     }
                     if (chipo_face_ && ChipoIsThanks(message.c_str())) {  // "gracias", "te quiero": a shower of hearts
