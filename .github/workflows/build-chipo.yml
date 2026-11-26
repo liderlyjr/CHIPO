@@ -103,6 +103,7 @@ jobs:
             build/xiaozhi-esp32/build/partition_table/partition-table.bin
             build/xiaozhi-esp32/build/ota_data_initial.bin
             build/xiaozhi-esp32/build/xiaozhi.bin
+            build/xiaozhi-esp32/build/xiaozhi.elf
             build/xiaozhi-esp32/build/generated_assets.bin
             build/xiaozhi-esp32/build/flash_args
             build/xiaozhi-esp32/build/flasher_args.json
