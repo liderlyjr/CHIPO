@@ -171,3 +171,32 @@ El usuario confirma que, al pulsar el botón BOOT de la placa, CHIPO sí entra e
 
 
 | 26-11-2026 | CHIPO-AUDIO-001 | Prueba física: BOOT inicia la escucha y CHIPO reconoce la voz; la activación por la palabra «CHIPO» sin pulsar BOOT falla. Sospecha centrada en wake word; causa pendiente. |
+
+
+### CHIPO-AUDIO-002 — Reinicio durante respuestas habladas largas
+
+**Estado:** Abierto — causa pendiente de confirmar con log serie.
+
+**Evidencia física (26-11-2026)**
+
+El usuario informa que CHIPO se reinicia cuando habla durante mucho tiempo. Esto se suma al reporte previo de reinicios intermitentes durante el uso.
+
+**Áreas a investigar**
+
+- Memoria libre y mínima (heap interno y PSRAM) durante TTS largo.
+- Pila de las tareas de audio, decodificación y reproducción; posibles stack overflows.
+- Watchdog y bloqueos de tareas durante la salida de audio.
+- Asignaciones acumuladas o fragmentación al recibir/reproducir bloques de voz.
+- Ruta LVGL mientras la cara anima durante Speaking.
+
+No se declara ninguna como causa confirmada. El fallo podría ser un panic, watchdog, brownout o reinicio solicitado; el motivo de reset y el backtrace son necesarios para distinguirlos.
+
+**Prueba necesaria**
+
+Capturar por puerto serie a 115200 desde antes de iniciar una respuesta larga hasta el reinicio. Guardar especialmente el motivo de reset, Guru Meditation, Backtrace, Stack canary, Task watchdog y mensajes de memoria. Repetir con una respuesta corta como control.
+
+**OTA**
+
+El repositorio ya incorpora `chipo_update` y un flujo de Releases de GitHub para la Waveshare 2.16. Las Releases se publican como pre-release y no se instalan automáticamente hasta promoverlas a latest. La descarga real, instalación y rollback siguen pendientes de prueba física. Cualquier parche correctivo se publicará primero como pre-release; no se promoverá ni se afirmará que está arreglado hasta validarlo en la placa.
+
+| 26-11-2026 | CHIPO-AUDIO-002 | Usuario informa reinicio al hablar durante mucho tiempo; registrar motivo de reset/backtrace antes de atribuir causa. |
