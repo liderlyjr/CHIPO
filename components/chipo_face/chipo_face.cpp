@@ -210,7 +210,19 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     // The face slides off the screen when CHIPO falls over: without this the parent (the screen) grows a grey
     // scrollbar on its edge while the face is out of bounds.
     lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_OFF);
-    CreateRoad(parent);  // below the face, above XiaoZhi's own screen
+    // The face lives on a true-black AMOLED canvas. Cover XiaoZhi's light page behind
+    // the eyes, while keeping the road effects and face themselves above this backdrop.
+    backdrop_ = lv_obj_create(parent);
+    if (backdrop_ == nullptr) return false;
+    lv_obj_remove_style_all(backdrop_);
+    lv_obj_set_size(backdrop_, pw > 0 ? pw : 480, ph > 0 ? ph : 480);
+    lv_obj_set_pos(backdrop_, 0, 0);
+    lv_obj_set_style_bg_color(backdrop_, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(backdrop_, LV_OPA_COVER, LV_PART_MAIN);
+    MakeInert(backdrop_);
+    lv_obj_move_foreground(backdrop_);
+
+    CreateRoad(parent);  // above the black backdrop, below the face
 
     root_ = lv_obj_create(parent);
     if (root_ == nullptr) return false;
@@ -468,6 +480,8 @@ void ChipoFace::Stop() {
     fx_.Clear();
     if (root_) lv_obj_delete(root_);
     if (road_) lv_obj_delete(road_);
+    if (backdrop_) lv_obj_delete(backdrop_);
+    backdrop_ = nullptr;
     road_ = wheel_ = sun_ = sun_mask_ = horizon_ = nullptr;
     for (auto& o : lane_) o = nullptr;
     for (auto& o : streak_) o = nullptr;
