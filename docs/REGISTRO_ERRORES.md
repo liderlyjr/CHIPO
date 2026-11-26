@@ -43,7 +43,10 @@ Esto es compatible con una referencia de fuente, callback o dato asociado al tex
 - La inicialización de la pantalla, el táctil, la IMU QMI8658 y los códecs de audio aparece en los registros antes del fallo.
 - El análisis del backtrace sitúa el problema en el refresco/cálculo de texto de LVGL.
 - Se está revisando la asignación y vida útil de las fuentes, las etiquetas y el cambio de tema mediante `SetTheme()`.
-- No se ha confirmado todavía una etiqueta concreta con una fuente inválida.
+- **Hallazgo nuevo (hipótesis, aún no causa raíz confirmada):** `scripts/integrate_chipo.py` conectaba CHIPO TOOLS a la fuente de texto del tema activo y el componente conservaba el puntero `lv_font_t*` para sus etiquetas. Si `SetTheme()` sustituye/libera ese recurso, las etiquetas podrían quedarse apuntando a una fuente inválida y fallar durante el refresco LVGL.
+- Se prepara un cambio preventivo para que CHIPO TOOLS use su fuente Montserrat integrada, de vida estática, en vez de conservar un puntero prestado del tema. Al no tener la fuente personalizada, el componente ya pliega los acentos a ASCII.
+- **Esto reduce un riesgo concreto, pero no demuestra todavía que sea la causa del panic ni que el reinicio esté corregido.**
+
 
 **Compilación y pruebas relacionadas**
 
