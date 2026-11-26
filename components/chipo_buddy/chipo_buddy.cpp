@@ -303,7 +303,12 @@ void ChipoBuddy::Step(uint32_t now_ms) {
             }
         }
     }
-    if (peeking_ && BuddyReached(now_ms, peek_until_) && ring_ == Ring::None) {
+    // Keep the countdown visible for its entire duration. A tilt/desk-clock update must not
+    // let the temporary peek timeout hide an active timer; once it finishes, TimerDone takes over.
+    if (peeking_ && engine_.timer_active() && ring_ == Ring::None) {
+        peek_until_ = now_ms + kPeekMs;
+    }
+    if (peeking_ && BuddyReached(now_ms, peek_until_) && ring_ == Ring::None && !engine_.timer_active()) {
         peeking_ = false;
         if (!bedtime_ && !desk_clock_) view_.Hide();
     }
