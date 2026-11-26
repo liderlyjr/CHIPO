@@ -32,6 +32,22 @@ def replace_once(path: Path, old: str, new: str, label: str):
     print(f"[patched] {label}")
 
 for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings", "chipo_tools", "chipo_boot"):
+
+# CHIPO owns the 2.16-inch panel: hide the complete XiaoZhi interface and keep a true-black AMOLED canvas.
+lcd_display_cc = main / "display" / "lcd_display.cc"
+replace_once(
+    lcd_display_cc,
+    "    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);\\n",
+    "    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);\\n"\n    "    // CHIPO owns the whole panel: pure black background, no XiaoZhi chrome or conversation.\\n"\n    "    lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);\\n"\n    "    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);\\n"\n    "    lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);\\n"\n    "    lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);\\n"\n    "    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);\\n"\n    "    lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);\\n"\n    "    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);\\n",
+    "Replace XiaoZhi screen with CHIPO full-screen black canvas",
+)
+replace_once(
+    lcd_display_cc,
+    "bool LcdDisplay::SetEmotion(const char* emotion) {\\n",
+    "bool LcdDisplay::SetEmotion(const char* emotion) {\\n"\n    "    // CHIPO draws its own eyes and mouth; never display XiaoZhi emoji or robot faces.\\n"\n    "    (void)emotion;\\n"\n    "    return true;\\n",
+    "Disable XiaoZhi emotion artwork in CHIPO mode",
+)
+
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
