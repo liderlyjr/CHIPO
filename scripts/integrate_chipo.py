@@ -1146,6 +1146,43 @@ replace_once(
 """,
     "Ignore firmware offered by the XiaoZhi OTA server",
 )
+# --- CHIPO display defaults: white/light theme and 90-degree counter-clockwise orientation -----------------------
+board_config = main / "boards" / "waveshare" / "esp32-s3-touch-amoled-2.16" / "config.h"
+replace_once(
+    board_config,
+    "#define DISPLAY_SWAP_XY false",
+    "#define DISPLAY_SWAP_XY true",
+    "Waveshare 2.16: rotate the complete display 90 degrees counter-clockwise (swap XY)",
+)
+replace_once(
+    board_config,
+    "#define DISPLAY_MIRROR_Y false",
+    "#define DISPLAY_MIRROR_Y true",
+    "Waveshare 2.16: complete counter-clockwise display rotation (mirror Y)",
+)
+board_cc = main / "boards" / "waveshare" / "esp32-s3-touch-amoled-2.16" / "esp32-s3-touch-amoled-2.16.cc"
+replace_once(
+    board_cc,
+    """                .swap_xy = 0,
+                .mirror_x = 0,
+                .mirror_y = 0,""",
+    """                .swap_xy = 1,
+                .mirror_x = 0,
+                .mirror_y = 1,""",
+    "Waveshare 2.16: keep touch coordinates aligned with counter-clockwise screen rotation",
+)
+lcd_display_cc = main / "display" / "lcd_display.cc"
+replace_once(
+    lcd_display_cc,
+    """    Settings settings("display", false);
+    std::string theme_name = settings.GetString("theme", "light");
+    current_theme_ = LvglThemeManager::GetInstance().GetTheme(theme_name);""",
+    """    // CHIPO uses the light theme: white background with dark, readable interface elements.
+    // Do not inherit a previously saved dark-theme preference on this dedicated device.
+    current_theme_ = LvglThemeManager::GetInstance().GetTheme("light");""",
+    "CHIPO: force the white light theme for the complete XiaoZhi interface",
+)
+
 root_cmake = xiaozhi / "CMakeLists.txt"
 text = root_cmake.read_text(encoding="utf-8")
 new_text, n = re.subn(r'set\(PROJECT_VER "[^"]*"\)', f'set(PROJECT_VER "{chipo_version}")', text, count=1)
