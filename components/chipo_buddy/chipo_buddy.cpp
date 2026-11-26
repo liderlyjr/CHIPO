@@ -72,6 +72,7 @@ void ChipoBuddy::Stop() {
     bedtime_ = false;
     ring_ = Ring::None;
     peeking_ = false;
+    pinned_ = false;
 }
 
 void ChipoBuddy::TimerCallback(lv_timer_t* timer) {
@@ -91,6 +92,8 @@ void ChipoBuddy::Peek(uint32_t ms) {
 }
 
 void ChipoBuddy::StartRinging(Ring kind, const char* text) {
+    pinned_ = false;
+    peeking_ = false;
     ring_ = kind;
     ring_started_ = Now();
     next_sound_ = ring_started_;
@@ -133,12 +136,14 @@ void ChipoBuddy::SetDeskClock(bool on, int side) {
 void ChipoBuddy::EnterBedtime() {
     bedtime_ = true;
     peeking_ = false;
+    pinned_ = false;
     Scene("night");
 }
 
 void ChipoBuddy::LeaveBedtime() {
     bedtime_ = false;
     peeking_ = false;
+    pinned_ = false;
     view_.Hide();
 }
 
@@ -167,8 +172,9 @@ void ChipoBuddy::OnTouch(bool long_press) {
         return;
     }
     // A short tap closes a peek of a countdown.
-    if (peeking_ && !bedtime_ && !desk_clock_) {
+    if ((peeking_ || pinned_) && !bedtime_ && !desk_clock_) {
         peeking_ = false;
+        pinned_ = false;
         view_.Hide();
     }
 }
@@ -195,6 +201,7 @@ bool ChipoBuddy::Handle(const BuddyCommand& cmd) {
         else std::snprintf(buf, sizeof buf, "Temporizador: %u min %u s", mins, secs);
         Note(buf);
         Peek(kPeekMs);
+        pinned_ = true;
         return Chime();
     }
     case BuddyIntent::Pomodoro:
@@ -214,6 +221,8 @@ bool ChipoBuddy::Handle(const BuddyCommand& cmd) {
         return Chime();
     case BuddyIntent::CancelTimers:
         engine_.CancelCountdowns();
+        peeking_ = false;
+        pinned_ = false;
         if (ring_ == Ring::Timer || ring_ == Ring::Pomodoro) StopRinging(false);
         Note("Cancelado");
         return Chime();
@@ -303,7 +312,7 @@ void ChipoBuddy::Step(uint32_t now_ms) {
             }
         }
     }
-    if (peeking_ && BuddyReached(now_ms, peek_until_) && ring_ == Ring::None) {
+    if (peeking_ && !pinned_ && BuddyReached(now_ms, peek_until_) && ring_ == Ring::None) {
         peeking_ = false;
         if (!bedtime_ && !desk_clock_) view_.Hide();
     }
@@ -344,7 +353,7 @@ void ChipoBuddy::Render(uint32_t now_ms) {
         view_.Show(s);
         return;
     }
-    if (peeking_) {
+    if (peeking_ || pinned_) {
         uint32_t v = 0;
         const BuddyShow what = engine_.Best(now_ms, &v);
         if (what == BuddyShow::Nothing) {

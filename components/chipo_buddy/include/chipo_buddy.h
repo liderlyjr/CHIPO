@@ -86,6 +86,7 @@ private:
 
     uint32_t peek_until_ = 0;
     bool peeking_ = false;
+    bool pinned_ = false;
     Ring ring_ = Ring::None;
     uint32_t ring_started_ = 0, next_sound_ = 0;
     int ring_plays_ = 0;

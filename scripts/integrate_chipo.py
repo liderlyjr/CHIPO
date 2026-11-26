@@ -1177,10 +1177,51 @@ replace_once(
     """    Settings settings("display", false);
     std::string theme_name = settings.GetString("theme", "light");
     current_theme_ = LvglThemeManager::GetInstance().GetTheme(theme_name);""",
-    """    // CHIPO uses the light theme: white background with dark, readable interface elements.
-    // Do not inherit a previously saved dark-theme preference on this dedicated device.
-    current_theme_ = LvglThemeManager::GetInstance().GetTheme("light");""",
-    "CHIPO: force the white light theme for the complete XiaoZhi interface",
+    """    // CHIPO uses the dark theme so its retained Wi-Fi and battery indicators are white on AMOLED black.
+    // Do not inherit a previously saved theme preference on this dedicated device.
+    current_theme_ = LvglThemeManager::GetInstance().GetTheme("dark");""",
+    "CHIPO: force dark AMOLED theme for retained status indicators",
+)
+replace_once(
+    lcd_display_cc,
+    """    // Display AI logo while booting
+    emoji_label_ = lv_label_create(screen);
+    lv_obj_center(emoji_label_);
+    lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
+    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
+    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);
+
+    // CHIPO home screen: keep only the native Wi-Fi and battery indicators.
+    // All XiaoZhi chat, status text, notifications, mute icon and boot logo stay hidden.
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(container_, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(top_bar_, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(top_bar_, LV_OPA_COVER, 0);
+    lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(content_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(mute_label_, LV_OBJ_FLAG_HIDDEN);""",
+    """    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);
+
+    // CHIPO home screen: keep only the native Wi-Fi and battery indicators.
+    // All XiaoZhi chat, status text, notifications, mute icon and boot logo stay hidden.
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(container_, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(container_, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(top_bar_, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(top_bar_, LV_OPA_COVER, 0);
+    lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(content_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(mute_label_, LV_OBJ_FLAG_HIDDEN);""",
+    "CHIPO: hide XiaoZhi UI and retain Wi-Fi/battery on black AMOLED",
 )
 
 root_cmake = xiaozhi / "CMakeLists.txt"

@@ -210,7 +210,8 @@ bool ChipoFace::Start(lv_obj_t* parent) {
     // The face slides off the screen when CHIPO falls over: without this the parent (the screen) grows a grey
     // scrollbar on its edge while the face is out of bounds.
     lv_obj_set_scrollbar_mode(parent, LV_SCROLLBAR_MODE_OFF);
-    CreateRoad(parent);  // below the face, above XiaoZhi's own screen
+    // The integration patch gives the XiaoZhi screen a black AMOLED canvas and keeps only Wi-Fi/battery.
+    CreateRoad(parent);
 
     root_ = lv_obj_create(parent);
     if (root_ == nullptr) return false;
