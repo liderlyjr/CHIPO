@@ -880,13 +880,9 @@ replace_once(
             };
             hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
             hooks.shake_other = [this](uint32_t now_ms) { return chipo_fun_ && chipo_fun_->OnShake(now_ms); };
-            // The display's own text font has the Spanish accents; without it CHIPO TOOLS folds them to plain letters.
-            hooks.text_font = [display]() -> const lv_font_t* {
-                Theme* theme = display->GetTheme();
-                if (!theme) return nullptr;
-                auto font = theme->GetTextFont();
-                return font ? font->font() : nullptr;
-            };
+            // Do not retain a raw font pointer borrowed from the active Theme: SetTheme() may
+            // replace/destroy it while CHIPO TOOLS labels still reference it. The component uses
+            // its built-in Montserrat font and folds accents when no long-lived custom font is supplied.
             hooks.load_flag = [](const char* key, bool def) {
                 Settings settings("chipo", false);
                 return settings.GetBool(key, def);
