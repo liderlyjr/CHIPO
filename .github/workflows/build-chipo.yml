@@ -7,6 +7,17 @@ on:
         description: "XiaoZhi branch, tag or commit to build on (empty = the pinned commit)"
         required: false
         default: ""
+  pull_request:
+    paths:
+      - "components/**"
+      - "integration/**"
+      - "scripts/**"
+      - "tests/**"
+      - "docs/**"
+      - "README.md"
+      - "VERSION"
+      - "XIAOZHI_REF"
+      - ".github/workflows/build-chipo.yml"
   push:
     branches: [main]
     paths:
