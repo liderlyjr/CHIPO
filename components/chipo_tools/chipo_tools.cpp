@@ -275,8 +275,10 @@ void ChipoTools::Open(Tool tool) {
     Show(ball_, tool == Tool::Ball);
     if (tool == Tool::Level) {
         lv_label_set_text(caption_, "Nivel");
-        lv_label_set_text(hint_, "Toca para salir");
+        lv_label_set_text(hint_, "Toca para calibrar - Mantén para salir");
         have_accel_ = false;
+        level_zero_x_ = level_zero_y_ = 0.0f;
+        level_calibrated_ = false;
         bubble_x_ = bubble_y_ = 0;
     } else if (tool == Tool::Ball) {
         lv_label_set_text(caption_, "Bola magica");
@@ -507,8 +509,24 @@ void ChipoTools::RootEvent(lv_event_t* e) {
         return;
     }
     if (now - self->last_long_ms_ < 400) return;  // the release that ends a long press is not a tap
-    if (self->tool_ == Tool::Level) self->Close();
-    else self->AskBall(now);
+    if (self->tool_ == Tool::Level) {
+        // A tap records the current flat surface as the level's zero. A long press still exits.
+        const LevelReading raw = LevelFromAccel(self->ax_, self->ay_, self->az_,
+                                                CHIPO_LEVEL_MIRROR_X != 0, CHIPO_LEVEL_MIRROR_Y != 0);
+        if (!self->have_accel_ || !raw.flat) {
+            if (self->hooks_.notify) self->hooks_.notify("Ponme plano para calibrar");
+            return;
+        }
+        const float mag = std::sqrt(self->ax_ * self->ax_ + self->ay_ * self->ay_ + self->az_ * self->az_);
+        if (mag < 0.5f || mag > 1.6f) return;
+        self->level_zero_x_ = self->ax_ / mag;
+        self->level_zero_y_ = self->ay_ / mag;
+        self->level_calibrated_ = true;
+        self->bubble_x_ = self->bubble_y_ = 0.0f;
+        if (self->hooks_.notify) self->hooks_.notify("Nivel calibrado");
+    } else {
+        self->AskBall(now);
+    }
 }
 
 void ChipoTools::CanvasEvent(lv_event_t* e) {
@@ -617,7 +635,11 @@ void ChipoTools::UpdateLevel(uint32_t) {
         Show(lvl_bubble_, false);
         return;
     }
-    level_ = LevelFromAccel(ax_, ay_, az_, CHIPO_LEVEL_MIRROR_X != 0, CHIPO_LEVEL_MIRROR_Y != 0);
+    const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
+    const float zero_x = level_calibrated_ ? level_zero_x_ * mag : 0.0f;
+    const float zero_y = level_calibrated_ ? level_zero_y_ * mag : 0.0f;
+    level_ = LevelFromAccel(ax_ - zero_x, ay_ - zero_y, az_,
+                            CHIPO_LEVEL_MIRROR_X != 0, CHIPO_LEVEL_MIRROR_Y != 0);
     const int side = std::min(w_, h_);
     const float radius = static_cast<float>(side - 120) / 2.0f - static_cast<float>(side / 8) / 2.0f - 6.0f;
     const float tx = level_.flat ? level_.x * radius : 0.0f;
@@ -632,7 +654,7 @@ void ChipoTools::UpdateLevel(uint32_t) {
         lv_label_set_text(caption_, "Ponme plano sobre la mesa");
         lv_label_set_text(lvl_angle_, "");
     } else {
-        lv_label_set_text(caption_, level_.level ? "Nivelado" : "Nivel");
+        lv_label_set_text(caption_, level_.level ? "Nivelado" : (level_calibrated_ ? "Nivel - calibrado" : "Nivel"));
         std::snprintf(buf, sizeof buf, "%.1f grados", static_cast<double>(level_.angle_deg));
         lv_label_set_text(lvl_angle_, buf);
     }

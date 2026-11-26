@@ -200,3 +200,69 @@ Capturar por puerto serie a 115200 desde antes de iniciar una respuesta larga ha
 El repositorio ya incorpora `chipo_update` y un flujo de Releases de GitHub para la Waveshare 2.16. Las Releases se publican como pre-release y no se instalan automáticamente hasta promoverlas a latest. La descarga real, instalación y rollback siguen pendientes de prueba física. Cualquier parche correctivo se publicará primero como pre-release; no se promoverá ni se afirmará que está arreglado hasta validarlo en la placa.
 
 | 26-11-2026 | CHIPO-AUDIO-002 | Usuario informa reinicio al hablar durante mucho tiempo; registrar motivo de reset/backtrace antes de atribuir causa. |
+
+
+### CHIPO-TOOLS-LEVEL-001 — Calibración manual del nivel de burbuja
+
+**Estado:** Implementado en rama de corrección; pendiente de compilación y prueba física.
+
+**Cambio realizado**
+
+- Al abrir NIVEL, la pantalla indica «Toca para calibrar - Mantén para salir».
+- Un toque con CHIPO apoyado y estable captura la gravedad actual como cero de referencia de esa sesión.
+- Si el dispositivo no está suficientemente plano, no acepta la calibración y muestra «Ponme plano para calibrar».
+- Una pulsación larga sigue cerrando NIVEL.
+- La calibración se conserva mientras NIVEL permanezca abierto; al volver a abrirlo se solicita calibrar de nuevo. Todavía no se guarda en memoria persistente.
+
+**Limitación conocida**
+
+Esta primera implementación permite compensar una mesa ligeramente desnivelada durante la sesión, pero no guarda el cero tras reiniciar. La calibración persistente queda pendiente de integrar con el almacenamiento de ajustes y probar en la placa.
+
+
+
+### CHIPO-HW-I2C-001 — Timeout de lectura AXP2101 provoca aborto y reinicio
+
+**Estado:** Parche de tolerancia añadido en rama; compilación y prueba física pendientes. Causa eléctrica/origen del timeout aún no confirmado.
+
+**Evidencia física (26-11-2026)**
+
+El log de la placa muestra, durante el estado `speaking`:
+
+```text
+W AudioService: Encode queue is full, dropping oldest frame
+StateMachine: listening -> speaking
+Application: << Mañana en Barcelona hará sol durante el día,
+ESP_ERROR_CHECK failed: esp_err_t 0x107 (ESP_ERR_TIMEOUT)
+file: "./main/boards/common/i2c_device.cc" line 43
+func: uint8_t I2cDevice::ReadReg(uint8_t)
+expression: i2c_master_transmit_receive(...)
+abort() was called
+```
+
+**Causa inmediata confirmada**
+
+La lectura de un registro I²C devuelve timeout (0x107). La implementación común de `I2cDevice::ReadReg()` convierte cualquier error de lectura en aborto mediante `ESP_ERROR_CHECK`, reiniciando el ESP32-S3. Por tanto, este reinicio concreto no es evidencia de falta de RAM ni de un fallo de LVGL/TTS.
+
+**Dispositivo/tarea probable**
+
+En la placa Waveshare 2.16, el AXP2101 (PMIC/medidor de batería) comparte el bus I²C con el controlador táctil y otros dispositivos. CHIPO consulta el estado de batería periódicamente desde el timer de gestión de energía; las lecturas `IsCharging()`, `IsDischarging()` y `GetBatteryLevel()` pasan por `Axp2101::ReadReg()`. La coincidencia temporal hace de esta ruta el primer sospechoso, pero el log no incluye la dirección ni el registro, por lo que todavía no demuestra qué dispositivo originó el timeout.
+
+**Parche añadido en `scripts/integrate_chipo.py`**
+
+- `I2cDevice::ReadReg()` deja de ejecutar `ESP_ERROR_CHECK` ante un fallo transitorio: registra dirección, registro y error, y devuelve el sentinel `0xFF`.
+- `Axp2101` trata una lectura fallida del estado como desconocida y una lectura fallida del porcentaje como `-1`.
+- La implementación de la placa Waveshare devuelve `false` si el porcentaje de batería no es válido, en vez de publicar un valor incorrecto.
+
+El parche evita que un timeout de lectura de un registro convierta automáticamente un fallo recuperable en un reinicio. No repara por sí solo un bus bloqueado ni demuestra todavía por qué aparece el timeout. Las escrituras I²C y las lecturas de bloques mantienen su comportamiento anterior.
+
+**Commit:** `525e66f34e05692df4bf3893b994e60bf5304165` en la rama `fix/manual-level-calibration`.
+
+**Validación pendiente**
+
+1. Compilar el overlay completo contra XiaoZhi/ESP-IDF.
+2. Comprobar que el log identifica dirección y registro si vuelve a fallar.
+3. Repetir varias respuestas largas y observar si CHIPO sigue hablando sin reiniciarse.
+4. Comprobar lectura de batería y estado de carga con bus normal y con fallo simulado.
+5. Solo cerrar la incidencia después de prueba física.
+
+| 26-11-2026 | CHIPO-HW-I2C-001 | Backtrace/abort atribuido a `ESP_ERROR_CHECK` en `I2cDevice::ReadReg()`; parche de lectura tolerante añadido en rama, pendiente de build y prueba en hardware. |

@@ -19,6 +19,18 @@ on:
       - "VERSION"
       - "XIAOZHI_REF"
       - ".github/workflows/build-chipo.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "components/**"
+      - "integration/**"
+      - "scripts/**"
+      - "tests/**"
+      - "docs/**"
+      - "README.md"
+      - "VERSION"
+      - "XIAOZHI_REF"
+      - ".github/workflows/build-chipo.yml"
 
 permissions:
   contents: read

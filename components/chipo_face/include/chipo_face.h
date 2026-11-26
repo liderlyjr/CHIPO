@@ -150,6 +150,8 @@ public:
     // Replace the tilt sensor (tests, other boards). Pass nullptr to disable tilt reactions.
     // Samples with has_gyro = true also drive the gyroscope gestures.
     void SetTiltSource(TiltSource source);
+    // Forget the current neutral pose; the next still, upright IMU pose becomes the new zero.
+    void RecalibrateTilt();
 
     // Show an emotion for `duration_ms`, then go back to the base expression. It wakes CHIPO up.
     void ShowEmotion(Emotion emotion, uint32_t duration_ms = 2500);

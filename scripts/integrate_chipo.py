@@ -51,6 +51,117 @@ if not chipo_version or not re.fullmatch(r"\d+\.\d+\.\d+", chipo_version):
     encoding="utf-8", newline="\n")
 print(f"[generated] chipo_version.h = {chipo_version}")
 
+# The Waveshare AXP2101 battery monitor shares I2C with the touch controller and other devices.
+# A transient bus timeout must not become an unconditional ESP_ERROR_CHECK abort/reboot.
+i2c_device_cc = main / "boards" / "common" / "i2c_device.cc"
+replace_once(
+    i2c_device_cc,
+    """uint8_t I2cDevice::ReadReg(uint8_t reg) {
+    uint8_t buffer[1];
+    ESP_ERROR_CHECK(i2c_master_transmit_receive(i2c_device_, &reg, 1, buffer, 1, 100));
+    return buffer[0];
+}""",
+    """uint8_t I2cDevice::ReadReg(uint8_t reg) {
+    uint8_t buffer[1] = {0xFF};
+    esp_err_t err = i2c_master_transmit_receive(i2c_device_, &reg, 1, buffer, 1, 100);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "I2C read timeout/error at address 0x%02X register 0x%02X: %s",
+                 device_address_, reg, esp_err_to_name(err));
+        return 0xFF;  // invalid-read sentinel; do not reboot the whole device for a transient bus fault
+    }
+    return buffer[0];
+}""",
+    "I2C: tolerate transient single-register read failures",
+)
+axp2101_cc = main / "boards" / "common" / "axp2101.cc"
+replace_once(
+    axp2101_cc,
+    """    uint8_t adc = ReadReg(0x30);
+    if ((adc & 0x10) == 0) {""",
+    """    uint8_t adc = ReadReg(0x30);
+    if (adc != 0xFF && (adc & 0x10) == 0) {""",
+    "AXP2101: do not write back an invalid I2C read",
+)
+replace_once(
+    axp2101_cc,
+    """bool Axp2101::IsChargingDone() {
+    uint8_t value = ReadReg(0x01);
+    return (value & 0b00000111) == 0b00000100;
+}""",
+    """bool Axp2101::IsChargingDone() {
+    uint8_t value = ReadReg(0x01);
+    if (value == 0xFF) return false;
+    return (value & 0b00000111) == 0b00000100;
+}""",
+    "AXP2101: guard charging-done status after I2C error",
+)
+replace_once(
+    axp2101_cc,
+    """    uint16_t high = ReadReg(0x3C);
+    uint16_t low = ReadReg(0x3D);
+    uint16_t raw = (uint16_t)(((high & 0x3F) << 8) | low);""",
+    """    uint16_t high = ReadReg(0x3C);
+    uint16_t low = ReadReg(0x3D);
+    if (high == 0xFF || low == 0xFF) return false;
+    uint16_t raw = (uint16_t)(((high & 0x3F) << 8) | low);""",
+    "AXP2101: reject invalid temperature register reads",
+)
+replace_once(
+    axp2101_cc,
+    """void Axp2101::PowerOff() {
+    uint8_t value = ReadReg(0x10);
+    value = value | 0x01;
+    WriteReg(0x10, value);
+}""",
+    """void Axp2101::PowerOff() {
+    uint8_t value = ReadReg(0x10);
+    if (value == 0xFF) {
+        ESP_LOGE(TAG, "Cannot power off: AXP2101 I2C status read failed");
+        return;
+    }
+    value = value | 0x01;
+    WriteReg(0x10, value);
+}""",
+    "AXP2101: do not power off from an invalid register value",
+)
+
+replace_once(
+    axp2101_cc,
+    """int Axp2101::GetBatteryCurrentDirection() {
+    return (ReadReg(0x01) & 0b01100000) >> 5;
+}""",
+    """int Axp2101::GetBatteryCurrentDirection() {
+    const uint8_t value = ReadReg(0x01);
+    if (value == 0xFF) return 0;  // unknown; never report charging/discharging from a failed read
+    return (value & 0b01100000) >> 5;
+}""",
+    "AXP2101: reject invalid battery-current status",
+)
+replace_once(
+    axp2101_cc,
+    """int Axp2101::GetBatteryLevel() {
+    return ReadReg(0xA4);
+}""",
+    """int Axp2101::GetBatteryLevel() {
+    const uint8_t value = ReadReg(0xA4);
+    return value == 0xFF ? -1 : value;
+}""",
+    "AXP2101: report failed battery-level reads as unavailable",
+)
+board_cc = main / "boards" / "waveshare" / "esp32-s3-touch-amoled-2.16" / "esp32-s3-touch-amoled-2.16.cc"
+replace_once(
+    board_cc,
+    """        level = pmic_->GetBatteryLevel();
+        return true;""",
+    """        level = pmic_->GetBatteryLevel();
+        if (level < 0 || level > 100) {
+            ESP_LOGW(TAG, "Battery level unavailable (AXP2101 I2C read failed)");
+            return false;
+        }
+        return true;""",
+    "Waveshare 2.16: do not publish an invalid battery percentage",
+)
+
 # std::atomic for chipo_keep_on_ (read by XiaoZhi's power-save timer on the esp_timer task).
 replace_once(
     main / "application.h",
@@ -102,7 +213,7 @@ app_cc = main / "application.cc"
 replace_once(
     app_cc,
     '#include "application.h"\n',
-    '#include "application.h"\n#include "chipo_state_map.h"\n',
+    '#include "application.h"\n#include "chipo_state_map.h"\n#include "chipo_drive_voice.h"\n',
     "Application source include",
 )
 replace_once(
@@ -184,6 +295,20 @@ replace_once(
                         if (lock && chipo_drive_->OnVoiceText(message.c_str())) {
                             chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
                             if (chipo_face_) chipo_face_->SetThinking(false);
+                        }
+                    }
+                    // Explicit face neutral recalibration; only fires on a clear two-word command.
+                    if (chipo_face_ && esp_timer_get_time() >= chipo_drive_silence_until_us_) {
+                        const std::string normalized = DriveNormalizeText(message.c_str());
+                        if (normalized.find("recalibra") != std::string::npos &&
+                            normalized.find("cara") != std::string::npos) {
+                            DisplayLockGuard lock(display);
+                            if (lock) {
+                                chipo_face_->RecalibrateTilt();
+                                display->ShowNotification("Ponte de pie y quieto para calibrar la cara", 3500);
+                                chipo_face_->SetThinking(false);
+                                chipo_drive_silence_until_us_ = esp_timer_get_time() + 8000000;
+                            }
                         }
                     }
                     if (chipo_face_ && ChipoIsThanks(message.c_str())) {  // "gracias", "te quiero": a shower of hearts
@@ -755,13 +880,9 @@ replace_once(
             };
             hooks.notify = [display](const char* text) { display->ShowNotification(text, 2500); };
             hooks.shake_other = [this](uint32_t now_ms) { return chipo_fun_ && chipo_fun_->OnShake(now_ms); };
-            // The display's own text font has the Spanish accents; without it CHIPO TOOLS folds them to plain letters.
-            hooks.text_font = [display]() -> const lv_font_t* {
-                Theme* theme = display->GetTheme();
-                if (!theme) return nullptr;
-                auto font = theme->GetTextFont();
-                return font ? font->font() : nullptr;
-            };
+            // Do not retain a raw font pointer borrowed from the active Theme: SetTheme() may
+            // replace/destroy it while CHIPO TOOLS labels still reference it. The component uses
+            // its built-in Montserrat font and folds accents when no long-lived custom font is supplied.
             hooks.load_flag = [](const char* key, bool def) {
                 Settings settings("chipo", false);
                 return settings.GetBool(key, def);
