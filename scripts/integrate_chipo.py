@@ -76,6 +76,57 @@ replace_once(
 axp2101_cc = main / "boards" / "common" / "axp2101.cc"
 replace_once(
     axp2101_cc,
+    """    uint8_t adc = ReadReg(0x30);
+    if ((adc & 0x10) == 0) {""",
+    """    uint8_t adc = ReadReg(0x30);
+    if (adc != 0xFF && (adc & 0x10) == 0) {""",
+    "AXP2101: do not write back an invalid I2C read",
+)
+replace_once(
+    axp2101_cc,
+    """bool Axp2101::IsChargingDone() {
+    uint8_t value = ReadReg(0x01);
+    return (value & 0b00000111) == 0b00000100;
+}""",
+    """bool Axp2101::IsChargingDone() {
+    uint8_t value = ReadReg(0x01);
+    if (value == 0xFF) return false;
+    return (value & 0b00000111) == 0b00000100;
+}""",
+    "AXP2101: guard charging-done status after I2C error",
+)
+replace_once(
+    axp2101_cc,
+    """    uint16_t high = ReadReg(0x3C);
+    uint16_t low = ReadReg(0x3D);
+    uint16_t raw = (uint16_t)(((high & 0x3F) << 8) | low);""",
+    """    uint16_t high = ReadReg(0x3C);
+    uint16_t low = ReadReg(0x3D);
+    if (high == 0xFF || low == 0xFF) return false;
+    uint16_t raw = (uint16_t)(((high & 0x3F) << 8) | low);""",
+    "AXP2101: reject invalid temperature register reads",
+)
+replace_once(
+    axp2101_cc,
+    """void Axp2101::PowerOff() {
+    uint8_t value = ReadReg(0x10);
+    value = value | 0x01;
+    WriteReg(0x10, value);
+}""",
+    """void Axp2101::PowerOff() {
+    uint8_t value = ReadReg(0x10);
+    if (value == 0xFF) {
+        ESP_LOGE(TAG, "Cannot power off: AXP2101 I2C status read failed");
+        return;
+    }
+    value = value | 0x01;
+    WriteReg(0x10, value);
+}""",
+    "AXP2101: do not power off from an invalid register value",
+)
+
+replace_once(
+    axp2101_cc,
     """int Axp2101::GetBatteryCurrentDirection() {
     return (ReadReg(0x01) & 0b01100000) >> 5;
 }""",
