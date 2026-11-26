@@ -93,6 +93,17 @@ jobs:
           idf.py set-target esp32s3
           idf.py build
 
+      # Resolve the addresses from the 2026-11-26 CHIPO boot panic in CI; no ELF download is needed.
+      - name: Resolve previous CHIPO panic addresses
+        if: success()
+        working-directory: build/xiaozhi-esp32
+        run: |
+          . "$IDF_PATH/export.sh"
+          xtensa-esp32s3-elf-addr2line -pfiaC -e build/xiaozhi.elf \\
+            0x420f870d 0x420fd972 0x420fdc6c 0x42106d8a \\
+            0x420fc8c3 0x420fc93f 0x420f4595 0x420efc66 \\
+            0x420f3ac5 0x420fde6c 0x420e65c9
+
       - name: Upload firmware files
         if: success()
         uses: actions/upload-artifact@v4
