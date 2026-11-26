@@ -68,8 +68,11 @@ int main() {
         auto dbg = h.buddy.Debug();
         CHECK(dbg.shown && std::string(dbg.digits) == "0959", "peek shows the countdown (%s)", dbg.digits);
         h.Run(7000);
-        CHECK(!h.buddy.Debug().shown, "peek closes by itself");
+        CHECK(h.buddy.Debug().shown, "countdown stays visible until dismissed");
         CHECK(h.buddy.engine().timer_active(), "the timer keeps running");
+        h.buddy.OnTouch(false);
+        CHECK(!h.buddy.Debug().shown, "a tap hides the countdown without cancelling it");
+        CHECK(h.buddy.engine().timer_active(), "the timer remains active after hiding");
 
         CHECK(h.buddy.OnVoiceText("cuánto queda"), "time left answered");
         h.Run(500);
