@@ -8,11 +8,69 @@ Este documento mantiene la trazabilidad de los fallos encontrados en CHIPO OS, l
 
 - **Versión del repositorio:** CHIPO OS 0.6.0.
 - **Placa objetivo:** Waveshare ESP32-S3 Touch AMOLED 2.16 (480 × 480).
-- **Incidencia prioritaria:** reinicio durante el arranque, después de mostrar la pantalla de CHIPO OS.
-- **Estado:** causa raíz todavía en investigación; no hay un parche correctivo confirmado para este reinicio.
-- **Prueba física:** pendiente de repetir con un firmware corregido.
+- **Incidencias abiertas:** bloqueos/reinicios intermitentes durante el uso y desfase de orientación de la cara.
+- **Estado:** ambos problemas siguen en diagnóstico; no hay todavía un parche correctivo confirmado.
+- **Prueba física:** el usuario confirma que CHIPO ya arranca y llega a funcionar, pero después presenta fallos y se reinicia.
 
 ## Incidencias
+
+### CHIPO-IMU-001 — Orientación neutra desplazada un paso a la izquierda
+
+**Estado:** Abierto — pendiente de precisar y corregir la calibración/orientación.
+
+**Síntoma comunicado en la prueba física (26-11-2026)**
+
+El usuario indica que, cuando CHIPO debería estar derecho/en posición neutra, la orientación de la cara aparece desplazada un paso hacia la izquierda.
+
+**Evidencia y código revisado**
+
+- La placa usa el sensor QMI8658.
+- `components/chipo_face/chipo_tilt.cpp` calibra automáticamente la posición de reposo tras 1.2 s de estabilidad, si la gravedad está suficientemente dentro del plano de pantalla.
+- La calibración guarda el vector de reposo `u0_`; el eje horizontal se deriva del eje vertical detectado.
+- `CHIPO_TILT_MIRROR_X` solo invierte el sentido izquierda/derecha. No corrige por sí mismo un pequeño desfase de posición neutra.
+- El código también puede recalibrar la posición de reposo después de 10 s en una inclinación estable de entre 3° y 30°.
+
+**Diagnóstico pendiente**
+
+Aún hay que distinguir si el desplazamiento es:
+1. una inclinación física constante de la cara en reposo;
+2. un desfase de la animación/ojos respecto al centro;
+3. un mapeo de ejes/signo de la IMU.
+
+No cambiar `CHIPO_TILT_MIRROR_X` a ciegas: eso invertiría el sentido de las reacciones, no necesariamente centraría la orientación.
+
+**Próximos pasos**
+
+1. Confirmar si el desfase se ve en la cara incluso sin mover la placa o solo en la reacción al inclinarla.
+2. Comprobar la posición de calibración al arrancar, manteniendo la placa quieta y derecha durante al menos 2 s.
+3. Revisar el mapeo de ejes y la neutralización con esa observación.
+4. Aplicar el ajuste mínimo, añadir prueba automatizada y validar en la placa.
+
+**Resolución:** pendiente; no se ha modificado todavía el mapeo de la IMU.
+
+### CHIPO-BOOT-002 — Bloqueos y reinicios intermitentes después de arrancar
+
+**Estado:** Abierto — diagnóstico en hardware.
+
+**Síntoma comunicado en la prueba física (26-11-2026)**
+
+El usuario informa que CHIPO ahora consigue arrancar y funcionar, pero después se buguea/se bloquea y se reinicia. Esto actualiza el síntoma inicial de bucle de reinicio inmediato: ya no falla necesariamente antes de entrar en funcionamiento.
+
+**Evidencia disponible**
+
+- Es un nuevo reporte de prueba física; todavía no se ha recibido el log serie del nuevo bloqueo.
+- El panic anterior `InstrFetchProhibited` con `PC=0x00000000` y backtrace en la ruta de texto LVGL sigue siendo una pista histórica, pero no debe asumirse que explica todos los reinicios intermitentes.
+- La causa raíz no está confirmada.
+
+**Próximos pasos**
+
+1. Obtener el log serie desde el arranque hasta el siguiente bloqueo/reinicio, incluyendo el nuevo backtrace y la razón de reset.
+2. Comparar si el nuevo fallo conserva la ruta LVGL o si aparece una causa distinta.
+3. Correlacionar el momento del fallo con voz, pantalla, táctil, IMU y módulos activos.
+4. Documentar cada panic por separado y corregir solo con evidencia reproducible.
+
+**Resolución:** pendiente. No hay todavía un arreglo validado en hardware.
+
 
 ### CHIPO-BOOT-001 — Reinicio durante el arranque por fallo en la ruta de texto de LVGL
 
@@ -70,6 +128,9 @@ Esto es compatible con una referencia de fuente, callback o dato asociado al tex
 |---|---|---|
 | 26-11-2026 | Build 145 — [GitHub Actions](https://github.com/liderlyjr/CHIPO/actions/runs/45885507339) | Ejecución completada correctamente; pruebas host, compilación y publicación correctas. No equivale a validación física. |
 | 26-11-2026 | CHIPO-BOOT-001 | Se documenta el panic `InstrFetchProhibited`, PC nulo y la ruta de texto LVGL señalada por el backtrace. Causa raíz pendiente. |
+| 26-11-2026 | CHIPO-BOOT-002 | Nueva prueba física: CHIPO arranca y funciona, pero presenta bloqueos y reinicios intermitentes. Falta el log del nuevo fallo. |
+| 26-11-2026 | CHIPO-IMU-001 | Nueva observación física: orientación neutra desplazada un paso a la izquierda. Se revisa la calibración QMI8658; ajuste pendiente. |
+| 26-11-2026 | Build 148 — [GitHub Actions](https://github.com/liderlyjr/CHIPO/actions/runs/45889245590) | Compilación y workflow completados correctamente. El commit fue documental; no contiene una reparación de los dos problemas físicos. |
 
 ## Cómo mantener este registro
 
