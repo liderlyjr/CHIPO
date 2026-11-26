@@ -38,7 +38,7 @@ replace_once(
     "    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);\n",
     "    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);\n"
     "    // CHIPO owns the whole panel: pure black background, no XiaoZhi chrome or conversation.\n"
-    "    lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);\n"
+    "    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);\n"
     "    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);\n"
     "    lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);\n"
     "    lv_obj_add_flag(status_bar_, LV_OBJ_FLAG_HIDDEN);\n"
