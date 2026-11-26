@@ -494,6 +494,21 @@ void ChipoFace::SetTiltSource(TiltSource source) {
     tilt_source_ = std::move(source);
 }
 
+void ChipoFace::RecalibrateTilt() {
+    tilt_.Reset();
+    gyro_.Reset();
+    calibrated_logged_ = false;
+    fell_ = false;
+    fall_dir_ = 0;
+    side_lying_ = false;
+    desk_clock_ = false;
+    side_lying_ms_ = 0;
+    startle_until_ms_ = 0;
+    relief_until_ms_ = 0;
+    dizzy_until_ms_ = 0;
+    ESP_LOGI(TAG, "Tilt neutral pose cleared; hold CHIPO upright and still to recalibrate");
+}
+
 void ChipoFace::SetDriveMode(bool on) {
     if (on == drive_mode_) return;
     drive_mode_ = on;

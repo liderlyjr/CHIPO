@@ -101,3 +101,8 @@ Solo es posible con la placa:
 
 La 2,16" trae altavoz integrado (confirmado por el soporte de Waveshare), así que no se usa altavoz externo. Ver
 [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md).
+
+
+## Registro de errores
+
+El diagnóstico, los fallos encontrados, las pruebas y las correcciones se documentan en el [Registro de errores y diagnóstico de CHIPO](docs/REGISTRO_ERRORES.md). Se mantienen separados los problemas confirmados, las hipótesis y las incidencias verificadas como corregidas.

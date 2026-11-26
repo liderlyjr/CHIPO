@@ -163,6 +163,9 @@ private:
     float ax_ = 0, ay_ = 0, az_ = 1;
     bool have_accel_ = false;
     LevelReading level_{};
+    // Manual spirit-level zero, captured by tapping the screen while it rests on a flat surface.
+    float level_zero_x_ = 0.0f, level_zero_y_ = 0.0f;
+    bool level_calibrated_ = false;
     float bubble_x_ = 0, bubble_y_ = 0;
     // 8-ball
     lv_obj_t* ball_ = nullptr;
