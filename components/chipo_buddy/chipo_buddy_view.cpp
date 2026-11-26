@@ -26,10 +26,10 @@ lv_obj_t* Rect(lv_obj_t* parent, int x, int y, int w, int h, int radius) {
 // when lit; unlit bars stay faintly visible, like the dark bars of a real display, with no halo.
 void StyleLit(lv_obj_t* o, uint32_t rgb, int brightness, bool lit) {
     const lv_color_t color = lv_color_hex(rgb);
-    lv_obj_set_style_bg_color(o, lit ? lv_color_mix(lv_color_white(), color, 70) : color, 0);
+    lv_obj_set_style_bg_color(o, lit ? lv_color_mix(lv_color_white(), color, 70) : lv_color_hex(0xDCE4E9), 0);
     lv_obj_set_style_bg_grad_color(o, color, 0);
     lv_obj_set_style_bg_grad_dir(o, lit ? LV_GRAD_DIR_VER : LV_GRAD_DIR_NONE, 0);
-    lv_obj_set_style_bg_opa(o, static_cast<lv_opa_t>(lit ? brightness : brightness / 14), 0);
+    lv_obj_set_style_bg_opa(o, static_cast<lv_opa_t>(lit ? brightness : 255), 0);
     lv_obj_set_style_shadow_color(o, color, 0);
     lv_obj_set_style_shadow_width(o, lit ? 22 : 0, 0);
     lv_obj_set_style_shadow_opa(o, static_cast<lv_opa_t>(lit ? brightness * 3 / 5 : 0), 0);
@@ -59,7 +59,7 @@ bool ChipoBuddyView::Create(lv_obj_t* parent, const lv_font_t* font) {
     lv_obj_remove_style_all(root_);
     lv_obj_set_size(root_, w, h);
     lv_obj_set_pos(root_, 0, 0);
-    lv_obj_set_style_bg_color(root_, lv_color_black(), 0);
+    lv_obj_set_style_bg_color(root_, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
     lv_obj_remove_flag(root_, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(root_, LV_OBJ_FLAG_CLICKABLE);
@@ -189,7 +189,7 @@ void ChipoBuddyView::Show(const BuddyScreen& s) {
     }
     if (!have_applied_ || std::strcmp(s.footer, applied_.footer) != 0 || restyle) {
         lv_label_set_text(footer_, s.footer);
-        lv_obj_set_style_text_color(footer_, lv_color_hex(0xB8B8B8), 0);
+        lv_obj_set_style_text_color(footer_, lv_color_hex(0x52616B), 0);
         lv_obj_set_style_text_opa(footer_, static_cast<lv_opa_t>(s.brightness * 3 / 4), 0);
     }
     applied_ = s;
