@@ -241,6 +241,7 @@ private:
     void ApplyLayout(const Layout& layout);
     void UpdateDots(uint32_t now_ms, bool visible);
 
+    lv_obj_t* backdrop_ = nullptr;  // full-screen black AMOLED background behind CHIPO's face
     lv_obj_t* root_ = nullptr;
     lv_obj_t* left_eye_ = nullptr;
     lv_obj_t* right_eye_ = nullptr;
