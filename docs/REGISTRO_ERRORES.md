@@ -8,7 +8,7 @@ Este documento mantiene la trazabilidad de los fallos encontrados en CHIPO OS, l
 
 - **Versión del repositorio:** CHIPO OS 0.6.0.
 - **Placa objetivo:** Waveshare ESP32-S3 Touch AMOLED 2.16 (480 × 480).
-- **Incidencias abiertas:** bloqueos/reinicios intermitentes durante el uso y desfase de orientación de la cara.
+- **Incidencias abiertas:** bloqueos/reinicios intermitentes, desfase de orientación, calibración manual del modo NIVEL y activación por voz «CHIPO».
 - **Estado:** ambos problemas siguen en diagnóstico; no hay todavía un parche correctivo confirmado.
 - **Prueba física:** el usuario confirma que CHIPO ya arranca y llega a funcionar, pero después presenta fallos y se reinicia.
 
@@ -144,3 +144,30 @@ Para cada incidencia nueva, añadir:
 6. La verificación en hardware, indicando placa, firmware y resultado.
 
 No borrar los diagnósticos anteriores cuando se encuentre una solución: actualizar el estado a corregido y añadir la evidencia de la corrección para conservar el historial.
+
+
+### CHIPO-AUDIO-001 — La palabra de activación «CHIPO» no inicia la escucha
+
+**Estado:** Abierto — diagnóstico acotado al flujo de activación por voz.
+
+**Nueva evidencia física (26-11-2026)**
+
+El usuario confirma que, al pulsar el botón BOOT de la placa, CHIPO sí entra en escucha y reconoce la voz. Sin pulsar BOOT, no se activa al decir «CHIPO».
+
+**Qué permite concluir esta prueba**
+
+- El micrófono y la ruta de captura/reconocimiento de voz funcionan al menos en el modo de escucha iniciado manualmente.
+- El fallo parece estar en la detección de la palabra de activación, su modelo/configuración o en la transición desde reposo al modo de escucha.
+- Esto no demuestra todavía que todo el pipeline de audio esté libre de fallos ni identifica la causa exacta.
+
+**Próximos pasos**
+
+1. Seguir en el código la configuración del detector de wake word y el modelo realmente incluido en el firmware.
+2. Comprobar la etiqueta/fonética configurada para «CHIPO», la sensibilidad, el idioma/modelo y la ruta de audio usada en reposo.
+3. Verificar que el detector permanece activo después del arranque y que no se detiene al entrar en reposo.
+4. Corregir con el cambio mínimo y validar en la placa: activación por «CHIPO» sin pulsar BOOT y escucha manual por BOOT como control.
+
+**Resolución:** pendiente. No se ha cambiado todavía el modelo ni la configuración de activación.
+
+
+| 26-11-2026 | CHIPO-AUDIO-001 | Prueba física: BOOT inicia la escucha y CHIPO reconoce la voz; la activación por la palabra «CHIPO» sin pulsar BOOT falla. Sospecha centrada en wake word; causa pendiente. |
