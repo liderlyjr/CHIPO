@@ -577,10 +577,16 @@ void ChipoTools::DrawStroke(const lv_point_t& from, const lv_point_t& to) {
     const float vx = static_cast<float>(to.x - from.x);
     const float vy = static_cast<float>(to.y - from.y);
     const float length2 = vx * vx + vy * vy;
-    const int min_x = std::max(0, std::min(from.x, to.x) - 5);
-    const int max_x = std::min(w_ - 1, std::max(from.x, to.x) + 5);
-    const int min_y = std::max(0, std::min(from.y, to.y) - 5);
-    const int max_y = std::min(h_ - 1, std::max(from.y, to.y) + 5);
+    // LVGL 9.5 may define lv_point_t coordinates as long; convert once
+    // to the canvas' integer coordinate domain before using std::min/max.
+    const int from_x = static_cast<int>(from.x);
+    const int from_y = static_cast<int>(from.y);
+    const int to_x = static_cast<int>(to.x);
+    const int to_y = static_cast<int>(to.y);
+    const int min_x = std::max(0, std::min(from_x, to_x) - 5);
+    const int max_x = std::min(w_ - 1, std::max(from_x, to_x) + 5);
+    const int min_y = std::max(0, std::min(from_y, to_y) - 5);
+    const int max_y = std::min(h_ - 1, std::max(from_y, to_y) + 5);
     const uint16_t red = lv_color_to_u16(lv_color_make(255, 0, 0));
     for (int y = min_y; y <= max_y; ++y) {
         for (int x = min_x; x <= max_x; ++x) {
