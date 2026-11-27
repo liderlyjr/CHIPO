@@ -53,3 +53,11 @@ avisos con tildes.
 
 ## Cara cansada con poca batería
 Con la batería baja (≤15 %) la cara pone ojos cansados 7 s cada 2 min; en crítica (≤5 %), cada 45 s. Solo cuando no hay nada más en marcha (conversación, pantallas), nunca cargando y nunca sin lectura válida. No sustituye al aviso de batería baja. Sin probar en la placa.
+
+
+## Registro de compilación (2026-11-27)
+
+- El Action `Build CHIPO firmware` del commit `d767c5e` ejecutó correctamente las pruebas host (incluidos AddressSanitizer y UBSan), pero falló al compilar el firmware para Waveshare.
+- Causa detectada en `components/chipo_tools/chipo_tools.cpp`, dentro del recorte de área del trazo: `std::min/std::max` recibían argumentos de tipos distintos (`int` e `int32_t`), error de deducción de plantillas con el toolchain ESP-IDF 6.1.
+- Corrección aplicada en el commit siguiente: especificar `int32_t` como tipo de plantilla y convertir explícitamente los límites derivados de `w_` y `h_`.
+- Pendiente: esperar y revisar un nuevo Action sobre esta corrección. Esta modificación no se considera validada hasta que la compilación completa termine correctamente.
