@@ -433,7 +433,7 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
     if (!running_) return;
     if (!have_accel_) { ax_ = s.x; ay_ = s.y; az_ = s.z; have_accel_ = true; }
     else { ax_ += (s.x - ax_) * 0.25f; ay_ += (s.y - ay_) * 0.25f; az_ += (s.z - az_) * 0.25f; }
-    if (tool_ == Tool::GravityBall && !gravity_calibrated_) {
+    if (tool_ == Tool::GravityBall && !gravity_calibrated_ && !gravity_calibration_failed_) {
         const float sx = s.x * 9.80665f, sy = s.y * 9.80665f;
         if (gravity_calibration_count_ == 0) {
             gravity_calibration_min_x_ = gravity_calibration_max_x_ = sx;
