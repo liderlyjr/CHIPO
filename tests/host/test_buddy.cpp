@@ -68,13 +68,14 @@ int main() {
         auto dbg = h.buddy.Debug();
         CHECK(dbg.shown && std::string(dbg.digits) == "0959", "peek shows the countdown (%s)", dbg.digits);
         h.Run(7000);
-        CHECK(!h.buddy.Debug().shown, "peek closes by itself");
+        CHECK(h.buddy.Debug().shown, "countdown stays visible while the timer is active");
         CHECK(h.buddy.engine().timer_active(), "the timer keeps running");
 
         CHECK(h.buddy.OnVoiceText("cuánto queda"), "time left answered");
         h.Run(500);
         CHECK(h.buddy.Debug().shown, "time left shows the screen");
         h.Run(7000);
+        CHECK(h.buddy.Debug().shown, "asking for remaining time does not make the active timer disappear");
 
         h.Run(10u * 60u * 1000u);
         CHECK(h.buddy.ringing(), "timer rings");
@@ -223,7 +224,8 @@ int main() {
         CHECK(std::string(h.buddy.Debug().digits) == "0942", "follows the time");
         h.buddy.OnVoiceText("temporizador de 1 minuto");
         h.Run(8000);
-        CHECK(h.buddy.Debug().shown && h.buddy.Debug().rotation == 1, "a countdown peek ending does not close the clock");
+        CHECK(h.buddy.Debug().shown && h.buddy.Debug().rotation == 1 && h.buddy.engine().timer_active(),
+              "tilted desk clock keeps the countdown visible until it finishes");
         h.Run(60000);
         CHECK(h.buddy.ringing() && h.buddy.Debug().rotation == 1, "the ring screen is turned too");
         h.buddy.OnTouch(false);
