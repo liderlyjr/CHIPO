@@ -205,7 +205,8 @@ void ChipoSettings::Build(const lv_font_t* font, const char* version) {
     std::snprintf(buf, sizeof(buf), "CHIPO OS %s", version);
     lv_label_set_text(info_ver_, buf);
 
-    lv_obj_t* b6 = Button(content, font, cw - 24 - 150, 322, 150, 34, "Cambiar Wi-Fi", kCyan);\n    lv_obj_t* b4 = Button(content, font, 24, 394, half_w, 46, "Reiniciar", kPink);
+    lv_obj_t* b6 = Button(content, font, cw - 24 - 150, 322, 150, 34, "Cambiar Wi-Fi", kCyan);
+    lv_obj_t* b4 = Button(content, font, 24, 394, half_w, 46, "Reiniciar", kPink);
     restart_label_ = lv_obj_get_child(b4, 0);
     lv_obj_t* b5 = Button(content, font, 24 + half_w + 16, 394, half_w, 46, "Cerrar", kCyan);
 
