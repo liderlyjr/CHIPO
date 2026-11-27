@@ -13,9 +13,9 @@
  * CHIPO TOOLS: small things that make use of the square AMOLED screen.
  *   - info strip around the face: the time on top and the temperature below (only when they are known)
  *   - pomodoro ring: a ring along the edge of the screen that drains while a pomodoro period runs
- *   - spirit level (bubble) with the accelerometer, magic 8-ball (shake or tap), drawing canvas
+ *   - calibrated spirit level, Gravity Ball, artificial horizon and DrawPanel
  *   - subtitles: the sentence CHIPO is saying, in big letters (off until asked)
- *   - shake: throws the dice / flips the coin again (via the FUN component) or asks the 8-ball
+ *   - shake: throws the dice / flips the coin again (via the FUN component)
  *
  * Nothing here invents data: no clock -> no time; no weather downloaded -> no temperature.
  * All methods run on the LVGL task with the display lock held, except OnSample which only needs the same task as the
