@@ -343,13 +343,9 @@ void ChipoTools::Open(Tool tool) {
             tool_ = Tool::None; Show(root_, false); return;
         }
         lv_canvas_set_buffer(canvas_, canvas_px_, w_, h_, LV_COLOR_FORMAT_RGB565);
-        // DrawPanel must remain fixed under the finger. LVGL canvas objects can inherit
-        // scroll/gesture behavior from their default flags and parent chain; explicitly
-        // disable it so a long stroke cannot pan the drawing surface.
-        lv_obj_remove_flag(canvas_, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_remove_flag(canvas_, LV_OBJ_FLAG_GESTURE_BUBBLE);
-        lv_obj_remove_flag(canvas_, LV_OBJ_FLAG_SCROLL_CHAIN_HOR);
-        lv_obj_remove_flag(canvas_, LV_OBJ_FLAG_SCROLL_CHAIN_VER);
+        // Waveshare DrawPanel's fixed-object policy: lock the active press to the canvas,
+        // disable every scroll/gesture/event bubble flag, and hide scrollbars.
+        ConfigureFixedTouchObject(canvas_, true);
         // Waveshare DrawPanel appearance: full white drawing surface, red 10 px strokes.
         lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
         lv_obj_set_pos(canvas_, 0, 0);
