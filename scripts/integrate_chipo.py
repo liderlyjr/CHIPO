@@ -957,12 +957,11 @@ replace_once(
                        (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
             };
             hooks.open_app = [this](const char* app) {
-                const uint32_t now = static_cast<uint32_t>(esp_timer_get_time() / 1000);
                 if (!app) return;
                 if (!strcmp(app, "weather") && chipo_weather_) chipo_weather_->Show();
                 else if (!strcmp(app, "settings") && chipo_settings_) chipo_settings_->Open();
-                else if (!strcmp(app, "dice") && chipo_fun_) chipo_fun_->StartDice(1, now);
-                else if (!strcmp(app, "coin") && chipo_fun_) chipo_fun_->StartCoin(now);
+                else if (!strcmp(app, "dice") && chipo_fun_) chipo_fun_->OnVoiceText("tira un dado");
+                else if (!strcmp(app, "coin") && chipo_fun_) chipo_fun_->OnVoiceText("tira una moneda");
             };
             hooks.fast_sampling = [this](bool on) {
                 // The car mode needs the fast IMU too: closing a tool must not slow it down.
@@ -970,7 +969,6 @@ replace_once(
             };
             hooks.run_mode = [this](const char* mode) {
                 if (!mode) return;
-                const uint32_t now = static_cast<uint32_t>(esp_timer_get_time() / 1000);
                 auto buddy = [this](const char* phrase) { if (chipo_buddy_) chipo_buddy_->OnVoiceText(phrase); };
                 if (!strcmp(mode, "night")) buddy("buenas noches");
                 else if (!strcmp(mode, "pomodoro")) buddy("pomodoro");
@@ -993,7 +991,7 @@ replace_once(
                 else if (!strcmp(mode, "rain")) { if (chipo_ambient_) chipo_ambient_->OnVoiceText("pon sonido de lluvia"); }
                 else if (!strcmp(mode, "fire")) { if (chipo_ambient_) chipo_ambient_->OnVoiceText("ponme la chimenea"); }
                 else if (!strcmp(mode, "noise")) { if (chipo_ambient_) chipo_ambient_->OnVoiceText("ruido blanco"); }
-                else if (!strcmp(mode, "lamp")) { if (chipo_fun_) chipo_fun_->StartLamp(LampColor::Warm, now); }
+                else if (!strcmp(mode, "lamp")) { if (chipo_fun_) chipo_fun_->OnVoiceText("enciende la lampara"); }
             };
             hooks.cover_face = [this](bool covered) {
                 if (chipo_face_) chipo_face_->SetCovered(covered);  // the tool is full screen: stop redrawing the face under it
