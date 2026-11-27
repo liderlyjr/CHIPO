@@ -6,7 +6,7 @@ añade una cara animada, pantallas propias, juegos, temporizadores y Home Assist
 
 **Placa: Waveshare ESP32-S3 Touch AMOLED 2.16** (pantalla cuadrada de 480 × 480). Es la única placa soportada.
 
-> **Estado: V0.6.9 (candidato OTA).** Las pruebas de PC y la compilación para la Waveshare 2.16 pasan en GitHub Actions; todavía no se ha validado en la placa física. Lo que falta comprobar está en [Qué falta por probar](#qué-falta-por-probar).
+> **Estado: V0.7.0 en desarrollo (no publicada).** La compilación y las pruebas host se ejecutan en GitHub Actions; todavía falta validar el funcionamiento en la placa física. No instalar esta rama como actualización estable. Seguimiento: [estado 0.7.0](docs/CHIPO_0.7.0_STATUS.md).
 
 ## Hardware
 
@@ -28,7 +28,7 @@ La placa viene montada en su caja de 46 × 46 × 22,5 mm. Detalles, fuentes y lo
 
 - **Cara expresiva** de ojos y boca luminosos: escucha, piensa, habla, conecta, error y duerme; emociones, parpadeo y
   reacciones al movimiento (inclinar, caerse, asentir, negar, girar, marearse). [CHIPO_FACE](docs/CHIPO_FACE.md)
-- **Asistente de voz** de XiaoZhi en español, con «Chipo» como palabra de activación. [WAKE_WORD](docs/WAKE_WORD.md)
+- **Asistente de voz** de XiaoZhi en español; la palabra experimental configurada ahora es «Jarvis» (MultiNet 7 inglés), pendiente de prueba en placa. [WAKE_WORD](docs/WAKE_WORD.md)
 - **Clima** de Open-Meteo al preguntar por el tiempo o con un toque. [CHIPO_WEATHER](docs/CHIPO_WEATHER.md)
 - **BUDDY**: temporizador, pomodoro, cronómetro, alarma y modo dormir con reloj; tumbado de lado es un reloj de
   mesita. [CHIPO_BUDDY](docs/CHIPO_BUDDY.md)
@@ -82,7 +82,7 @@ punto de anclaje no coincide, el script se detiene en lugar de parchear a ciegas
 ## Qué está comprobado
 
 - El script de integración se aplica sin errores sobre XiaoZhi `92d400d` y, ejecutado otra vez, no cambia nada.
-- 30 grupos de pruebas en PC, a 480 × 480, con AddressSanitizer y UBSan (`tests/host/run.sh`, también en GitHub
+- pruebas de lógica en PC, a 480 × 480, con AddressSanitizer y UBSan (`tests/host/run.sh`, también en GitHub
   Actions antes de cada compilación).
 - El firmware completo compila con ESP-IDF 6.1 en GitHub Actions.
 
@@ -91,8 +91,8 @@ punto de anclaje no coincide, el script se detiene en lugar de parchear a ciegas
 Solo es posible con la placa:
 
 - Que arranca y la cara se ve fluida en la pantalla de 480 × 480.
-- Micrófonos, altavoz, palabra de activación «Chipo» y volumen de los sonidos.
-- Táctil, botón GPIO18 y sentido de los ejes del QMI8658 (ajustables en `chipo_config.h`).
+- Micrófonos, altavoz, palabra de activación experimental «Jarvis», reconocimiento de órdenes y volumen de los sonidos.
+- Táctil, botón GPIO18 y sentido de los ejes del QMI8658.
 - Lectura de batería, consumo y si el AXP2101 apaga la placa con el USB conectado.
 - Clima, Home Assistant y actualizaciones desde tu red.
 
@@ -101,6 +101,10 @@ Solo es posible con la placa:
 La 2,16" trae altavoz integrado (confirmado por el soporte de Waveshare), así que no se usa altavoz externo. Ver
 [docs/HARDWARE_2_16.md](docs/HARDWARE_2_16.md).
 
+
+## Estado de la versión 0.7.0
+
+La lista de correcciones aplicadas y las validaciones pendientes está en [docs/CHIPO_0.7.0_STATUS.md](docs/CHIPO_0.7.0_STATUS.md). La 0.7.0 no se publica hasta cerrar la validación física.
 
 ## Registro de errores
 

@@ -1,5 +1,6 @@
 #include "chipo_tools_logic.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <initializer_list>
@@ -36,7 +37,7 @@ LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mi
     const float mag = std::sqrt(ax * ax + ay * ay + az * az);
     if (mag < 0.5f || mag > 1.6f) return r;  // moving: the reading is not gravity
     const float nz = std::fabs(az) / mag;
-    r.flat = nz > 0.94f;                    // within ~20 degrees of lying flat
+    r.flat = nz > std::cos(kLevelMaxTiltDeg * 0.0174533f); // accept up to 35 degrees from horizontal
     const float in_plane = std::sqrt(ax * ax + ay * ay) / mag;
     r.angle_deg = std::asin(in_plane > 1.0f ? 1.0f : in_plane) * 57.29578f;
     if (!r.flat) return r;
@@ -50,6 +51,27 @@ LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mi
     r.y = by;
     r.level = r.angle_deg < kLevelOkDeg;
     return r;
+}
+
+// ---- Gravitysphere -----------------------------------------------------------------------------------------------
+GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2) {
+    // Match Waveshare Gravitysphere.cpp: x -= accelY * scale; y += accelX * scale.
+    // The AMOLED display axes are rotated relative to the QMI8658 board axes.
+    return {-accel_y_mps2 * 8.0f, accel_x_mps2 * 8.0f};
+}
+
+HorizonReading HorizonFromAccel(float ax_g, float ay_g, float az_g, float zero_roll_deg, float zero_pitch_deg) {
+    HorizonReading out{};
+    const float magnitude = std::sqrt(ax_g * ax_g + ay_g * ay_g + az_g * az_g);
+    if (magnitude < 0.55f || magnitude > 1.55f) return out;
+
+    const float roll = std::atan2(ay_g, az_g) * 57.2957795f;
+    const float pitch = std::atan2(-ax_g, std::sqrt(ay_g * ay_g + az_g * az_g)) * 57.2957795f;
+    // Roll is circular: crossing +180/-180 must be a small change, not a 360-degree jump.
+    out.roll_deg = std::clamp(std::remainder(roll - zero_roll_deg, 360.0f), -89.0f, 89.0f);
+    out.pitch_deg = std::clamp(pitch - zero_pitch_deg, -45.0f, 45.0f);
+    out.valid = true;
+    return out;
 }
 
 // ---- Text helpers ------------------------------------------------------------------------------------------------

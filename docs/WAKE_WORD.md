@@ -1,43 +1,35 @@
-# Despertar a CHIPO diciendo "Chipo"
+# Prueba de palabra de activación «Jarvis»
 
-**Estado: configurado y se compila, pero NO probado en la placa.**
+**Estado: configurada como experimento; todavía NO probada en la placa.**
 
-- Hasta la versión 0.4.0 el aviso por voz estaba desactivado (XiaoZhi lo trae apagado).
-- Ahora se activa una palabra personalizada con el modelo MultiNet inglés de ESP-SR.
-  La palabra se escribe como una sola unidad fonética: `cheepo` (ajuste `CONFIG_CUSTOM_WAKE_WORD` en `scripts/integrate_chipo.py`). Esta variante busca evitar que el detector exija separar «chi» y «po» con una pausa.
-- Sensibilidad: `CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20` (más bajo = salta con más facilidad, más falsos avisos).
+## Configuración aplicada
 
-## Por qué hay que probarlo
+- `CONFIG_USE_CUSTOM_WAKE_WORD=y`
+- `CONFIG_SR_MN_CN_NONE=y`
+- `CONFIG_SR_MN_EN_MULTINET7_QUANT=y`
+- `CONFIG_CUSTOM_WAKE_WORD="jarvis"`
+- `CONFIG_CUSTOM_WAKE_WORD_DISPLAY="Chipo"`
+- `CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20`
 
-Espressif no tiene un modelo entrenado con "Chipo". Esto reconoce una palabra sin entrenar, así que puede fallar con tu voz
-o con ruido. En el monitor serie, al arrancar, se imprime la lista de palabras activas.
+## Importante: ruta de reconocimiento
 
-Si no funciona bien, hay dos salidas:
-1. Probar otras grafías: `chi po`, `chee poh`, `cheepo`.
-2. Usar un modelo ya entrenado de Espressif (mucho más fiable), por ejemplo "Hi ESP" o "Jarvis".
+CHIPO sigue usando **MultiNet 7 inglés** como detector de palabra personalizada. Se ha cambiado la palabra a `jarvis`; no se ha activado WakeNet ni se ha cargado un modelo español.
 
-Dime cómo responde en la placa y lo ajusto.
+La pronunciación inglesa de «Jarvis» puede ser más compatible con el motor inglés, pero eso no garantiza que el detector la reconozca correctamente. No se ha cambiado el umbral, la ganancia del micrófono ni la ruta de audio.
 
+## Estado de versión
 
-## Diagnóstico de la placa Waveshare 2.16 (26-11-2026)
+La rama de desarrollo configura «Jarvis» como experimento. No se debe describir «Chipo» como palabra ya validada: MultiNet 7 inglés no garantiza que «Jarvis» se detecte bien con pronunciación española. La activación y la transcripción ASR son etapas distintas.
 
-El log serie confirma que el detector se inicializa con:
+## Cómo probarlo
 
-- Modelo MultiNet: `mn7_en` (inglés).
-- Palabra configurada: `chee po`.
-- Umbral: `0.20` (`CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20`).
-- Comando activo impreso por MultiNet: `pm Pb`.
+1. Compilar e instalar el firmware generado desde la rama `release/chipo-os-0.7.0`.
+2. Dejar el dispositivo en reposo y decir «Jarvis» varias veces, a distancia normal.
+3. Probar también en silencio para comprobar falsas activaciones.
+4. Revisar el log de arranque: debe mostrar la palabra configurada y el motor MultiNet activo.
 
-Esto explica por qué no debemos bajar el umbral a ciegas: el modelo inglés no está entrenado con «CHIPO» y su salida fonética interna no coincide de forma clara con el nombre. Un umbral menor podría aumentar las falsas activaciones sin resolver el reconocimiento.
+**Criterio de resultado:** si no despierta, no concluimos que el micrófono esté mal; esta es una prueba de palabra personalizada sobre el motor inglés. Si despierta pero luego no entiende lo que dices, eso es un problema distinto del reconocimiento de voz posterior.
 
-**Próxima corrección segura:** comparar variantes de grafía con el mismo umbral y con pruebas de voz reales, revisar si hay un modelo español compatible en los assets del firmware y medir activaciones falsas con silencio/ruido ambiente. Solo cambiar el modelo o el umbral después de esa comparación. La detección con BOOT confirma que la ruta manual de micrófono funciona, pero no valida el detector en reposo.
+## Siguiente paso si falla
 
-El aviso `wakenet model not found` aparece porque esta configuración utiliza MultiNet como detector personalizado y no un modelo WakeNet; por sí solo no demuestra que el detector esté apagado. La prueba física de «CHIPO» sigue pendiente.
-
-
-## Prueba de pronunciación continua (27-11-2026)
-
-- Variante de prueba: `cheepo` (una sola unidad, sin espacio).
-- Se conserva MultiNet 7 inglés y el umbral 20 para aislar el cambio de grafía.
-- Objetivo: comprobar en la placa si «CHIPO» se detecta dicho de corrido, sin pausa.
-- Esta variante no está validada físicamente; comparar con `chipo` y `chi po` antes de ajustar el umbral o cambiar de modelo.
+Evaluar la integración real de un modelo WakeNet compatible o la personalización de un modelo de activación. No basta con cambiar `CONFIG_CUSTOM_WAKE_WORD`.

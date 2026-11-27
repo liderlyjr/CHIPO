@@ -1,4 +1,4 @@
-# CHIPO TOOLS (V0.6.x, sin probar en la placa)
+# CHIPO TOOLS (0.7.0 en desarrollo; sin validar en placa)
 
 Herramientas pensadas para la pantalla cuadrada de 480×480. Todo está en `components/chipo_tools`.
 
@@ -6,7 +6,9 @@ Herramientas pensadas para la pantalla cuadrada de 480×480. Todo está en `comp
 |---|---|
 | **Franja de información** | Hora arriba y temperatura abajo, tenues, en la cara en reposo. Se desplazan despacio contra el quemado AMOLED. Voz: «oculta/muestra la información». Guardado: `tools_info` (activa por defecto). |
 | **Anillo de pomodoro** | Arco ámbar (trabajo) o verde (descanso) alrededor del borde mientras corre el pomodoro de BUDDY. |
+| **Horizonte artificial** | «Pon el horizonte». Muestra cielo/tierra con roll y pitch relativos a una posición neutra fijada al tocar. Rechaza muestras fuera del rango de gravedad y corrige el salto angular en ±180°. |
 | **Nivel de burbuja** | «Pon el nivel». Con CHIPO plano sobre la mesa muestra la burbuja y los grados; si no está plano lo pide. Toque para salir. |
+| **Gravitysphere** | La bola sigue la aceleración con los ejes de pantalla de Waveshare. La calibración solo se acepta si la placa permanece estable; si falla, se puede tocar para reintentar. |
 | **Bola 8 mágica** | «Bola mágica». Agitar o tocar para preguntar; pulsación larga para salir. 20 respuestas en español; la cara reacciona. |
 | **Pizarra** | «Vamos a dibujar». Dibujas con el dedo (color distinto por trazo), botones Salir/Borrar. Memoria propia en PSRAM, solo mientras está abierta. |
 | **Subtítulos** | «Activa los subtítulos». Muestra lo que dice el asistente bajo la cara. Desactivados por defecto (`tools_subs`). |

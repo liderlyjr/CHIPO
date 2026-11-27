@@ -193,6 +193,7 @@ private:
     float gravity_sample_x_mps2_ = 0.0f, gravity_sample_y_mps2_ = 0.0f;
     int gravity_calibration_progress_ = 0;
     bool gravity_calibrated_ = false;
+    bool gravity_calibration_failed_ = false;
     float horizon_roll_ = 0.0f, horizon_pitch_ = 0.0f;
     float horizon_zero_roll_ = 0.0f, horizon_zero_pitch_ = 0.0f;
     // canvas

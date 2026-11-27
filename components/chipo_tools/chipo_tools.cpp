@@ -44,6 +44,33 @@ lv_obj_t* Label(lv_obj_t* parent, const lv_font_t* font, uint32_t rgb) {
     return l;
 }
 
+void ConfigureFixedTouchObject(lv_obj_t* obj, bool clickable) {
+    if (!obj) return;
+    // Same fixed-surface policy used by Waveshare DrawPanel: neither the drawing area nor
+    // its child canvas may scroll, bubble gestures, or hand a drag to a scrollable ancestor.
+    // LVGL 9.5 accepts one lv_obj_flag_t per call; OR-ing flags promotes the value to int.
+    constexpr lv_obj_flag_t fixed_flags[] = {
+        LV_OBJ_FLAG_SCROLLABLE,
+        LV_OBJ_FLAG_SCROLL_ELASTIC,
+        LV_OBJ_FLAG_SCROLL_MOMENTUM,
+        LV_OBJ_FLAG_SCROLL_ONE,
+        LV_OBJ_FLAG_SCROLL_CHAIN,
+        LV_OBJ_FLAG_SCROLL_ON_FOCUS,
+        LV_OBJ_FLAG_SCROLL_WITH_ARROW,
+        LV_OBJ_FLAG_GESTURE_BUBBLE,
+        LV_OBJ_FLAG_EVENT_BUBBLE,
+    };
+    for (lv_obj_flag_t flag : fixed_flags) lv_obj_remove_flag(obj, flag);
+    lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
+    if (clickable) {
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_PRESS_LOCK);
+    } else {
+        lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(obj, LV_OBJ_FLAG_PRESS_LOCK);
+    }
+}
+
 lv_obj_t* Circle(lv_obj_t* parent, int d, uint32_t fill, int fill_opa, uint32_t border, int border_w, int border_opa) {
     lv_obj_t* o = Plain(parent, d, d);
     lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
@@ -212,7 +239,7 @@ void ChipoTools::Build(int w, int h) {
     lv_obj_set_pos(root_, 0, 0);
     lv_obj_set_style_bg_color(root_, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
-    lv_obj_add_flag(root_, LV_OBJ_FLAG_CLICKABLE);
+    ConfigureFixedTouchObject(root_, true);
     lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(root_, RootEvent, LV_EVENT_CLICKED, this);
     lv_obj_add_event_cb(root_, RootEvent, LV_EVENT_LONG_PRESSED, this);
@@ -294,6 +321,7 @@ void ChipoTools::Open(Tool tool) {
         gravity_bias_x_ = gravity_bias_y_ = 0.0f;
         gravity_calibration_progress_ = 0;
         gravity_calibrated_ = false;
+        gravity_calibration_failed_ = false;
         lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, 0, 0);
     } else if (tool == Tool::Horizon) {
         lv_label_set_text(caption_, "HORIZONTE ARTIFICIAL");
@@ -330,6 +358,9 @@ void ChipoTools::Open(Tool tool) {
             tool_ = Tool::None; Show(root_, false); return;
         }
         lv_canvas_set_buffer(canvas_, canvas_px_, w_, h_, LV_COLOR_FORMAT_RGB565);
+        // Waveshare DrawPanel's fixed-object policy: lock the active press to the canvas,
+        // disable every scroll/gesture/event bubble flag, and hide scrollbars.
+        ConfigureFixedTouchObject(canvas_, true);
         // Waveshare DrawPanel appearance: full white drawing surface, red 10 px strokes.
         lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
         lv_obj_set_pos(canvas_, 0, 0);
@@ -416,7 +447,7 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
     if (!running_) return;
     if (!have_accel_) { ax_ = s.x; ay_ = s.y; az_ = s.z; have_accel_ = true; }
     else { ax_ += (s.x - ax_) * 0.25f; ay_ += (s.y - ay_) * 0.25f; az_ += (s.z - az_) * 0.25f; }
-    if (tool_ == Tool::GravityBall && !gravity_calibrated_) {
+    if (tool_ == Tool::GravityBall && !gravity_calibrated_ && !gravity_calibration_failed_) {
         const float sx = s.x * 9.80665f, sy = s.y * 9.80665f;
         if (gravity_calibration_count_ == 0) {
             gravity_calibration_min_x_ = gravity_calibration_max_x_ = sx;
@@ -436,11 +467,16 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
             const float mean_y = gravity_calibration_sum_y_ / gravity_calibration_count_;
             const bool stable = gravity_calibration_max_x_ - gravity_calibration_min_x_ <= 0.1f &&
                                 gravity_calibration_max_y_ - gravity_calibration_min_y_ <= 0.1f;
-            if (stable || ++gravity_calibration_attempts_ >= 5) {
+            if (stable) {
                 gravity_bias_x_ = mean_x;
                 gravity_bias_y_ = mean_y;
                 gravity_calibrated_ = true;
                 gravity_calibration_progress_ = 100;
+            } else if (++gravity_calibration_attempts_ >= 5) {
+                // Never accept a moving board as a calibration baseline.
+                gravity_calibration_failed_ = true;
+                gravity_calibration_progress_ = 0;
+                if (hooks_.notify) hooks_.notify("No pude calibrar Gravitysphere. Toca para reintentar");
             } else {
                 gravity_calibration_count_ = 0;
                 gravity_calibration_sum_x_ = gravity_calibration_sum_y_ = 0.0f;
@@ -458,8 +494,11 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
         if (std::fabs(accel_x) < 0.05f) accel_x = 0.0f;
         if (std::fabs(accel_y) < 0.05f) accel_y = 0.0f;
 
-        int x = static_cast<int>(gravity_x_) - static_cast<int>(accel_y * 8.0f);
-        int y = static_cast<int>(gravity_y_) + static_cast<int>(accel_x * 8.0f);
+        // The display is rotated relative to the QMI8658 board axes:
+        // X tilt controls vertical motion; Y tilt controls horizontal motion.
+        const GravityBallDelta delta = GravityBallFromAccel(accel_x, accel_y);
+        int x = static_cast<int>(gravity_x_) + static_cast<int>(delta.x);
+        int y = static_cast<int>(gravity_y_) + static_cast<int>(delta.y);
         const int radius = std::max(1, std::min(w_, h_) / 2 - 22 - 18);
         const int64_t distance_squared = static_cast<int64_t>(x) * x + static_cast<int64_t>(y) * y;
         const int64_t radius_squared = static_cast<int64_t>(radius) * radius;
@@ -713,6 +752,7 @@ void ChipoTools::RootEvent(lv_event_t* e) {
         self->gravity_calibration_sum_x_ = self->gravity_calibration_sum_y_ = 0.0f;
         self->gravity_calibration_progress_ = 0;
         self->gravity_calibrated_ = false;
+        self->gravity_calibration_failed_ = false;
         self->gravity_x_ = self->gravity_y_ = 0.0f;
         if (self->hooks_.notify) self->hooks_.notify("Recalibrando Gravitysphere");
     } else if (self->tool_ == Tool::Horizon && self->have_accel_) {
@@ -871,6 +911,10 @@ void ChipoTools::UpdateLevel(uint32_t) {
 
 void ChipoTools::UpdateGravityBall(uint32_t) {
     if (!gravity_ball_dot_) return;
+    if (gravity_calibration_failed_) {
+        lv_label_set_text(hint_, "Calibración fallida\nToca para reintentar");
+        return;
+    }
     if (!gravity_calibrated_) {
         char progress[64];
         std::snprintf(progress, sizeof progress, "Mantén la placa nivelada\nCalibrando %d%%", gravity_calibration_progress_);
@@ -888,10 +932,10 @@ void ChipoTools::UpdateGravityBall(uint32_t) {
 
 void ChipoTools::UpdateHorizon(uint32_t) {
     if (!horizon_px_ || !horizon_canvas_ || !have_accel_) return;
-    const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
-    if (mag < 0.55f || mag > 1.55f) return;
-    horizon_roll_ = std::clamp(std::atan2(ay_, az_) * 57.2957795f - horizon_zero_roll_, -89.0f, 89.0f);
-    horizon_pitch_ = std::clamp(std::atan2(-ax_, std::sqrt(ay_ * ay_ + az_ * az_)) * 57.2957795f - horizon_zero_pitch_, -45.0f, 45.0f);
+    const HorizonReading reading = HorizonFromAccel(ax_, ay_, az_, horizon_zero_roll_, horizon_zero_pitch_);
+    if (!reading.valid) return;
+    horizon_roll_ = reading.roll_deg;
+    horizon_pitch_ = reading.pitch_deg;
     const float rad = horizon_roll_ * 0.0174532925f, sn = std::sin(rad), cs = std::cos(rad);
     const float pitch_px = horizon_pitch_ * 5.0f;
     const uint16_t sky = lv_color_to_u16(lv_color_hex(0x1FA9D8));

@@ -89,14 +89,21 @@ int main() {
         const float s = std::sin(3.0f * 0.0174533f), c = std::cos(3.0f * 0.0174533f);
         r = LevelFromAccel(s, 0, c, false, false);
         CHECK(r.flat && !r.level && std::fabs(r.angle_deg - 3.0f) < 0.05f, "3 degrees: %f", r.angle_deg);
-        CHECK(r.x > 0.25f && r.x < 0.40f && std::fabs(r.y) < 1e-4f, "bubble x %f", r.x);
+        CHECK(r.x > 0.08f && r.x < 0.12f && std::fabs(r.y) < 1e-4f, "3-degree bubble x on 30-degree scale: %f", r.x);
         LevelReading m = LevelFromAccel(s, 0, c, true, false);
         CHECK(std::fabs(m.x + r.x) < 1e-5f, "mirror x");
         m = LevelFromAccel(0, s, c, false, true);
-        CHECK(m.y < -0.25f, "mirror y");
+        CHECK(m.y < -0.08f && m.y > -0.12f, "mirror y with 30-degree scale: %f", m.y);
+        const float s10 = std::sin(10.0f * 0.0174533f), c10 = std::cos(10.0f * 0.0174533f);
+        r = LevelFromAccel(s10, 0, c10, false, false);
+        CHECK(r.flat && std::fabs(r.angle_deg - 10.0f) < 0.05f && r.x > 0.30f && r.x < 0.36f,
+              "10 degrees must remain visible and use the wider scale, got angle=%f bubble=%f", r.angle_deg, r.x);
         const float s30 = std::sin(30.0f * 0.0174533f), c30 = std::cos(30.0f * 0.0174533f);
         r = LevelFromAccel(s30, 0, c30, false, false);
-        CHECK(!r.flat, "30 degrees is no longer flat enough");
+        CHECK(r.flat && std::fabs(r.x - 1.0f) < 1e-4f, "30 degrees must reach full bubble deflection");
+        const float s40 = std::sin(40.0f * 0.0174533f), c40 = std::cos(40.0f * 0.0174533f);
+        r = LevelFromAccel(s40, 0, c40, false, false);
+        CHECK(!r.flat, "40 degrees should be outside the level's operating range");
         r = LevelFromAccel(0, 1, 0, false, false);
         CHECK(!r.flat, "standing upright is not flat");
         r = LevelFromAccel(0.2f, 0.9f, 0.4f, false, false);
@@ -105,6 +112,36 @@ int main() {
         CHECK(!r.flat && !r.level, "a jolt is not a reading");
         r = LevelFromAccel(0.12f, 0.12f, 0.98f, false, false);
         CHECK(std::sqrt(r.x * r.x + r.y * r.y) <= 1.0001f, "bubble stays inside the circle");
+    }
+
+    // ---- Gravitysphere axis mapping ----
+    {
+        GravityBallDelta d = GravityBallFromAccel(0.0f, 1.0f);
+        CHECK(std::fabs(d.x + 8.0f) < 1e-5f && std::fabs(d.y) < 1e-5f,
+              "Y sensor tilt must move horizontally (Waveshare mapping), got (%f,%f)", d.x, d.y);
+        d = GravityBallFromAccel(1.0f, 0.0f);
+        CHECK(std::fabs(d.x) < 1e-5f && std::fabs(d.y - 8.0f) < 1e-5f,
+              "X sensor tilt must move vertically (Waveshare mapping), got (%f,%f)", d.x, d.y);
+        d = GravityBallFromAccel(-1.0f, -1.0f);
+        CHECK(std::fabs(d.x - 8.0f) < 1e-5f && std::fabs(d.y + 8.0f) < 1e-5f,
+              "negative axes must preserve direction, got (%f,%f)", d.x, d.y);
+    }
+
+    // ---- artificial horizon ----
+    {
+        HorizonReading h = HorizonFromAccel(0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+        CHECK(h.valid && std::fabs(h.roll_deg) < 1e-4f && std::fabs(h.pitch_deg) < 1e-4f,
+              "neutral horizon should be zero");
+        const float r = 179.0f * 0.0174532925f;
+        h = HorizonFromAccel(0.0f, std::sin(r), std::cos(r), -179.0f, 0.0f);
+        CHECK(h.valid && std::fabs(h.roll_deg + 2.0f) < 0.1f,
+              "roll crossing +/-180 must wrap to -2 degrees, got %f", h.roll_deg);
+        h = HorizonFromAccel(0.0f, 0.0f, 0.1f, 0.0f, 0.0f);
+        CHECK(!h.valid, "free-fall / invalid gravity magnitude must be rejected");
+        const float p = 12.0f * 0.0174532925f;
+        h = HorizonFromAccel(-std::sin(p), 0.0f, std::cos(p), 0.0f, 0.0f);
+        CHECK(h.valid && std::fabs(h.pitch_deg - 12.0f) < 0.1f,
+              "pitch should follow sensor X, got %f", h.pitch_deg);
     }
 
     // ---- text ----

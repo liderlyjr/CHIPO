@@ -202,9 +202,9 @@ bool ChipoFace::Start(lv_obj_t* parent) {
         int32_t pw = lv_obj_get_width(parent), ph = lv_obj_get_height(parent);
         if (pw <= 0) pw = 480;
         if (ph <= 0) ph = 480;
-        // The eyes and mouth (about 158 px wide at scale 1) fill ~58 % of the screen width: 1.76 on the
-        // 2.16" (480 px). The 300 x 220 canvas must still fit 85 % of the height.
-        fs_ = std::min(static_cast<float>(pw) * 0.58f / 158.0f, static_cast<float>(ph) * 0.85f / 220.0f);
+        // The eyes and mouth (about 158 px wide at scale 1) target ~64 % of screen width; the 300 x 220
+        // canvas remains capped at 85 % of screen height, so the 2.16" panel gains a modest ~5 %.
+        fs_ = std::min(static_cast<float>(pw) * 0.64f / 158.0f, static_cast<float>(ph) * 0.85f / 220.0f);
         fs_ = Clamp(fs_, 1.0f, 2.0f);
     }
     // The face slides off the screen when CHIPO falls over: without this the parent (the screen) grows a grey
