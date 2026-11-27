@@ -197,9 +197,12 @@ int main() {
         r.Accel(0.0f, 0.0f, 1.0f, 4000);
         r.Run(100);
         r.Accel(0.4f, 0.0f, 0.9165f, 3000);
+        const float gravity_y_after_samples = r.tools.Debug().gravity_y;
         r.Run(300);
         auto dbg = r.tools.Debug();
         CHECK(std::fabs(dbg.gravity_y) > 1.0f, "Gravity Ball reacts to X-axis tilt through Y displacement: %.1f", dbg.gravity_y);
+        CHECK(std::fabs(dbg.gravity_y - gravity_y_after_samples) < 0.01f,
+              "Gravitysphere integrates fresh IMU samples once, not the same sample on every UI tick");
         CHECK(r.tools.OnVoiceText("horizonte artificial") && r.tools.tool() == ChipoTools::Tool::Horizon, "artificial horizon opens by voice");
         r.Accel(0.0f, 0.5f, 0.866f, 4000);
         r.Run(250);
