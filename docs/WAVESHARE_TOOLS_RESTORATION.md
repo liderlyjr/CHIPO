@@ -109,6 +109,17 @@ The user's disassembly extracts `SENSOR_SIGUIENTE_3.txt` and `SENSOR_SIGUIENTE_4
 - Since both sensors are enabled, ODR code 3 corresponds to the 6-DOF operating rate (896.8 Hz) in the QMI8658 data sheet; the accelerometer-only table labels code 3 as 1000 Hz. Do not describe this as a 1000 Hz combined stream.
 - The generic read/write service routines at `0x4224681C` and `0x422467B0` are used by this setup path. The binary also contains masked register-update helpers around `0x42031D44` and `0x42031D9C`. Their full semantics still need to be reconstructed before reimplementing every configuration detail.
 
+### QMI8658 data reads decoded
+
+The same binary region exposes the sensor's output-register reads, which can be matched directly to the QMI8658 register map:
+
+- `0x42031FA0` issues a two-byte read beginning at register `0x33` (decimal 51), then converts the signed 16-bit value by a factor of (1/256). This matches the QMI8658 temperature output pair `TEMP_L/TEMP_H` at `0x33–0x34`, whose datasheet formula is `TEMP_H + TEMP_L/256` in °C.
+- `0x42032000` first reads three bytes from the timestamp register block `0x30–0x32`, combines them into a 24-bit counter, and maintains an accumulated timestamp across wraparound.
+- The same routine then reads 12 bytes beginning at `0x35`. That contiguous block is exactly the six signed 16-bit output channels: accelerometer X/Y/Z at `0x35–0x3A`, followed by gyroscope X/Y/Z at `0x3B–0x40`.
+- The conversion path contains the binary float constant `9.804` for an acceleration-unit branch and `1000.0` for the alternate branch. This is consistent with the driver's selectable acceleration units (m/s² versus milli-g), but the exact call-level unit flag and all gyro conversions still need to be tied to the app configuration before hardcoding them in CHIPO.
+
+This maps the temperature, timestamp, acceleration, and gyroscope reads to documented QMI8658 registers rather than merely identifying the sensor family by its WHO_AM_I byte.
+
 ### Motion data and calibration
 
 - Earlier disassembly shows a vector processing path that reads multiple sensor bytes, constructs signed values, converts them to floats, and applies scale/coordinate transformations. Constants near 9.804 suggest conversion involving standard gravity, but the complete axis mapping and exact units still require verification.
