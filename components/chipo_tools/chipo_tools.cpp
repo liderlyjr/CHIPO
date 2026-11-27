@@ -432,6 +432,25 @@ void ChipoTools::ShowSubtitle(const char* text) {
     lv_obj_set_style_opa(sub_, LV_OPA_COVER, 0);
 }
 
+bool ChipoTools::CalibrateLevel() {
+    if (tool_ != Tool::Level || !have_accel_) return false;
+    const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
+    const LevelReading raw = LevelFromAccel(ax_, ay_, az_,
+                                            CHIPO_LEVEL_MIRROR_X != 0, CHIPO_LEVEL_MIRROR_Y != 0);
+    if (!raw.flat || mag < 0.5f || mag > 1.6f) {
+        if (hooks_.notify) hooks_.notify("Ponme plano para calibrar");
+        return false;
+    }
+    level_calibration_count_ = 0;
+    level_calibration_sum_x_ = level_calibration_sum_y_ = 0.0f;
+    level_calibration_min_x_ = level_calibration_min_y_ = 0.0f;
+    level_calibration_max_x_ = level_calibration_max_y_ = 0.0f;
+    level_calibrating_ = true;
+    level_calibrated_ = false;
+    if (hooks_.notify) hooks_.notify("Calibrando: mantén CHIPO quieto");
+    return true;
+}
+
 // ---- canvas --------------------------------------------------------------------------------------------------------
 void ChipoTools::ClearCanvas() {
     if (!canvas_) return;
@@ -442,18 +461,54 @@ void ChipoTools::ClearCanvas() {
 
 void ChipoTools::DrawDot(int cx, int cy, int r) {
     if (!canvas_px_) return;
-    const uint16_t v = lv_color_to_u16(lv_color_hex(kPens[pen_color_ % kPenCount]));
-    const int stride = w_;
-    uint16_t* px = canvas_px_;
+    const uint16_t v = lv_color_to_u16(lv_color_hex(0xFF3030));
     for (int dy = -r; dy <= r; ++dy) {
         const int y = cy + dy;
         if (y < 0 || y >= h_) continue;
         for (int dx = -r; dx <= r; ++dx) {
             const int x = cx + dx;
             if (x < 0 || x >= w_ || dx * dx + dy * dy > r * r) continue;
-            px[y * stride + x] = v;
+            canvas_px_[y * w_ + x] = v;
             ++dots_;
         }
+    }
+}
+
+void ChipoTools::RedrawCanvas() {
+    if (!canvas_px_ || !canvas_) return;
+    lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
+    dots_ = 0;
+    for (size_t i = 0; i < draw_points_count_; ++i) {
+        DrawDot(draw_points_[i].x, draw_points_[i].y, 5);
+    }
+    lv_area_t area{0, 0, w_ - 1, h_ - 1};
+    lv_obj_invalidate_area(canvas_, &area);
+}
+
+void ChipoTools::AddDrawPoint(int x, int y) {
+    if (!canvas_ || !canvas_px_) return;
+    constexpr int radius = 5;  // Waveshare DrawPanel uses 10 px dots.
+    x = std::clamp(x, radius, w_ - radius - 1);
+    y = std::clamp(y, radius, h_ - radius - 1);
+    const int dx = x - (w_ - 1) / 2;
+    const int dy = y - (h_ - 1) / 2;
+    const int circle_radius = std::min(w_, h_) / 2 - radius;
+    if (dx * dx + dy * dy > circle_radius * circle_radius) return;
+
+    const bool evict_oldest = draw_points_count_ == draw_points_.size();
+    if (evict_oldest) {
+        for (size_t i = 1; i < draw_points_count_; ++i) draw_points_[i - 1] = draw_points_[i];
+        --draw_points_count_;
+    }
+    draw_points_[draw_points_count_++] = lv_point_t{x, y};
+    if (evict_oldest) {
+        RedrawCanvas();
+    } else {
+        DrawDot(x, y, radius);
+        lv_area_t area{x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1};
+        area.x1 = std::max(0, area.x1); area.y1 = std::max(0, area.y1);
+        area.x2 = std::min(w_ - 1, area.x2); area.y2 = std::min(h_ - 1, area.y2);
+        lv_obj_invalidate_area(canvas_, &area);
     }
 }
 
@@ -477,14 +532,14 @@ void ChipoTools::PenDown(int x, int y) {
     pen_down_ = true;
     pen_x_ = x;
     pen_y_ = y;
-    DrawSegment(x, y, x, y);
+    AddDrawPoint(x, y);
 }
 
 void ChipoTools::PenMove(int x, int y) {
     if (tool_ != Tool::Canvas || !pen_down_) return;
-    DrawSegment(pen_x_, pen_y_, x, y);
     pen_x_ = x;
     pen_y_ = y;
+    AddDrawPoint(x, y);
 }
 
 void ChipoTools::PenUp() {
@@ -542,8 +597,12 @@ void ChipoTools::CanvasEvent(lv_event_t* e) {
     lv_point_t p{0, 0};
     lv_indev_t* in = lv_event_get_indev(e);
     if (in) lv_indev_get_point(in, &p);
-    if (code == LV_EVENT_PRESSED) self->PenDown(p.x, p.y);
-    else if (code == LV_EVENT_PRESSING) self->PenMove(p.x, p.y);
+    lv_area_t area;
+    lv_obj_get_coords(self->canvas_, &area);
+    const int x = p.x - area.x1;
+    const int y = p.y - area.y1;
+    if (code == LV_EVENT_PRESSED) self->PenDown(x, y);
+    else if (code == LV_EVENT_PRESSING) self->PenMove(x, y);
     else self->PenUp();
 }
 
@@ -736,6 +795,8 @@ ChipoTools::DebugInfo ChipoTools::Debug() const {
     d.ring_work = ring_work_;
     d.level_flat = level_.flat;
     d.level_ok = level_.level;
+    d.level_calibrating = level_calibrating_;
+    d.level_calibrated = level_calibrated_;
     d.bubble_x = bubble_x_;
     d.bubble_y = bubble_y_;
     d.angle_deg = level_.angle_deg;
