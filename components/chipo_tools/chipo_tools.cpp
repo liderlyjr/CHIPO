@@ -295,6 +295,7 @@ void ChipoTools::Open(Tool tool) {
             tool_ = Tool::None; Show(root_, false); return;
         }
         lv_canvas_set_buffer(horizon_canvas_, horizon_px_, w_, h_, LV_COLOR_FORMAT_RGB565);
+        lv_canvas_fill_bg(horizon_canvas_, lv_color_black(), LV_OPA_COVER);
         lv_obj_set_pos(horizon_canvas_, 0, 0);
         lv_obj_move_background(horizon_canvas_);
         horizon_zero_roll_ = horizon_zero_pitch_ = 0.0f;
