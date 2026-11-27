@@ -179,3 +179,11 @@ The 2.06 handler explicitly:
 This corrects the earlier mistaken interpretation: the 1.75 source is dot-per-sample, while the 2.06 source uses continuous rounded segments. The current CHIPO port has now been changed to preserve stroke boundaries, render rounded 10 px segments between consecutive touch samples, keep isolated taps as dots, clip touches to the round display, and redraw the retained history on FIFO eviction. It also restarts a stroke as a dot if the finger re-enters the visible circle after touching an invisible corner.
 
 The rendering is rasterized into CHIPO's RGB565 canvas rather than creating one LVGL line object per segment as Waveshare does. This preserves the visible interaction and FIFO behavior while retaining CHIPO's existing canvas allocation/lifecycle. It is therefore a behavior-level port, not a verbatim source copy. The exact 2.16 factory implementation remains unavailable as source; no claim of exact 2.16 identity is made.
+
+
+### Follow-up corrections after CI #238
+
+- Replaced the earlier dot-per-event DrawPanel port with the 2.06 source's continuous rounded 10 px segments. The code keeps explicit stroke boundaries, creates dots for taps and touch re-entry, and resets the connection when a touch leaves the visible circular area.
+- The CHIPO canvas rasterizes the capsule-shaped stroke into RGB565 rather than allocating one LVGL line object per segment. This is an intentional implementation difference; the user-visible geometry and 1,000-segment FIFO are the target.
+- Corrected the Gravitysphere calibration prompt to use a real line break between the instruction and progress text.
+- The new changes are on the existing draft PR #29. CI run #238 predates these corrections; a fresh workflow run is required before treating this revision as compiled or tested.
