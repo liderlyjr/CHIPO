@@ -42,12 +42,6 @@ constexpr float kLevelOkDeg = 0.6f;
 // ax, ay, az in g. The sign of the sensor axes is not documented for the board: mirror_x / mirror_y flip them.
 LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mirror_y);
 
-// ---- Magic 8-ball -------------------------------------------------------------------------------------------------
-int EightBallCount();
-const char* EightBallAnswer(int index);  // UTF-8 Spanish; index wraps
-// -1 = no, 0 = maybe, 1 = yes (for the face)
-int EightBallMood(int index);
-
 // ---- Text helpers ------------------------------------------------------------------------------------------------
 // Replaces accented letters by plain ones (for fonts that lack them): "Sí, sin duda" -> "Si, sin duda".
 std::string FoldAccents(const char* utf8);
@@ -60,7 +54,8 @@ float RemainingFraction(uint32_t remaining_ms, uint32_t total_ms);
 enum class ToolsIntent : uint8_t {
     None,
     Level,         // "nivel", "burbuja", "modo nivel"
-    EightBall,     // "bola mágica", "bola ocho", "oráculo"
+    GravityBall,   // "gravity ball", "pelota de gravedad"
+    Horizon,       // "horizonte artificial"
     Canvas,        // "pizarra", "lienzo", "vamos a dibujar"
     ClearCanvas,   // "borra" / "limpia" (only while the canvas is open)
     SubtitlesOn,   // "activa los subtítulos"
