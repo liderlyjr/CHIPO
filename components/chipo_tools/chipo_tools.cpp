@@ -571,7 +571,8 @@ void ChipoTools::DrawDot(int cx, int cy, int r) {
 
 void ChipoTools::RedrawCanvas() {
     if (!canvas_px_ || !canvas_) return;
-    lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
+    // Waveshare DrawPanel keeps the drawing surface white when old points are evicted.
+    lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
     dots_ = 0;
     for (size_t i = 0; i < draw_points_count_; ++i) {
         DrawDot(draw_points_[i].x, draw_points_[i].y, 5);
@@ -580,10 +581,10 @@ void ChipoTools::RedrawCanvas() {
     lv_obj_invalidate_area(canvas_, &area);
 }
 
-// DrawPanel interaction model adapted from Waveshare's DrawPanel demo (Apache-2.0, Espressif Systems).
+// DrawPanel follows Waveshare's source interaction model: one red 10 px dot per touch sample.
 void ChipoTools::AddDrawPoint(int x, int y) {
     if (!canvas_ || !canvas_px_) return;
-    constexpr int radius = 5;  // Waveshare DrawPanel uses 10 px dots.
+    constexpr int radius = 5;
     x = std::clamp(x, radius, w_ - radius - 1);
     y = std::clamp(y, radius, h_ - radius - 1);
     const int dx = x - (w_ - 1) / 2;
@@ -591,40 +592,26 @@ void ChipoTools::AddDrawPoint(int x, int y) {
     const int circle_radius = std::min(w_, h_) / 2 - radius;
     if (dx * dx + dy * dy > circle_radius * circle_radius) return;
 
-    const bool evict_oldest = draw_points_count_ == draw_points_.size();
-    if (evict_oldest) {
-        for (size_t i = 1; i < draw_points_count_; ++i) draw_points_[i - 1] = draw_points_[i];
+    if (draw_points_count_ == draw_points_.size()) {
+        for (size_t i = 1; i < draw_points_count_; ++i) {
+            draw_points_[i - 1] = draw_points_[i];
+        }
         --draw_points_count_;
     }
-    const lv_point_t current{x, y};
-    const lv_point_t previous = draw_points_count_ ? draw_points_[draw_points_count_ - 1] : current;
-    draw_points_[draw_points_count_++] = current;
-    if (evict_oldest) {
-        RedrawCanvas();
-        return;
-    }
+    draw_points_[draw_points_count_++] = lv_point_t{x, y};
+    DrawDot(x, y, radius);
 
-    // Waveshare's factory DrawPanel joins touch samples with rounded 10 px red segments.
-    const int segment_dx = current.x - previous.x;
-    const int segment_dy = current.y - previous.y;
-    const int steps = std::max(std::abs(segment_dx), std::abs(segment_dy));
-    if (steps == 0) {
-        DrawDot(x, y, radius);
-    } else {
-        for (int i = 0; i <= steps; ++i) {
-            const int px = previous.x + (segment_dx * i) / steps;
-            const int py = previous.y + (segment_dy * i) / steps;
-            DrawDot(px, py, radius);
-        }
-    }
-    lv_area_t area{std::min(previous.x, current.x) - radius - 1,
-                   std::min(previous.y, current.y) - radius - 1,
-                   std::max(previous.x, current.x) + radius + 1,
-                   std::max(previous.y, current.y) + radius + 1};
-    area.x1 = std::max<int32_t>(0, area.x1); area.y1 = std::max<int32_t>(0, area.y1);
+    lv_area_t area{x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1};
+    area.x1 = std::max<int32_t>(0, area.x1);
+    area.y1 = std::max<int32_t>(0, area.y1);
     area.x2 = std::min<int32_t>(static_cast<int32_t>(w_) - 1, area.x2);
     area.y2 = std::min<int32_t>(static_cast<int32_t>(h_) - 1, area.y2);
     lv_obj_invalidate_area(canvas_, &area);
+
+    if (draw_points_count_ == draw_points_.size()) {
+        // The oldest sample has just been evicted; redraw the retained 1,000 points.
+        RedrawCanvas();
+    }
 }
 
 
