@@ -20,9 +20,10 @@ int main() {
     Is("la burbuja", ToolsIntent::Level);
     Is("cuál es el nivel de batería", ToolsIntent::None);
     Is("sube el nivel del volumen", ToolsIntent::None);
-    Is("bola mágica", ToolsIntent::EightBall);
-    Is("saca la bola ocho", ToolsIntent::EightBall);
-    Is("consulta el oráculo", ToolsIntent::EightBall);
+    Is("activa gravity ball", ToolsIntent::GravityBall);
+    Is("pelota de gravedad", ToolsIntent::GravityBall);
+    Is("horizonte artificial", ToolsIntent::Horizon);
+    Is("pon el horizonte", ToolsIntent::Horizon);
     Is("vamos a dibujar", ToolsIntent::Canvas);
     Is("abre la pizarra", ToolsIntent::Canvas);
     Is("lienzo", ToolsIntent::Canvas);
@@ -104,20 +105,6 @@ int main() {
         CHECK(!r.flat && !r.level, "a jolt is not a reading");
         r = LevelFromAccel(0.12f, 0.12f, 0.98f, false, false);
         CHECK(std::sqrt(r.x * r.x + r.y * r.y) <= 1.0001f, "bubble stays inside the circle");
-    }
-
-    // ---- 8-ball ----
-    {
-        CHECK(EightBallCount() == 20, "20 answers");
-        int yes = 0, maybe = 0, no = 0;
-        for (int i = 0; i < EightBallCount(); ++i) {
-            const char* a = EightBallAnswer(i);
-            CHECK(a && std::strlen(a) > 3 && std::strlen(a) < 40, "answer %d", i);
-            const int m = EightBallMood(i);
-            yes += m > 0; maybe += m == 0; no += m < 0;
-        }
-        CHECK(yes == 9 && maybe == 5 && no == 6, "mix %d/%d/%d", yes, maybe, no);
-        CHECK(std::strcmp(EightBallAnswer(0), EightBallAnswer(20)) == 0 && std::strcmp(EightBallAnswer(-1), EightBallAnswer(19)) == 0, "wraps");
     }
 
     // ---- text ----
