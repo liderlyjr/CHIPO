@@ -247,20 +247,17 @@ void ChipoTools::Build(int w, int h) {
     lv_obj_align(lvl_angle_, LV_ALIGN_CENTER, 0, d / 2 - 52);
     Show(lvl_, false);
 
-    // 8-ball.
-    const int bd = side - 110;
-    ball_ = Plain(root_, w, h);
-    ball_disc_ = Circle(ball_, bd, 0x16092E, LV_OPA_COVER, kLilac, 5, LV_OPA_COVER);
-    lv_obj_align(ball_disc_, LV_ALIGN_CENTER, 0, 0);
-    ball_eight_ = Label(ball_, font_big_, kPaleLilac);
-    lv_label_set_text(ball_eight_, "8");
-    lv_obj_align(ball_eight_, LV_ALIGN_CENTER, 0, 0);
-    ball_answer_ = Label(ball_, font_text_, kPaleLilac);
-    lv_obj_set_width(ball_answer_, bd * 7 / 10);
-    lv_label_set_long_mode(ball_answer_, LV_LABEL_LONG_MODE_WRAP);
-    lv_label_set_text(ball_answer_, "");
-    lv_obj_align(ball_answer_, LV_ALIGN_CENTER, 0, 0);
-    Show(ball_, false);
+    // Gravity Ball: a ball follows gravity on the QMI8658 accelerometer.
+    gravity_ball_ = Plain(root_, w, h);
+    gravity_ball_track_ = Circle(gravity_ball_, side - 104, 0x000000, LV_OPA_TRANSP, kLilac, 3, LV_OPA_70);
+    lv_obj_align(gravity_ball_track_, LV_ALIGN_CENTER, 0, 0);
+    gravity_ball_dot_ = Circle(gravity_ball_, side / 9, 0xFF7048, LV_OPA_COVER, 0xFFE3D8, 3, LV_OPA_COVER);
+    lv_obj_set_style_shadow_color(gravity_ball_dot_, lv_color_hex(0xFF7048), 0);
+    lv_obj_set_style_shadow_width(gravity_ball_dot_, 18, 0);
+    lv_obj_set_style_shadow_opa(gravity_ball_dot_, LV_OPA_50, 0);
+    lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, 0, 0);
+    Show(gravity_ball_, false);
+
 }
 
 // ---- opening and closing --------------------------------------------------------------------------------------------
@@ -272,39 +269,60 @@ void ChipoTools::Open(Tool tool) {
     Show(root_, true);
     lv_obj_move_foreground(root_);
     Show(lvl_, tool == Tool::Level);
-    Show(ball_, tool == Tool::Ball);
+    Show(gravity_ball_, tool == Tool::GravityBall);
     if (tool == Tool::Level) {
-        lv_label_set_text(caption_, "Nivel");
-        lv_label_set_text(hint_, "Toca para calibrar - Mantén para salir");
+        lv_label_set_text(caption_, "NIVEL");
+        lv_label_set_text(hint_, "Toca sobre una superficie plana para calibrar");
         have_accel_ = false;
         level_zero_x_ = level_zero_y_ = 0.0f;
         level_calibrated_ = false;
         bubble_x_ = bubble_y_ = 0;
-    } else if (tool == Tool::Ball) {
-        lv_label_set_text(caption_, "Bola magica");
-        lv_label_set_text(hint_, "Agitame o toca. Manten para salir");
-        ball_phase_ = 0;
-        lv_label_set_text(ball_answer_, "");
-        Show(ball_eight_, true);
+    } else if (tool == Tool::GravityBall) {
+        lv_label_set_text(caption_, "GRAVITY BALL");
+        lv_label_set_text(hint_, "Inclina CHIPO para mover la pelota");
+        gravity_x_ = gravity_y_ = gravity_vx_ = gravity_vy_ = 0.0f;
+        lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, 0, 0);
+    } else if (tool == Tool::Horizon) {
+        lv_label_set_text(caption_, "HORIZONTE ARTIFICIAL");
+        lv_label_set_text(hint_, "Toca para fijar el horizonte neutro");
+        horizon_px_ = AllocPixels(static_cast<size_t>(w_) * static_cast<size_t>(h_));
+        if (!horizon_px_) {
+            if (hooks_.notify) hooks_.notify("No hay memoria para el horizonte");
+            tool_ = Tool::None; Show(root_, false); return;
+        }
+        horizon_canvas_ = lv_canvas_create(root_);
+        if (!horizon_canvas_) {
+            FreePixels(horizon_px_); horizon_px_ = nullptr;
+            tool_ = Tool::None; Show(root_, false); return;
+        }
+        lv_canvas_set_buffer(horizon_canvas_, horizon_px_, w_, h_, LV_COLOR_FORMAT_RGB565);
+        lv_obj_set_pos(horizon_canvas_, 0, 0);
+        lv_obj_move_background(horizon_canvas_);
+        horizon_zero_roll_ = horizon_zero_pitch_ = 0.0f;
+        UpdateHorizon(Now());
+        lv_obj_move_foreground(caption_);
+        lv_obj_move_foreground(hint_);
     } else {
-        lv_label_set_text(caption_, "");
-        lv_label_set_text(hint_, "");
+        lv_label_set_text(caption_, "DRAW PANEL");
+        lv_label_set_text(hint_, "Dibuja con el dedo · cada trazo cambia de color");
         canvas_px_ = AllocPixels(static_cast<size_t>(w_) * static_cast<size_t>(h_));
         if (!canvas_px_) {
             if (hooks_.notify) hooks_.notify("No hay memoria para dibujar");
-            tool_ = Tool::None;
-            Show(root_, false);
-            return;
+            tool_ = Tool::None; Show(root_, false); return;
         }
         canvas_ = lv_canvas_create(root_);
+        if (!canvas_) {
+            FreePixels(canvas_px_); canvas_px_ = nullptr;
+            tool_ = Tool::None; Show(root_, false); return;
+        }
         lv_canvas_set_buffer(canvas_, canvas_px_, w_, h_, LV_COLOR_FORMAT_RGB565);
         lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
         lv_obj_set_pos(canvas_, 0, 0);
         lv_obj_add_flag(canvas_, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(canvas_, CanvasEvent, LV_EVENT_ALL, this);
         auto button = [&](const char* text) {
-            lv_obj_t* b = Plain(root_, 118, 50);
-            lv_obj_set_style_radius(b, 25, 0);
+            lv_obj_t* b = Plain(root_, 104, 42);
+            lv_obj_set_style_radius(b, 21, 0);
             lv_obj_set_style_bg_color(b, lv_color_hex(0x16092E), 0);
             lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
             lv_obj_set_style_border_color(b, lv_color_hex(kLilac), 0);
@@ -312,46 +330,39 @@ void ChipoTools::Open(Tool tool) {
             lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_add_event_cb(b, ButtonEvent, LV_EVENT_CLICKED, this);
             lv_obj_t* l = Label(b, font_mid_, kPaleLilac);
-            lv_label_set_text(l, text);
-            lv_obj_center(l);
+            lv_label_set_text(l, text); lv_obj_center(l);
             return b;
         };
-        canvas_close_ = button("Salir");
-        lv_obj_align(canvas_close_, LV_ALIGN_TOP_MID, 0, 12);
-        canvas_clear_ = button("Borrar");
-        lv_obj_align(canvas_clear_, LV_ALIGN_BOTTOM_MID, 0, -12);
-        dots_ = 0;
-        pen_down_ = false;
-        pen_color_ = 0;
+        canvas_close_ = button("Salir"); lv_obj_align(canvas_close_, LV_ALIGN_TOP_MID, 0, 8);
+        canvas_clear_ = button("Borrar"); lv_obj_align(canvas_clear_, LV_ALIGN_BOTTOM_MID, 0, -8);
+        dots_ = 0; pen_down_ = false; pen_color_ = 0;
+        lv_obj_move_foreground(canvas_close_); lv_obj_move_foreground(canvas_clear_);
     }
 }
 
 void ChipoTools::OnKey() {
     switch (tool_) {
     case Tool::None: Open(Tool::Level); break;
-    case Tool::Level: Close(); Open(Tool::Ball); break;
-    case Tool::Ball: Close(); Open(Tool::Canvas); break;
+    case Tool::Level: Close(); Open(Tool::GravityBall); break;
+    case Tool::GravityBall: Close(); Open(Tool::Horizon); break;
+    case Tool::Horizon: Close(); Open(Tool::Canvas); break;
     case Tool::Canvas: Close(); break;
     }
 }
 
 void ChipoTools::Close() {
-    if (tool_ == Tool::None && !canvas_) return;
-    if (canvas_) {  // the canvas must not outlive its buffer
+    if (tool_ == Tool::None && !canvas_ && !horizon_canvas_) return;
+    if (canvas_) {
         if (canvas_close_) lv_obj_delete(canvas_close_);
         if (canvas_clear_) lv_obj_delete(canvas_clear_);
         lv_obj_delete(canvas_);
         canvas_ = canvas_close_ = canvas_clear_ = nullptr;
     }
-    if (canvas_px_) {
-        FreePixels(canvas_px_);
-        canvas_px_ = nullptr;
-    }
-    pen_down_ = false;
-    tool_ = Tool::None;
-    Show(root_, false);
-    Show(lvl_, false);
-    Show(ball_, false);
+    if (canvas_px_) { FreePixels(canvas_px_); canvas_px_ = nullptr; }
+    if (horizon_canvas_) { lv_obj_delete(horizon_canvas_); horizon_canvas_ = nullptr; }
+    if (horizon_px_) { FreePixels(horizon_px_); horizon_px_ = nullptr; }
+    pen_down_ = false; tool_ = Tool::None;
+    Show(root_, false); Show(lvl_, false); Show(gravity_ball_, false);
 }
 
 // ---- voice, sensors ------------------------------------------------------------------------------------------------
@@ -361,7 +372,8 @@ bool ChipoTools::OnVoiceText(const char* text) {
     switch (intent) {
         case ToolsIntent::None: return false;
         case ToolsIntent::Level: Open(Tool::Level); return Play("buddy_chime");
-        case ToolsIntent::EightBall: Open(Tool::Ball); return Play("buddy_chime");
+        case ToolsIntent::GravityBall: Open(Tool::GravityBall); return Play("buddy_chime");
+        case ToolsIntent::Horizon: Open(Tool::Horizon); return Play("buddy_chime");
         case ToolsIntent::Canvas: Open(Tool::Canvas); return Play("buddy_chime");
         case ToolsIntent::ClearCanvas: ClearCanvas(); return Play("buddy_chime");
         case ToolsIntent::Close: Close(); return Play("buddy_chime");
@@ -403,21 +415,9 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
     if (!shake_.Feed(s.x, s.y, s.z, now_ms)) return;
     ++shakes_;
     // `now_ms` is the sensor's clock; everything else here runs on the UI clock.
-    if (tool_ == Tool::Ball) AskBall(Now());
-    else if (tool_ == Tool::None && hooks_.shake_other) hooks_.shake_other(Now());
+    if (tool_ == Tool::None && hooks_.shake_other) hooks_.shake_other(Now());
 }
 
-void ChipoTools::AskBall(uint32_t now_ms) {
-    if (!running_ || tool_ != Tool::Ball || ball_phase_ == 1) return;
-    int idx = static_cast<int>(lv_rand(0, static_cast<uint32_t>(EightBallCount() - 1)));
-    if (idx == ball_index_) idx = (idx + 1 + static_cast<int>(lv_rand(0, 6))) % EightBallCount();
-    ball_index_ = idx;
-    ball_phase_ = 1;
-    ball_t0_ = now_ms;
-    Show(ball_eight_, false);
-    lv_label_set_text(ball_answer_, "");
-    Play("buddy_chime");
-}
 
 void ChipoTools::ShowSubtitle(const char* text) {
     if (!running_ || !subs_on_ || !text || !*text) return;
@@ -524,8 +524,13 @@ void ChipoTools::RootEvent(lv_event_t* e) {
         self->level_calibrated_ = true;
         self->bubble_x_ = self->bubble_y_ = 0.0f;
         if (self->hooks_.notify) self->hooks_.notify("Nivel calibrado");
-    } else {
-        self->AskBall(now);
+    } else if (self->tool_ == Tool::Horizon && self->have_accel_) {
+        const float mag = std::sqrt(self->ax_ * self->ax_ + self->ay_ * self->ay_ + self->az_ * self->az_);
+        if (mag > 0.5f && mag < 1.6f) {
+            self->horizon_zero_roll_ = std::atan2(self->ay_, self->az_) * 57.2957795f;
+            self->horizon_zero_pitch_ = std::atan2(-self->ax_, std::sqrt(self->ay_ * self->ay_ + self->az_ * self->az_)) * 57.2957795f;
+            if (self->hooks_.notify) self->hooks_.notify("Horizonte calibrado");
+        }
     }
 }
 
@@ -562,7 +567,8 @@ void ChipoTools::Step(uint32_t now_ms) {
     UpdateStrip(now_ms);
     UpdateRing(now_ms);
     if (tool_ == Tool::Level) UpdateLevel(now_ms);
-    else if (tool_ == Tool::Ball) UpdateBall(now_ms);
+    else if (tool_ == Tool::GravityBall) UpdateGravityBall(now_ms);
+    else if (tool_ == Tool::Horizon) UpdateHorizon(now_ms);
     UpdateSubtitle(now_ms);
 }
 
@@ -660,25 +666,46 @@ void ChipoTools::UpdateLevel(uint32_t) {
     }
 }
 
-void ChipoTools::UpdateBall(uint32_t now_ms) {
-    if (ball_phase_ == 1) {
-        const uint32_t t = now_ms - ball_t0_;
-        const char* dots[] = {".", "..", "..."};
-        lv_label_set_text(ball_answer_, dots[(t / 250) % 3]);
-        if (t >= 1000) {
-            ball_phase_ = 2;
-            ball_t0_ = now_ms;
-            std::string answer = EightBallAnswer(ball_index_);
-            lv_label_set_text(ball_answer_, text_has_accents_ ? answer.c_str() : FoldAccents(answer.c_str()).c_str());
-            lv_obj_set_style_opa(ball_answer_, LV_OPA_TRANSP, 0);
-            const int mood = EightBallMood(ball_index_);
-            if (hooks_.emotion) hooks_.emotion(mood > 0 ? "happy" : (mood < 0 ? "sad" : "confused"), 2600);
-            Play("buddy_chime");
+void ChipoTools::UpdateGravityBall(uint32_t) {
+    if (!gravity_ball_dot_ || !have_accel_) return;
+    const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
+    if (mag < 0.55f || mag > 1.55f) return;
+    const float limit = static_cast<float>(std::min(w_, h_) - 104 - w_ / 9) / 2.0f;
+    const float tx = std::clamp(ax_ / mag, -1.0f, 1.0f) * limit;
+    const float ty = std::clamp(ay_ / mag, -1.0f, 1.0f) * limit;
+    gravity_vx_ = (gravity_vx_ + (tx - gravity_x_) * 0.10f) * 0.82f;
+    gravity_vy_ = (gravity_vy_ + (ty - gravity_y_) * 0.10f) * 0.82f;
+    gravity_x_ = std::clamp(gravity_x_ + gravity_vx_, -limit, limit);
+    gravity_y_ = std::clamp(gravity_y_ + gravity_vy_, -limit, limit);
+    lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, static_cast<int>(std::lround(gravity_x_)), static_cast<int>(std::lround(gravity_y_)));
+}
+
+void ChipoTools::UpdateHorizon(uint32_t) {
+    if (!horizon_px_ || !horizon_canvas_ || !have_accel_) return;
+    const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
+    if (mag < 0.55f || mag > 1.55f) return;
+    horizon_roll_ = std::clamp(std::atan2(ay_, az_) * 57.2957795f - horizon_zero_roll_, -89.0f, 89.0f);
+    horizon_pitch_ = std::clamp(std::atan2(-ax_, std::sqrt(ay_ * ay_ + az_ * az_)) * 57.2957795f - horizon_zero_pitch_, -45.0f, 45.0f);
+    const float rad = horizon_roll_ * 0.0174532925f, sn = std::sin(rad), cs = std::cos(rad);
+    const float pitch_px = horizon_pitch_ * 5.0f;
+    const uint16_t sky = lv_color_to_u16(lv_color_hex(0x1FA9D8));
+    const uint16_t earth = lv_color_to_u16(lv_color_hex(0xBF5A06));
+    const uint16_t white = lv_color_to_u16(lv_color_hex(0xFFFFFF));
+    const uint16_t mark = lv_color_to_u16(lv_color_hex(0xFFF2A8));
+    const int cx = w_ / 2, cy = h_ / 2;
+    for (int y = 0; y < h_; ++y) {
+        const float dy = static_cast<float>(y - cy);
+        for (int x = 0; x < w_; ++x) {
+            const float dx = static_cast<float>(x - cx);
+            const float d = -dx * sn + dy * cs + pitch_px;
+            uint16_t color = d >= 0.0f ? earth : sky;
+            if (std::fabs(d) < 1.4f) color = white;
+            const int rx = std::abs(x - cx), ry = std::abs(y - cy);
+            if ((ry <= 2 && rx >= 30 && rx <= 88) || (rx <= 2 && ry <= 14)) color = mark;
+            horizon_px_[y * w_ + x] = color;
         }
-    } else if (ball_phase_ == 2) {
-        const uint32_t t = now_ms - ball_t0_;
-        lv_obj_set_style_opa(ball_answer_, static_cast<lv_opa_t>(std::min<uint32_t>(255, t * 255 / 500)), 0);
     }
+    lv_obj_invalidate(horizon_canvas_);
 }
 
 void ChipoTools::UpdateSubtitle(uint32_t now_ms) {
@@ -712,8 +739,8 @@ ChipoTools::DebugInfo ChipoTools::Debug() const {
     d.bubble_x = bubble_x_;
     d.bubble_y = bubble_y_;
     d.angle_deg = level_.angle_deg;
-    d.ball_phase = ball_phase_;
-    d.ball_index = ball_index_;
+    d.gravity_x = gravity_x_; d.gravity_y = gravity_y_;
+    d.horizon_roll = horizon_roll_; d.horizon_pitch = horizon_pitch_;
     d.subtitle_visible = sub_visible_ && sub_ && !lv_obj_has_flag(sub_, LV_OBJ_FLAG_HIDDEN);
     std::snprintf(d.subtitle_text, sizeof d.subtitle_text, "%s", sub_text_);
     d.canvas_dots = dots_;
