@@ -552,6 +552,8 @@ void ChipoTools::ClearCanvas() {
     lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
     dots_ = 0;
     draw_points_count_ = 0;
+    draw_connect_.fill(false);
+    pen_down_ = false;
 }
 
 void ChipoTools::DrawDot(int cx, int cy, int r) {
@@ -569,20 +571,49 @@ void ChipoTools::DrawDot(int cx, int cy, int r) {
     }
 }
 
+void ChipoTools::DrawStroke(const lv_point_t& from, const lv_point_t& to) {
+    if (!canvas_px_) return;
+    constexpr float radius = 5.0f;  // Waveshare DRAW_STROKE_WIDTH = 10
+    const float vx = static_cast<float>(to.x - from.x);
+    const float vy = static_cast<float>(to.y - from.y);
+    const float length2 = vx * vx + vy * vy;
+    const int min_x = std::max(0, std::min(from.x, to.x) - 5);
+    const int max_x = std::min(w_ - 1, std::max(from.x, to.x) + 5);
+    const int min_y = std::max(0, std::min(from.y, to.y) - 5);
+    const int max_y = std::min(h_ - 1, std::max(from.y, to.y) + 5);
+    const uint16_t red = lv_color_to_u16(lv_color_make(255, 0, 0));
+    for (int y = min_y; y <= max_y; ++y) {
+        for (int x = min_x; x <= max_x; ++x) {
+            const float px = static_cast<float>(x - from.x);
+            const float py = static_cast<float>(y - from.y);
+            const float t = length2 > 0.0f
+                ? std::clamp((px * vx + py * vy) / length2, 0.0f, 1.0f)
+                : 0.0f;
+            const float dx = px - t * vx;
+            const float dy = py - t * vy;
+            if (dx * dx + dy * dy <= radius * radius) {
+                canvas_px_[static_cast<size_t>(y) * w_ + x] = red;
+                ++dots_;
+            }
+        }
+    }
+}
+
 void ChipoTools::RedrawCanvas() {
     if (!canvas_px_ || !canvas_) return;
-    // Waveshare DrawPanel keeps the drawing surface white when old points are evicted.
     lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
     dots_ = 0;
     for (size_t i = 0; i < draw_points_count_; ++i) {
-        DrawDot(draw_points_[i].x, draw_points_[i].y, 5);
+        if (draw_connect_[i] && i > 0) DrawStroke(draw_points_[i - 1], draw_points_[i]);
+        else DrawDot(draw_points_[i].x, draw_points_[i].y, 5);
     }
     lv_area_t area{0, 0, w_ - 1, h_ - 1};
     lv_obj_invalidate_area(canvas_, &area);
 }
 
-// DrawPanel follows Waveshare's source interaction model: one red 10 px dot per touch sample.
-void ChipoTools::AddDrawPoint(int x, int y) {
+// Waveshare 2.06 DrawPanel draws a rounded 10 px segment between consecutive
+// touch samples, while a tap creates a 10 px circular dot. It retains 1,000 segments.
+void ChipoTools::AddDrawPoint(int x, int y, bool connect_to_previous) {
     if (!canvas_ || !canvas_px_) return;
     constexpr int radius = 5;
     x = std::clamp(x, radius, w_ - radius - 1);
@@ -590,22 +621,31 @@ void ChipoTools::AddDrawPoint(int x, int y) {
     const int dx = x - (w_ - 1) / 2;
     const int dy = y - (h_ - 1) / 2;
     const int circle_radius = std::min(w_, h_) / 2 - radius;
-    if (dx * dx + dy * dy > circle_radius * circle_radius) return;
+    if (dx * dx + dy * dy > circle_radius * circle_radius) {
+        pen_down_ = false;
+        return;
+    }
+    if (draw_points_count_ > 0 && draw_points_[draw_points_count_ - 1].x == x &&
+        draw_points_[draw_points_count_ - 1].y == y) return;
 
     const bool evict_oldest = draw_points_count_ == draw_points_.size();
     if (evict_oldest) {
         for (size_t i = 1; i < draw_points_count_; ++i) {
             draw_points_[i - 1] = draw_points_[i];
+            draw_connect_[i - 1] = draw_connect_[i];
         }
         --draw_points_count_;
+        draw_connect_[0] = false;
     }
-    draw_points_[draw_points_count_++] = lv_point_t{x, y};
+    const size_t index = draw_points_count_++;
+    draw_points_[index] = lv_point_t{x, y};
+    draw_connect_[index] = connect_to_previous && index > 0;
     if (evict_oldest) {
         RedrawCanvas();
         return;
     }
-
-    DrawDot(x, y, radius);
+    if (draw_connect_[index]) DrawStroke(draw_points_[index - 1], draw_points_[index]);
+    else DrawDot(x, y, radius);
     lv_area_t area{x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1};
     area.x1 = std::max<int32_t>(0, area.x1);
     area.y1 = std::max<int32_t>(0, area.y1);
@@ -614,16 +654,15 @@ void ChipoTools::AddDrawPoint(int x, int y) {
     lv_obj_invalidate_area(canvas_, &area);
 }
 
-
 void ChipoTools::PenDown(int x, int y) {
     if (tool_ != Tool::Canvas) return;
     pen_down_ = true;
-    AddDrawPoint(x, y);
+    AddDrawPoint(x, y, false);
 }
 
 void ChipoTools::PenMove(int x, int y) {
     if (tool_ != Tool::Canvas || !pen_down_) return;
-    AddDrawPoint(x, y);
+    AddDrawPoint(x, y, true);
 }
 
 void ChipoTools::PenUp() {
