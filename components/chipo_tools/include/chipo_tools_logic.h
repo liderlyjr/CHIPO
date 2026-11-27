@@ -37,7 +37,8 @@ struct LevelReading {
     float angle_deg = 0;    // total tilt away from horizontal
     bool level = false;     // within kLevelOkDeg
 };
-constexpr float kLevelFullDeg = 10.0f;
+constexpr float kLevelFullDeg = 30.0f;  // bubble reaches the edge at 30 degrees, not 10
+constexpr float kLevelMaxTiltDeg = 35.0f; // keep reporting angle/bubble until the board is steeply tilted
 constexpr float kLevelOkDeg = 0.6f;
 // ax, ay, az in g. The sign of the sensor axes is not documented for the board: mirror_x / mirror_y flip them.
 LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mirror_y);
