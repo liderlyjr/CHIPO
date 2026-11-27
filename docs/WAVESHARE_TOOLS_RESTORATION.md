@@ -86,7 +86,7 @@ The DrawPanel presentation and stroke behavior were corrected toward the publish
 
 - white drawing canvas;
 - white drawing canvas;
-- red, round 10 px dots created once for each LVGL touch sample (`PRESSED` / `PRESSING`), without synthesizing/interpolating extra points;
+- red, round 10 px stroke segments between consecutive `PRESSED` / `PRESSING` samples, with a round 10 px dot for a tap;
 - round-screen corner clipping;
 - at most 1,000 retained touch points, deleting the oldest point when the limit is exceeded;
 - no CHIPO-styled Salir/Borrar overlay; the tool is left through the existing hardware-key navigation.
@@ -162,17 +162,20 @@ Do not describe the four tools as fully restored until the original implementati
 
 ### DrawPanel source cross-check and correction (2026-11-27)
 
-A newer official Waveshare source snapshot was checked through the GitHub repository `waveshareteam/ESP32-S3-Touch-AMOLED-1.75`, file `firmware/brookesia/components/draw/Drawpanel.cpp` (blob `2cd03b9ad4cbb6c798b1b0479aeed62a3befe72a`). This is an official related-board reference, not proof that the source is identical to the closed 2.16 FactoryOnly build.
+The earlier audit relied on the 1.75 implementation, which creates one red 10 px dot per touch event. That is not the behavior in the newer published Waveshare 2.06 Factory source. The exact 2.06 source file was retrieved and read:
 
-That source confirms the core DrawPanel interaction:
-- white active screen;
-- fixed, non-scrollable drawing surface;
-- touch callbacks on `LV_EVENT_PRESSED` and `LV_EVENT_PRESSING`;
-- one red circular 10 px dot for each reported touch point;
-- circular clipping to the visible round display;
-- FIFO retention capped at 1,000 dots (oldest dot deleted first).
+- Source: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.06/blob/3de8684cc3b27a8b6aa920157ecf399287528181/examples/factory/components/draw/Drawpanel.cpp
+- Blob: `bdba7eec8d59fbd0c226b61020d9ae80d2bf98ee`
+- Header: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.06/blob/3de8684cc3b27a8b6aa920157ecf399287528181/examples/factory/components/draw/Drawpanel.hpp
 
-The previous CHIPO port interpolated touch samples into continuous strokes. That was not faithful to this public Waveshare handler, which creates one dot per event. The port has now been corrected to store and render only the reported touch samples. Its 1,000-point eviction redraw also previously cleared the canvas to black; this is corrected to restore a white background before redrawing the retained dots.
+The 2.06 handler explicitly:
+- records the last touch point on `LV_EVENT_PRESSED`;
+- draws a rounded red line segment of width 10 from the previous point to the current point on `LV_EVENT_PRESSING`;
+- creates a 10 px circular dot when a press has no previous point (tap or re-entry after leaving the visible circle);
+- resets the previous-point state on `LV_EVENT_RELEASED` and `LV_EVENT_PRESS_LOST`;
+- ignores touch positions outside the visible circular display area;
+- retains a FIFO of at most 1,000 line segments and deletes the oldest segment first.
 
-This correction aligns CHIPO with the public Waveshare DrawPanel source behavior. It does not establish that the 2.16 factory binary uses the exact same implementation; that still requires comparison against the Drawpanel routines in the extracted 2.16 app.
+This corrects the earlier mistaken interpretation: the 1.75 source is dot-per-sample, while the 2.06 source uses continuous rounded segments. The current CHIPO port has now been changed to preserve stroke boundaries, render rounded 10 px segments between consecutive touch samples, keep isolated taps as dots, clip touches to the round display, and redraw the retained history on FIFO eviction. It also restarts a stroke as a dot if the finger re-enters the visible circle after touching an invisible corner.
 
+The rendering is rasterized into CHIPO's RGB565 canvas rather than creating one LVGL line object per segment as Waveshare does. This preserves the visible interaction and FIFO behavior while retaining CHIPO's existing canvas allocation/lifecycle. It is therefore a behavior-level port, not a verbatim source copy. The exact 2.16 factory implementation remains unavailable as source; no claim of exact 2.16 identity is made.
