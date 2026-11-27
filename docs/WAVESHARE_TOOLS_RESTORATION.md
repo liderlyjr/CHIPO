@@ -30,7 +30,12 @@ This is official Waveshare source for a related board generation, not proof of b
 
 A source search in the published 2.06 factory project found Gravitysphere and DrawPanel, but did not find separate Artificial Horizon or Spirit Level applications. The 2.16 factory source remains unpublished in the repository inspected.
 
-## CHIPO change in this branch
+## CHIPO changes in this branch
+
+### Gravitysphere
+
+Ported the published Waveshare 2.06 Gravitysphere worker behavior into CHIPO's LVGL/sensor lifecycle: 200-sample calibration, 0.1 m/s² stability window, up to five attempts with last-window fallback, conversion from CHIPO g samples to m/s², 0.05 m/s² dead zone, original acceleration signs and scale factor 8, and circular confinement using the original 22 px ball and 18 px safety margin. The visual ball uses the upstream 44 px size, pink/orange gradient and pink glow. Touch recalibrates in place of the factory BOOT key, which CHIPO reserves for tool navigation. This is a faithful adaptation of the published 2.06 source, not proof of exact 2.16 source identity.
+
 
 The DrawPanel presentation and stroke behavior were corrected toward the published Waveshare 2.06 implementation:
 
@@ -45,7 +50,7 @@ Implementation note: this is a CHIPO/LVGL port of the published drawing behavior
 
 ## Not yet restored / not verified
 
-- Gravity Ball: CHIPO still uses its previous implementation. The upstream Waveshare Gravitysphere source has been located, but it inherits the Brookesia App framework and needs a lifecycle/sensor adapter before it can be used in CHIPO.
+- Gravitysphere: ported from published Waveshare 2.06 source; exact 2.16 source remains unpublished/unverified.
 - Spirit Level: no matching original 2.16 source has been located.
 - Artificial Horizon: no matching original 2.16 source has been located.
 - The 2.16 factory binary has not been extracted or reverse engineered.
