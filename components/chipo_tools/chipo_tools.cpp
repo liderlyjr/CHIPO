@@ -248,8 +248,11 @@ void ChipoTools::Build(int w, int h) {
     gravity_ball_ = Plain(root_, w, h);
     gravity_ball_track_ = Circle(gravity_ball_, side - 104, 0x000000, LV_OPA_TRANSP, kLilac, 3, LV_OPA_70);
     lv_obj_align(gravity_ball_track_, LV_ALIGN_CENTER, 0, 0);
-    gravity_ball_dot_ = Circle(gravity_ball_, side / 9, 0xFF7048, LV_OPA_COVER, 0xFFE3D8, 3, LV_OPA_COVER);
-    lv_obj_set_style_shadow_color(gravity_ball_dot_, lv_color_hex(0xFF7048), 0);
+    // Waveshare Gravitysphere: 44 px pink-to-orange gradient ball.
+    gravity_ball_dot_ = Circle(gravity_ball_, 44, 0xFF4F70, LV_OPA_COVER, 0xFF4F70, 0, LV_OPA_COVER);
+    lv_obj_set_style_bg_grad_color(gravity_ball_dot_, lv_color_hex(0xFFB14E), 0);
+    lv_obj_set_style_bg_grad_dir(gravity_ball_dot_, LV_GRAD_DIR_VER, 0);
+    lv_obj_set_style_shadow_color(gravity_ball_dot_, lv_color_hex(0xFF4F70), 0);
     lv_obj_set_style_shadow_width(gravity_ball_dot_, 18, 0);
     lv_obj_set_style_shadow_opa(gravity_ball_dot_, LV_OPA_50, 0);
     lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, 0, 0);
@@ -277,9 +280,16 @@ void ChipoTools::Open(Tool tool) {
         level_calibration_count_ = 0;
         bubble_x_ = bubble_y_ = 0;
     } else if (tool == Tool::GravityBall) {
-        lv_label_set_text(caption_, "GRAVITY BALL");
-        lv_label_set_text(hint_, "Inclina CHIPO para mover la pelota");
+        lv_label_set_text(caption_, "GRAVITYSPHERE");
+        lv_label_set_text(hint_, "Mantén la placa nivelada · calibrando 0%");
         gravity_x_ = gravity_y_ = gravity_vx_ = gravity_vy_ = 0.0f;
+        gravity_calibration_count_ = gravity_calibration_attempts_ = 0;
+        gravity_calibration_sum_x_ = gravity_calibration_sum_y_ = 0.0f;
+        gravity_calibration_min_x_ = gravity_calibration_min_y_ = 0.0f;
+        gravity_calibration_max_x_ = gravity_calibration_max_y_ = 0.0f;
+        gravity_bias_x_ = gravity_bias_y_ = 0.0f;
+        gravity_calibration_progress_ = 0;
+        gravity_calibrated_ = false;
         lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, 0, 0);
     } else if (tool == Tool::Horizon) {
         lv_label_set_text(caption_, "HORIZONTE ARTIFICIAL");
@@ -401,6 +411,38 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
     if (!running_) return;
     if (!have_accel_) { ax_ = s.x; ay_ = s.y; az_ = s.z; have_accel_ = true; }
     else { ax_ += (s.x - ax_) * 0.25f; ay_ += (s.y - ay_) * 0.25f; az_ += (s.z - az_) * 0.25f; }
+    if (tool_ == Tool::GravityBall && !gravity_calibrated_) {
+        const float sx = s.x * 9.80665f, sy = s.y * 9.80665f;
+        if (gravity_calibration_count_ == 0) {
+            gravity_calibration_min_x_ = gravity_calibration_max_x_ = sx;
+            gravity_calibration_min_y_ = gravity_calibration_max_y_ = sy;
+        } else {
+            gravity_calibration_min_x_ = std::min(gravity_calibration_min_x_, sx);
+            gravity_calibration_max_x_ = std::max(gravity_calibration_max_x_, sx);
+            gravity_calibration_min_y_ = std::min(gravity_calibration_min_y_, sy);
+            gravity_calibration_max_y_ = std::max(gravity_calibration_max_y_, sy);
+        }
+        gravity_calibration_sum_x_ += sx;
+        gravity_calibration_sum_y_ += sy;
+        ++gravity_calibration_count_;
+        gravity_calibration_progress_ = gravity_calibration_count_ * 100 / 200;
+        if (gravity_calibration_count_ >= 200) {
+            const float mean_x = gravity_calibration_sum_x_ / gravity_calibration_count_;
+            const float mean_y = gravity_calibration_sum_y_ / gravity_calibration_count_;
+            const bool stable = gravity_calibration_max_x_ - gravity_calibration_min_x_ <= 0.1f &&
+                                gravity_calibration_max_y_ - gravity_calibration_min_y_ <= 0.1f;
+            if (stable || ++gravity_calibration_attempts_ >= 5) {
+                gravity_bias_x_ = mean_x;
+                gravity_bias_y_ = mean_y;
+                gravity_calibrated_ = true;
+                gravity_calibration_progress_ = 100;
+            } else {
+                gravity_calibration_count_ = 0;
+                gravity_calibration_sum_x_ = gravity_calibration_sum_y_ = 0.0f;
+                gravity_calibration_progress_ = 0;
+            }
+        }
+    }
     if (tool_ == Tool::Level && level_calibrating_) {
         if (level_calibration_count_ == 0) {
             level_calibration_min_x_ = level_calibration_max_x_ = s.x;
@@ -604,6 +646,13 @@ void ChipoTools::RootEvent(lv_event_t* e) {
         self->level_calibrated_ = true;
         self->bubble_x_ = self->bubble_y_ = 0.0f;
         if (self->hooks_.notify) self->hooks_.notify("Nivel calibrado");
+    } else if (self->tool_ == Tool::GravityBall) {
+        self->gravity_calibration_count_ = self->gravity_calibration_attempts_ = 0;
+        self->gravity_calibration_sum_x_ = self->gravity_calibration_sum_y_ = 0.0f;
+        self->gravity_calibration_progress_ = 0;
+        self->gravity_calibrated_ = false;
+        self->gravity_x_ = self->gravity_y_ = 0.0f;
+        if (self->hooks_.notify) self->hooks_.notify("Recalibrando Gravitysphere");
     } else if (self->tool_ == Tool::Horizon && self->have_accel_) {
         const float mag = std::sqrt(self->ax_ * self->ax_ + self->ay_ * self->ay_ + self->az_ * self->az_);
         if (mag > 0.5f && mag < 1.6f) {
@@ -755,16 +804,31 @@ void ChipoTools::UpdateLevel(uint32_t) {
 
 void ChipoTools::UpdateGravityBall(uint32_t) {
     if (!gravity_ball_dot_ || !have_accel_) return;
-    const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
-    if (mag < 0.55f || mag > 1.55f) return;
-    const float limit = static_cast<float>(std::min(w_, h_) - 104 - w_ / 9) / 2.0f;
-    const float tx = std::clamp(ax_ / mag, -1.0f, 1.0f) * limit;
-    const float ty = std::clamp(ay_ / mag, -1.0f, 1.0f) * limit;
-    gravity_vx_ = (gravity_vx_ + (tx - gravity_x_) * 0.10f) * 0.82f;
-    gravity_vy_ = (gravity_vy_ + (ty - gravity_y_) * 0.10f) * 0.82f;
-    gravity_x_ = std::clamp(gravity_x_ + gravity_vx_, -limit, limit);
-    gravity_y_ = std::clamp(gravity_y_ + gravity_vy_, -limit, limit);
-    lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, static_cast<int>(std::lround(gravity_x_)), static_cast<int>(std::lround(gravity_y_)));
+    if (!gravity_calibrated_) {
+        char progress[64];
+        std::snprintf(progress, sizeof progress, "Mantén la placa nivelada\\nCalibrando %d%%", gravity_calibration_progress_);
+        lv_label_set_text(hint_, progress);
+        return;
+    }
+    // Waveshare Gravitysphere worker math; CHIPO samples are in g, upstream QMI8658 is configured in m/s².
+    float accel_x = ax_ * 9.80665f - gravity_bias_x_;
+    float accel_y = ay_ * 9.80665f - gravity_bias_y_;
+    if (std::fabs(accel_x) < 0.05f) accel_x = 0.0f;
+    if (std::fabs(accel_y) < 0.05f) accel_y = 0.0f;
+    int x = static_cast<int>(std::lround(gravity_x_)) - static_cast<int>(accel_y * 8.0f);
+    int y = static_cast<int>(std::lround(gravity_y_)) + static_cast<int>(accel_x * 8.0f);
+    const int radius = std::max(1, std::min(w_, h_) / 2 - 22 - 18);
+    const int64_t distance_squared = static_cast<int64_t>(x) * x + static_cast<int64_t>(y) * y;
+    const int64_t radius_squared = static_cast<int64_t>(radius) * radius;
+    if (distance_squared > radius_squared) {
+        const double scale = static_cast<double>(radius) / std::sqrt(static_cast<double>(distance_squared));
+        x = static_cast<int>(static_cast<double>(x) * scale);
+        y = static_cast<int>(static_cast<double>(y) * scale);
+    }
+    gravity_x_ = static_cast<float>(x);
+    gravity_y_ = static_cast<float>(y);
+    lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, x, y);
+    lv_label_set_text(hint_, "Toca la pantalla para recalibrar");
 }
 
 void ChipoTools::UpdateHorizon(uint32_t) {
