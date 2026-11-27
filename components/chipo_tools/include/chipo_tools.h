@@ -47,12 +47,12 @@ public:
     bool Start(lv_obj_t* parent, Hooks hooks);
     void Stop();
 
-    enum class Tool : uint8_t { None, Level, Ball, Canvas };
+    enum class Tool : uint8_t { None, Level, GravityBall, Horizon, Canvas };
     void Open(Tool tool);
     void Close();
     Tool tool() const { return tool_; }
     bool screen_shown() const { return tool_ != Tool::None; }
-    // Hardware user key (click): cycles none -> level -> 8-ball -> canvas -> none.
+    // GPIO18: none -> level -> Gravity Ball -> artificial horizon -> DrawPanel -> none.
     void OnKey();
 
     // Every recognised sentence. True when CHIPO answered with a sound, so the server's spoken reply must be dropped.
@@ -61,7 +61,6 @@ public:
     void OnSample(const ImuSample& sample, uint32_t now_ms);
     // The sentence CHIPO is saying (only drawn when subtitles are on).
     void ShowSubtitle(const char* text);
-    void AskBall(uint32_t now_ms);  // also reachable from a tap and from tests
     void ClearCanvas();
 
     // Touch on the canvas (also reachable from tests). Coordinates in screen pixels.
@@ -87,8 +86,8 @@ public:
         bool ring_work;
         bool level_flat, level_ok;
         float bubble_x, bubble_y, angle_deg;
-        int ball_phase;        // 0 waiting, 1 thinking, 2 answer shown
-        int ball_index;
+        float gravity_x, gravity_y;
+        float horizon_roll, horizon_pitch;
         bool subtitle_visible;
         char subtitle_text[200];
         long canvas_dots;      // pixels drawn since the canvas was cleared
@@ -107,7 +106,8 @@ private:
     void UpdateStrip(uint32_t now_ms);
     void UpdateRing(uint32_t now_ms);
     void UpdateLevel(uint32_t now_ms);
-    void UpdateBall(uint32_t now_ms);
+    void UpdateGravityBall(uint32_t now_ms);
+    void UpdateHorizon(uint32_t now_ms);
     void UpdateSubtitle(uint32_t now_ms);
     void SetOpa(lv_obj_t* obj, int opa);
     void DrawDot(int x, int y, int r);
@@ -123,7 +123,7 @@ private:
 
     const lv_font_t* font_big_ = nullptr;
     const lv_font_t* font_mid_ = nullptr;
-    const lv_font_t* font_text_ = nullptr;  // subtitles / 8-ball answers
+    const lv_font_t* font_text_ = nullptr;  // subtitles
     bool text_has_accents_ = false;
 
     // info strip
@@ -167,14 +167,15 @@ private:
     float level_zero_x_ = 0.0f, level_zero_y_ = 0.0f;
     bool level_calibrated_ = false;
     float bubble_x_ = 0, bubble_y_ = 0;
-    // 8-ball
-    lv_obj_t* ball_ = nullptr;
-    lv_obj_t* ball_disc_ = nullptr;
-    lv_obj_t* ball_eight_ = nullptr;
-    lv_obj_t* ball_answer_ = nullptr;
-    int ball_phase_ = 0;
-    int ball_index_ = -1;
-    uint32_t ball_t0_ = 0;
+    // Gravity Ball and artificial horizon (QMI8658 accelerometer)
+    lv_obj_t* gravity_ball_ = nullptr;
+    lv_obj_t* gravity_ball_track_ = nullptr;
+    lv_obj_t* horizon_canvas_ = nullptr;
+    uint16_t* horizon_px_ = nullptr;
+    float gravity_x_ = 0.0f, gravity_y_ = 0.0f;
+    float gravity_vx_ = 0.0f, gravity_vy_ = 0.0f;
+    float horizon_roll_ = 0.0f, horizon_pitch_ = 0.0f;
+    float horizon_zero_roll_ = 0.0f, horizon_zero_pitch_ = 0.0f;
     // canvas
     lv_obj_t* canvas_ = nullptr;
     lv_obj_t* canvas_close_ = nullptr;
