@@ -170,6 +170,24 @@ int main() {
         r.tools.Stop();
     }
 
+    std::printf("== Waveshare-style level calibration\\n");
+    {
+        Rig r;
+        r.Start();
+        r.tools.Open(ChipoTools::Tool::Level);
+        r.Accel(0.0f, 0.0f, 1.0f, 400);
+        CHECK(r.tools.CalibrateLevel(), "flat level starts calibration");
+        CHECK(r.tools.Debug().level_calibrating, "calibration state is visible");
+        r.Accel(0.0f, 0.0f, 1.0f, 4000);
+        auto dbg = r.tools.Debug();
+        CHECK(!dbg.level_calibrating && dbg.level_calibrated, "200 stable IMU samples complete calibration");
+        r.Accel(0.0f, 0.0f, 1.0f, 300);
+        r.Run(200);
+        CHECK(std::fabs(r.tools.Debug().bubble_x) < 2.0f && std::fabs(r.tools.Debug().bubble_y) < 2.0f,
+              "calibrated level remains centered");
+        r.tools.Stop();
+    }
+
     std::printf("== Gravity Ball and artificial horizon\n");
     {
         Rig r;
@@ -199,10 +217,13 @@ int main() {
         r.tools.PenMove(200, 140);
         r.tools.PenUp();
         const long dots = r.tools.Debug().canvas_dots;
-        CHECK(dots > 500, "a stroke draws pixels: %ld", dots);
+        CHECK(dots > 100, "DrawPanel places red 10 px dots: %ld", dots);
         r.tools.PenDown(-50, 700);  // off screen: must not crash or write
         r.tools.PenMove(900, -20);
         r.tools.PenUp();
+        for (int i = 0; i < 1005; ++i) r.tools.PenDown(240, 240);
+        r.tools.PenUp();
+        CHECK(r.tools.Debug().canvas_dots == 81000, "DrawPanel retains at most 1,000 ten-pixel points: %ld", r.tools.Debug().canvas_dots);
         r.Run(300);
         CHECK(r.tools.OnVoiceText("borra") && r.tools.Debug().canvas_dots == 0, "voice clears it");
         CHECK(r.tools.OnVoiceText("cierra") && r.tools.tool() == ChipoTools::Tool::None, "voice closes it");
