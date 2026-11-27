@@ -31,7 +31,56 @@ def replace_once(path: Path, old: str, new: str, label: str):
     path.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
     print(f"[patched] {label}")
 
+# CHIPO owns the active WeChat-style UI used by this build (CONFIG_USE_WECHAT_MESSAGE_STYLE=y).
+# The old patch hit the alternate legacy SetupUI() below #else, which is not compiled on this board.
+lcd_display_cc = main / "display" / "lcd_display.cc"
+replace_once(
+    lcd_display_cc,
+    "    lv_obj_center(low_battery_label_);\n"
+    "    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);\n\n"
+    "    emoji_image_ = lv_img_create(screen);\n"
+    "    lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0,\n"
+    "                 text_font->line_height + lvgl_theme->spacing(8));\n"
+    "    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);\n\n"
+    "    // Display AI logo while booting\n"
+    "    emoji_label_ = lv_label_create(screen);\n"
+    "    lv_obj_center(emoji_label_);\n"
+    "    lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);\n"
+    "    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);\n"
+    "    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);\n",
+    "    lv_obj_center(low_battery_label_);\n"
+    "    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);\n\n"
+    "    emoji_image_ = lv_img_create(screen);\n"
+    "    lv_obj_align(emoji_image_, LV_ALIGN_TOP_MID, 0,\n"
+    "                 text_font->line_height + lvgl_theme->spacing(8));\n"
+    "    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);\n\n"
+    "    // Display AI logo while booting (suppressed: CHIPO owns the display)\n"
+    "    emoji_label_ = lv_label_create(screen);\n"
+    "    lv_obj_center(emoji_label_);\n"
+    "    lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);\n"
+    "    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);\n"
+    "    lv_label_set_text(emoji_label_, MATERIAL_SYMBOLS_ROBOT_2);\n"
+    "    // CHIPO-only display: black AMOLED root and hide every XiaoZhi root layer.\n"
+    "    lv_obj_set_style_bg_color(screen, lv_color_hex(0x000000), LV_PART_MAIN);\n"
+    "    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);\n"
+    "    lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);\n"
+    "    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);\n"
+    "    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);\n"
+    "    lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);\n",
+    "Replace the compiled XiaoZhi WeChat screen with CHIPO black canvas",
+)
+replace_once(
+    lcd_display_cc,
+    "bool LcdDisplay::SetEmotion(const char* emotion) {\n",
+    "bool LcdDisplay::SetEmotion(const char* emotion) {\n"
+    "    // CHIPO draws its own eyes and mouth; never display XiaoZhi emoji or robot faces.\n"
+    "    (void)emotion;\n"
+    "    return true;\n",
+    "Disable XiaoZhi emotion artwork in CHIPO mode",
+)
+
 for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings", "chipo_tools", "chipo_boot"):
+
     component_src = chipo / "components" / component
     component_dst = xiaozhi / "components" / component
     if component_dst.exists():
@@ -1146,7 +1195,7 @@ replace_once(
 """,
     "Ignore firmware offered by the XiaoZhi OTA server",
 )
-# --- CHIPO display defaults: white/light theme and 90-degree counter-clockwise orientation -----------------------
+# --- CHIPO display defaults: black CHIPO canvas and 90-degree counter-clockwise orientation ----------------------
 board_config = main / "boards" / "waveshare" / "esp32-s3-touch-amoled-2.16" / "config.h"
 replace_once(
     board_config,
@@ -1177,9 +1226,9 @@ replace_once(
     """    Settings settings("display", false);
     std::string theme_name = settings.GetString("theme", "light");
     current_theme_ = LvglThemeManager::GetInstance().GetTheme(theme_name);""",
-    """    // CHIPO uses the light theme: white background with dark, readable interface elements.
-    // Do not inherit a previously saved dark-theme preference on this dedicated device.
-    current_theme_ = LvglThemeManager::GetInstance().GetTheme("light");""",
+    """    // CHIPO uses the dark theme; the active LVGL root is explicitly forced to opaque pure black in SetupUI().
+    // Do not inherit a previously saved light-theme preference on this dedicated device.
+    current_theme_ = LvglThemeManager::GetInstance().GetTheme("dark");""",
     "CHIPO: force the white light theme for the complete XiaoZhi interface",
 )
 
