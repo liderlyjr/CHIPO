@@ -1,6 +1,6 @@
-CHIPO_OS_VERSION=0.6.6
+CHIPO_OS_VERSION=0.6.7
 TARGET=esp32s3
 BOARD=esp32-s3-touch-amoled-2.16
 SDK_MIN=6.0.1
 SDK_RECOMMENDED=release/v6.1
-STATUS=host-tested-firmware-build-checked-by-actions-not-run-on-board
+STATUS=firmware-build-pending-host-tests-pending-not-run-on-board
