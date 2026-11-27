@@ -36,7 +36,7 @@ LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mi
     const float mag = std::sqrt(ax * ax + ay * ay + az * az);
     if (mag < 0.5f || mag > 1.6f) return r;  // moving: the reading is not gravity
     const float nz = std::fabs(az) / mag;
-    r.flat = nz > 0.94f;                    // within ~20 degrees of lying flat
+    r.flat = nz > std::cos(kLevelMaxTiltDeg * 0.0174533f); // accept up to 35 degrees from horizontal
     const float in_plane = std::sqrt(ax * ax + ay * ay) / mag;
     r.angle_deg = std::asin(in_plane > 1.0f ? 1.0f : in_plane) * 57.29578f;
     if (!r.flat) return r;
