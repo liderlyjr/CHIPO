@@ -1,6 +1,9 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <algorithm>
+#include <cstdlib>
+#include <vector>
 
 #include "chipo_tools_logic.h"
 
@@ -142,6 +145,37 @@ int main() {
         h = HorizonFromAccel(-std::sin(p), 0.0f, std::cos(p), 0.0f, 0.0f);
         CHECK(h.valid && std::fabs(h.pitch_deg - 12.0f) < 0.1f,
               "pitch should follow sensor X, got %f", h.pitch_deg);
+    }
+
+    // ---- horizon renderer: spans must give the same picture as the old per-pixel formula ----
+    {
+        const int W = 480, H = 480;
+        const uint16_t sky = 0x1111, earth = 0x2222, white = 0x3333, mark = 0x4444;
+        std::vector<uint16_t> fast(W * H), ref(W * H);
+        const float rolls[] = {0.0f, 0.00005f, 3.0f, -17.0f, 45.0f, -45.0f, 89.9f, 90.0f, -90.0f, 135.0f, 179.0f, -179.0f, 180.0f};
+        const float pitches[] = {0.0f, 8.0f, -12.5f, 40.0f, -60.0f};
+        int worst = 0;
+        for (float roll : rolls) for (float pitch : pitches) {
+            HorizonRender(fast.data(), W, H, roll, pitch, sky, earth, white, mark);
+            const float rad = roll * 0.0174532925f, sn = std::sin(rad), cs = std::cos(rad), pp = pitch * 5.0f;
+            for (int y = 0; y < H; ++y) for (int x = 0; x < W; ++x) {
+                const float dx = static_cast<float>(x - W / 2), dy = static_cast<float>(y - H / 2);
+                const float d = -dx * sn + dy * cs + pp;
+                uint16_t c = d >= 0.0f ? earth : sky;
+                if (std::fabs(d) < 1.4f) c = white;
+                const int rx = std::abs(x - W / 2), ry = std::abs(y - H / 2);
+                if ((ry <= 2 && rx >= 30 && rx <= 88) || (rx <= 2 && ry <= 14)) c = mark;
+                ref[y * W + x] = c;
+            }
+            int diff = 0;
+            for (int i = 0; i < W * H; ++i) diff += fast[i] != ref[i];
+            worst = std::max(worst, diff);
+            CHECK(diff < 700, "horizon roll %.1f pitch %.1f: %d pixels differ", roll, pitch, diff);
+        }
+        std::printf("   horizon renderer: worst difference %d of %d pixels (edge rounding only)\n", worst, W * H);
+        HorizonRender(nullptr, W, H, 0, 0, sky, earth, white, mark);  // must not crash
+        std::vector<uint16_t> tiny(7 * 5);
+        HorizonRender(tiny.data(), 7, 5, 33.0f, 1.0f, sky, earth, white, mark);  // odd width, tiny buffer
     }
 
     // ---- text ----

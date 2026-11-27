@@ -37,3 +37,12 @@ Referencia de la placa 2.16: [ejemplo QMI8658 de Waveshare](https://github.com/w
 - La rama no se ha fusionado a `main`; no se ha publicado una Release 0.7.0.
 - La 0.6.9 y su Release permanecen intactas.
 - La PR sigue en Draft hasta cerrar los pendientes y validar en hardware.
+
+
+## 0.7.1 — fluidez (27-11-2026)
+
+La 0.7.0 ya está publicada, y CHIPO solo instala versiones **mayores**, así que la corrección sale como 0.7.1.
+
+- **Horizonte artificial:** antes recalculaba los 230 400 píxeles con coma flotante 20 veces por segundo y volcaba la pantalla entera cada vez. Ahora se dibuja por tramos de fila (`HorizonRender`, en `chipo_tools_logic.cpp`) y no se redibuja si el ángulo cambia menos de 0,15°. Un test compara el resultado con la fórmula antigua píxel a píxel: 0 diferencias en 65 combinaciones de giro e inclinación.
+- **Cara bajo una herramienta:** con nivel, gravedad, horizonte o pizarra abiertos, la cara se oculta (`ChipoFace::SetCovered`). Antes seguía animándose a 25 fps debajo, y LVGL volvía a pintar esa zona cada vez. La animación y el sensor siguen funcionando, así que no se pierde nada al volver.
+- Sigue sin validarse en la placa: la fluidez real hay que medirla allí.

@@ -948,6 +948,9 @@ replace_once(
                        (chipo_buddy_ && (chipo_buddy_->screen_shown() || chipo_buddy_->desk_clock() || chipo_buddy_->bedtime())) ||
                        (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
             };
+            hooks.cover_face = [this](bool covered) {
+                if (chipo_face_) chipo_face_->SetCovered(covered);  // the tool is full screen: stop redrawing the face under it
+            };
             hooks.emotion = [this](const char* name, uint32_t ms) {
                 if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
             };

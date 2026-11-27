@@ -941,6 +941,12 @@ void ChipoFace::UpdateDots(uint32_t now_ms, bool visible) {
     }
 }
 
+void ChipoFace::SetCovered(bool covered) {
+    if (!root_) return;
+    if (covered) lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_remove_flag(root_, LV_OBJ_FLAG_HIDDEN);
+}
+
 void ChipoFace::MotionTimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoFace*>(lv_timer_get_user_data(timer));
     if (self) self->Step(lv_tick_get());

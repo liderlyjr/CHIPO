@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <initializer_list>
 #include <vector>
@@ -167,4 +168,66 @@ ToolsIntent ParseToolsCommand(const char* text, bool tool_open, bool canvas_open
         return ToolsIntent::Close;
     }
     return ToolsIntent::None;
+}
+
+// ---- Artificial horizon renderer ---------------------------------------------------------------------------------
+namespace {
+// Fills px[x0..x1] (inclusive, already clamped) using 32-bit writes where the address allows it: the buffer lives in
+// PSRAM, where fewer, wider writes are noticeably faster.
+inline void FillSpan(uint16_t* row, int x0, int x1, uint16_t c) {
+    if (x1 < x0) return;
+    int x = x0;
+    if ((reinterpret_cast<uintptr_t>(row + x) & 3u) != 0 && x <= x1) row[x++] = c;
+    const uint32_t pair = (static_cast<uint32_t>(c) << 16) | c;
+    for (; x + 1 <= x1; x += 2) *reinterpret_cast<uint32_t*>(row + x) = pair;
+    if (x <= x1) row[x] = c;
+}
+inline int ClampX(float v, int w) {  // float -> column in [-1, w], safe against huge values
+    if (!(v > -1.0f)) return -1;
+    if (v > static_cast<float>(w)) return w;
+    return static_cast<int>(v);
+}
+}  // namespace
+
+void HorizonRender(uint16_t* px, int w, int h, float roll_deg, float pitch_deg,
+                   uint16_t sky, uint16_t earth, uint16_t white, uint16_t mark) {
+    if (!px || w <= 0 || h <= 0) return;
+    const float rad = roll_deg * 0.0174532925f;
+    const float sn = std::sin(rad), cs = std::cos(rad);
+    const float pitch_px = pitch_deg * 5.0f;
+    const int cx = w / 2, cy = h / 2;
+    constexpr float kHalfLine = 1.4f;  // the white line is |d| < 1.4 px
+    const bool flat_row = std::fabs(sn) < 1e-4f;
+    for (int y = 0; y < h; ++y) {
+        uint16_t* row = px + static_cast<size_t>(y) * static_cast<size_t>(w);
+        const float a = static_cast<float>(y - cy) * cs + pitch_px;  // d = -dx * sn + a
+        if (flat_row) {
+            // The line is horizontal: the whole row has one colour.
+            FillSpan(row, 0, w - 1, std::fabs(a) < kHalfLine ? white : (a >= 0.0f ? earth : sky));
+        } else {
+            const float t = a / sn;                       // dx where d = 0
+            const float band = kHalfLine / std::fabs(sn);  // half width of the white line along the row
+            const float edge = static_cast<float>(cx) + t;
+            FillSpan(row, 0, w - 1, sky);
+            if (sn > 0.0f) {  // earth where dx <= t
+                const int e = std::min(ClampX(std::floor(edge), w), w - 1);
+                FillSpan(row, 0, e, earth);
+            } else {          // earth where dx >= t
+                const int s = std::max(ClampX(std::ceil(edge), w), 0);
+                FillSpan(row, s, w - 1, earth);
+            }
+            const int ws = std::max(ClampX(std::floor(edge - band) + 1.0f, w), 0);
+            const int we = std::min(ClampX(std::ceil(edge + band) - 1.0f, w), w - 1);
+            FillSpan(row, ws, we, white);
+        }
+        // Centre mark: a horizontal bar on each side and a short vertical tick.
+        const int ry = std::abs(y - cy);
+        if (ry <= 2) {
+            for (int x = std::max(cx - 88, 0); x <= std::min(cx - 30, w - 1); ++x) row[x] = mark;
+            for (int x = std::max(cx + 30, 0); x <= std::min(cx + 88, w - 1); ++x) row[x] = mark;
+        }
+        if (ry <= 14) {
+            for (int x = std::max(cx - 2, 0); x <= std::min(cx + 2, w - 1); ++x) row[x] = mark;
+        }
+    }
 }
