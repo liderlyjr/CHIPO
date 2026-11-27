@@ -172,7 +172,7 @@ private:
     bool level_calibrated_ = false;
     bool level_calibrating_ = false;
     int level_calibration_count_ = 0;
-    float level_calibration_sum_x_ = 0.0f, level_calibration_sum_y_ = 0.0f;
+    float level_calibration_sum_x_ = 0.0f, level_calibration_sum_y_ = 0.0f, level_calibration_sum_z_ = 0.0f;
     float level_calibration_min_x_ = 0.0f, level_calibration_max_x_ = 0.0f;
     float level_calibration_min_y_ = 0.0f, level_calibration_max_y_ = 0.0f;
     float bubble_x_ = 0, bubble_y_ = 0;
