@@ -189,6 +189,7 @@ private:
     float gravity_calibration_min_x_ = 0.0f, gravity_calibration_max_x_ = 0.0f;
     float gravity_calibration_min_y_ = 0.0f, gravity_calibration_max_y_ = 0.0f;
     float gravity_bias_x_ = 0.0f, gravity_bias_y_ = 0.0f;
+    float gravity_sample_x_mps2_ = 0.0f, gravity_sample_y_mps2_ = 0.0f;
     int gravity_calibration_progress_ = 0;
     bool gravity_calibrated_ = false;
     float horizon_roll_ = 0.0f, horizon_pitch_ = 0.0f;
