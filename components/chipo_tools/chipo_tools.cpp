@@ -19,6 +19,7 @@
 
 namespace {
 constexpr uint32_t kTickMs = 50;
+constexpr int kEdgeSwipePx = 40;     // vertical drag from the top strip that opens the control panel
 constexpr uint32_t kToolTickMs = 25;  // while a tool is open the screen is redrawn 40 times per second
 constexpr uint32_t kPrefetchEveryMs = 30u * 60u * 1000u;
 constexpr uint32_t kWeatherMaxAgeMs = 3u * 60u * 60u * 1000u;
@@ -179,7 +180,7 @@ void ChipoTools::Stop() {
     if (timer_) lv_timer_delete(timer_);
     timer_ = nullptr;
     Close();
-    for (lv_obj_t** o : {&time_label_, &temp_row_, &ring_, &sub_, &root_}) {
+    for (lv_obj_t** o : {&time_label_, &temp_row_, &ring_, &sub_, &edge_, &root_}) {
         if (*o) lv_obj_delete(*o);
         *o = nullptr;
     }
@@ -245,6 +246,13 @@ void ChipoTools::Build(int w, int h) {
     lv_obj_add_event_cb(root_, RootEvent, LV_EVENT_CLICKED, this);
     lv_obj_add_event_cb(root_, RootEvent, LV_EVENT_LONG_PRESSED, this);
 
+    // Invisible strip on the face, above everything else: swipe down from the top edge for the control panel.
+    edge_ = Plain(parent, w, std::max(48, h / 9));
+    lv_obj_set_pos(edge_, 0, 0);
+    lv_obj_add_flag(edge_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(edge_, EdgeEvent, LV_EVENT_PRESSED, this);
+    lv_obj_add_event_cb(edge_, EdgeEvent, LV_EVENT_PRESSING, this);
+
     caption_ = Label(root_, font_mid_, kPaleLilac);
     lv_obj_align(caption_, LV_ALIGN_TOP_MID, 0, std::max(18, side / 22));
     hint_ = Label(root_, font_mid_, kLilac);
@@ -301,11 +309,11 @@ void ChipoTools::Open(Tool tool) {
     Show(gravity_ball_, tool == Tool::GravityBall);
     Show(caption_, true);
     Show(hint_, true);
-    if (tool == Tool::Menu) {
+    if (tool == Tool::Menu || tool == Tool::Panel) {
         lv_obj_set_style_bg_color(root_, lv_color_hex(0x0B1020), 0);
         lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
-        lv_label_set_text(caption_, "APPS");
-        lv_label_set_text(hint_, "Desliza para ver más · pulsa el botón para salir");
+        lv_label_set_text(caption_, tool == Tool::Panel ? "MODOS" : "APPS");
+        lv_label_set_text(hint_, tool == Tool::Panel ? "Desliza hacia arriba para cerrar" : "Desliza para ver más · pulsa el botón para salir");
         BuildMenu();
         MenuSetPage(0);
     } else if (tool == Tool::Level) {
@@ -398,7 +406,7 @@ void ChipoTools::OnKey() {
     // One press opens the app launcher; pressing again (or from inside an app) goes back out.
     switch (tool_) {
     case Tool::None: Open(Tool::Menu); break;
-    case Tool::Menu: Close(); break;
+    case Tool::Menu: case Tool::Panel: Close(); break;
     default: Close(); Open(Tool::Menu); break;
     }
 }
@@ -417,7 +425,7 @@ void ChipoTools::Close() {
     if (menu_) {
         lv_obj_delete(menu_);
         menu_ = nullptr;
-        for (int i = 0; i < kMenuPages; ++i) menu_page_[i] = menu_dot_[i] = nullptr;
+        for (int i = 0; i < kMenuMaxPages; ++i) menu_page_[i] = menu_dot_[i] = nullptr;
     }
     pen_down_ = false; tool_ = Tool::None;
     Show(root_, false); Show(lvl_, false); Show(gravity_ball_, false);
@@ -741,42 +749,57 @@ void ChipoTools::PenUp() {
     pen_down_ = false;
 }
 
-// ---- app launcher --------------------------------------------------------------------------------------------------
+// ---- app launcher and control panel ----------------------------------------------------------------------------------
 namespace {
-struct MenuApp { const char* label; uint32_t color; };
-// Page 1: the sensor tools. Page 2: the other CHIPO apps (opened through the open_app hook).
-constexpr MenuApp kMenuApps[] = {
-    {"Nivel", 0x5CF0FF}, {"Gravedad", 0xFF6FB5}, {"Horizonte", 0x1FA9D8}, {"Pizarra", 0xFFB347},
-    {"Clima", 0x7CFF9E}, {"Ajustes", 0xC9A6FF}, {"Dados", 0xFFD166}, {"Moneda", 0xE2C8FF},
+struct GridItem { const char* label; uint32_t color; const char* id; };
+// Launcher (button): the sensor tools first, then the other CHIPO apps (opened through the open_app hook).
+constexpr GridItem kLauncherItems[] = {
+    {"Nivel", 0x5CF0FF, nullptr}, {"Gravedad", 0xFF6FB5, nullptr}, {"Horizonte", 0x1FA9D8, nullptr}, {"Pizarra", 0xFFB347, nullptr},
+    {"Clima", 0x7CFF9E, "weather"}, {"Ajustes", 0xC9A6FF, "settings"}, {"Dados", 0xFFD166, "dice"}, {"Moneda", 0xE2C8FF, "coin"},
 };
-constexpr int kMenuPerPage = 4;
+// Control panel (swipe down from the top edge): modes and screens that otherwise need a voice command.
+constexpr GridItem kPanelItems[] = {
+    {"Noche", 0x7A8CFF, "night"}, {"Drive", 0xFF6B5C, "drive"}, {"Pomodoro", 0xFFB347, "pomodoro"},
+    {"Hora", 0x5CF0FF, "clock"}, {"Timer", 0x7CFF9E, "timer"}, {"Crono", 0xFFD166, "stopwatch"},
+    {"Parar", 0xFF4F70, "stop"}, {"Visual", 0xC9A6FF, "visualizer"}, {"Acuario", 0x1FA9D8, "aquarium"},
+    {"Lava", 0xFF6FB5, "lava"}, {"Baila", 0xE2C8FF, "dance"}, {"Lluvia", 0x8FB8FF, "rain"},
+    {"Fuego", 0xFF8A3D, "fire"}, {"Ruido", 0xB0B8C8, "noise"}, {"Luz", 0xFFF2A8, "lamp"},
+};
 }  // namespace
 
 void ChipoTools::BuildMenu() {
     if (menu_) return;
+    const bool panel = tool_ == Tool::Panel;
+    const GridItem* items = panel ? kPanelItems : kLauncherItems;
+    const int count = panel ? static_cast<int>(sizeof kPanelItems / sizeof kPanelItems[0]) : static_cast<int>(sizeof kLauncherItems / sizeof kLauncherItems[0]);
+    const int cols = panel ? 3 : 2;
+    const int per_page = cols * cols;
+    menu_pages_ = (count + per_page - 1) / per_page;
+    menu_per_page_ = per_page;
     menu_ = Plain(root_, w_, h_);
     lv_obj_set_pos(menu_, 0, 0);
     lv_obj_add_flag(menu_, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(menu_, LV_OBJ_FLAG_GESTURE_BUBBLE);
     lv_obj_add_event_cb(menu_, MenuGestureEvent, LV_EVENT_GESTURE, this);
     const int side = std::min(w_, h_);
-    const int gap = side / 24;
-    const int tile = (side - 4 * gap) / 2;
-    const int left = (w_ - (2 * tile + gap)) / 2;
-    const int top = (h_ - (2 * tile + gap)) / 2;
-    for (int p = 0; p < kMenuPages; ++p) {
+    const int gap = side / (panel ? 40 : 24);
+    const int tile = (side - (cols + 2) * gap) / cols;
+    const int left = (w_ - (cols * tile + (cols - 1) * gap)) / 2;
+    const int top = (h_ - (cols * tile + (cols - 1) * gap)) / 2;
+    for (int p = 0; p < menu_pages_ && p < kMenuMaxPages; ++p) {
         menu_page_[p] = Plain(menu_, w_, h_);
         lv_obj_set_pos(menu_page_[p], 0, 0);
-        for (int i = 0; i < kMenuPerPage; ++i) {
-            const int idx = p * kMenuPerPage + i;
+        for (int i = 0; i < per_page; ++i) {
+            const int idx = p * per_page + i;
+            if (idx >= count) break;
             lv_obj_t* b = lv_obj_create(menu_page_[p]);
             lv_obj_remove_style_all(b);
             lv_obj_set_size(b, tile, tile);
-            lv_obj_set_pos(b, left + (i % 2) * (tile + gap), top + (i / 2) * (tile + gap));
+            lv_obj_set_pos(b, left + (i % cols) * (tile + gap), top + (i / cols) * (tile + gap));
             lv_obj_set_style_radius(b, tile / 5, 0);
             lv_obj_set_style_bg_color(b, lv_color_hex(0x1A2238), 0);
             lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-            lv_obj_set_style_border_color(b, lv_color_hex(kMenuApps[idx].color), 0);
+            lv_obj_set_style_border_color(b, lv_color_hex(items[idx].color), 0);
             lv_obj_set_style_border_width(b, 2, 0);
             lv_obj_set_style_border_opa(b, LV_OPA_60, 0);
             lv_obj_set_style_bg_color(b, lv_color_hex(0x2A3556), LV_STATE_PRESSED);
@@ -785,31 +808,38 @@ void ChipoTools::BuildMenu() {
             lv_obj_add_flag(b, LV_OBJ_FLAG_GESTURE_BUBBLE);
             lv_obj_add_event_cb(b, MenuTileEvent, LV_EVENT_CLICKED, this);
             lv_obj_set_user_data(b, reinterpret_cast<void*>(static_cast<intptr_t>(idx)));
-            lv_obj_t* dot = Circle(b, tile / 2, kMenuApps[idx].color, LV_OPA_COVER, kMenuApps[idx].color, 0, LV_OPA_COVER);
-            lv_obj_set_style_bg_opa(dot, LV_OPA_70, 0);
+            lv_obj_t* dot = Circle(b, tile / 2, items[idx].color, LV_OPA_70, items[idx].color, 0, LV_OPA_COVER);
             lv_obj_align(dot, LV_ALIGN_CENTER, 0, -tile / 10);
             lv_obj_t* l = Label(b, font_mid_, kPaleLilac);
-            lv_label_set_text(l, kMenuApps[idx].label);
+            lv_label_set_text(l, items[idx].label);
             lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -tile / 14);
         }
     }
-    for (int p = 0; p < kMenuPages; ++p) {
+    for (int p = 0; p < menu_pages_ && p < kMenuMaxPages; ++p) {
         menu_dot_[p] = Circle(menu_, 12, kLilac, LV_OPA_COVER, kLilac, 0, LV_OPA_COVER);
-        lv_obj_align(menu_dot_[p], LV_ALIGN_BOTTOM_MID, (p - (kMenuPages - 1) / 2.0f) * 28, -std::max(56, side / 8));
+        lv_obj_align(menu_dot_[p], LV_ALIGN_BOTTOM_MID, static_cast<int>((p - (menu_pages_ - 1) / 2.0f) * 28), -std::max(34, side / 14));
     }
     menu_cur_ = 0;
 }
 
 void ChipoTools::MenuSetPage(int page) {
     if (!menu_) return;
-    menu_cur_ = std::clamp(page, 0, kMenuPages - 1);
-    for (int p = 0; p < kMenuPages; ++p) {
+    menu_cur_ = std::clamp(page, 0, std::min(menu_pages_, kMenuMaxPages) - 1);
+    for (int p = 0; p < kMenuMaxPages; ++p) {
+        if (!menu_page_[p]) continue;
         Show(menu_page_[p], p == menu_cur_);
         if (menu_dot_[p]) lv_obj_set_style_bg_opa(menu_dot_[p], p == menu_cur_ ? LV_OPA_COVER : LV_OPA_30, 0);
     }
 }
 
 void ChipoTools::MenuLaunch(int index) {
+    if (tool_ == Tool::Panel) {
+        if (index < 0 || index >= static_cast<int>(sizeof kPanelItems / sizeof kPanelItems[0])) return;
+        const char* id = kPanelItems[index].id;
+        Close();
+        if (hooks_.run_mode) hooks_.run_mode(id);
+        return;
+    }
     switch (index) {
         case 0: Open(Tool::Level); return;
         case 1: Open(Tool::GravityBall); return;
@@ -817,27 +847,48 @@ void ChipoTools::MenuLaunch(int index) {
         case 3: Open(Tool::Canvas); return;
         default: break;
     }
-    static const char* const kIds[] = {"weather", "settings", "dice", "coin"};
-    const int k = index - kMenuPerPage;
+    if (index < 0 || index >= static_cast<int>(sizeof kLauncherItems / sizeof kLauncherItems[0])) return;
+    const char* id = kLauncherItems[index].id;
     Close();
-    if (k >= 0 && k < 4 && hooks_.open_app) hooks_.open_app(kIds[k]);
+    if (id && hooks_.open_app) hooks_.open_app(id);
 }
 
 void ChipoTools::MenuTileEvent(lv_event_t* e) {
     auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
-    if (!self || self->tool_ != Tool::Menu) return;
+    if (!self || (self->tool_ != Tool::Menu && self->tool_ != Tool::Panel)) return;
     const int idx = static_cast<int>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(static_cast<lv_obj_t*>(lv_event_get_target(e)))));
     self->MenuLaunch(idx);
 }
 
 void ChipoTools::MenuGestureEvent(lv_event_t* e) {
     auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
-    if (!self || self->tool_ != Tool::Menu) return;
+    if (!self || (self->tool_ != Tool::Menu && self->tool_ != Tool::Panel)) return;
     lv_indev_t* indev = lv_indev_active();
     if (!indev) return;
     const lv_dir_t dir = lv_indev_get_gesture_dir(indev);
     if (dir == LV_DIR_LEFT) self->MenuSetPage(self->menu_cur_ + 1);
     else if (dir == LV_DIR_RIGHT) self->MenuSetPage(self->menu_cur_ - 1);
+    else if (dir == LV_DIR_TOP && self->tool_ == Tool::Panel) self->Close();  // swipe up closes the panel, like an iPhone
+}
+
+// A strip along the top edge of the face: dragging it down opens the control panel.
+void ChipoTools::EdgeEvent(lv_event_t* e) {
+    auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
+    if (!self || self->tool_ != Tool::None) return;
+    const lv_event_code_t code = lv_event_get_code(e);
+    lv_indev_t* indev = lv_indev_active();
+    if (!indev) return;
+    if (code == LV_EVENT_PRESSED) {
+        self->edge_dy_ = 0;
+    } else if (code == LV_EVENT_PRESSING) {
+        lv_point_t v;
+        lv_indev_get_vect(indev, &v);
+        self->edge_dy_ += v.y;
+        if (self->edge_dy_ > kEdgeSwipePx) {
+            self->edge_dy_ = 0;
+            self->Open(Tool::Panel);
+        }
+    }
 }
 
 // ---- LVGL callbacks ------------------------------------------------------------------------------------------------
@@ -848,7 +899,7 @@ void ChipoTools::TimerCallback(lv_timer_t* timer) {
 
 void ChipoTools::RootEvent(lv_event_t* e) {
     auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
-    if (!self || self->tool_ == Tool::None || self->tool_ == Tool::Canvas || self->tool_ == Tool::Menu) return;
+    if (!self || self->tool_ == Tool::None || self->tool_ == Tool::Canvas || self->tool_ == Tool::Menu || self->tool_ == Tool::Panel) return;
     const uint32_t now = self->Now();
     if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
         self->last_long_ms_ = now;

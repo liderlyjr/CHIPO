@@ -965,7 +965,35 @@ replace_once(
                 else if (!strcmp(app, "coin") && chipo_fun_) chipo_fun_->StartCoin(now);
             };
             hooks.fast_sampling = [this](bool on) {
-                if (chipo_face_) chipo_face_->SetFastSampling(on);
+                // The car mode needs the fast IMU too: closing a tool must not slow it down.
+                if (chipo_face_) chipo_face_->SetFastSampling(on || (chipo_drive_ && chipo_drive_->active()));
+            };
+            hooks.run_mode = [this](const char* mode) {
+                if (!mode) return;
+                const uint32_t now = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+                auto buddy = [this](const char* phrase) { if (chipo_buddy_) chipo_buddy_->OnVoiceText(phrase); };
+                if (!strcmp(mode, "night")) buddy("buenas noches");
+                else if (!strcmp(mode, "pomodoro")) buddy("pomodoro");
+                else if (!strcmp(mode, "clock")) { if (chipo_buddy_) chipo_buddy_->SetDeskClock(true); }
+                else if (!strcmp(mode, "timer")) buddy("temporizador 5 minutos");
+                else if (!strcmp(mode, "stopwatch")) buddy("cronometro");
+                else if (!strcmp(mode, "stop")) {
+                    buddy("cancela el temporizador");
+                    if (chipo_scenes_) chipo_scenes_->Hide();
+                    if (chipo_ambient_) chipo_ambient_->OnVoiceText("apaga el sonido");
+                    if (chipo_buddy_) chipo_buddy_->SetDeskClock(false);
+                }
+                else if (!strcmp(mode, "drive")) {
+                    if (chipo_drive_) chipo_drive_->OnVoiceText(chipo_drive_->active() ? "desactiva modo conduccion" : "activa modo conduccion");
+                }
+                else if (!strcmp(mode, "visualizer")) { if (chipo_scenes_) chipo_scenes_->Show(SceneKind::Visualizer); }
+                else if (!strcmp(mode, "aquarium")) { if (chipo_scenes_) chipo_scenes_->Show(SceneKind::Aquarium); }
+                else if (!strcmp(mode, "lava")) { if (chipo_scenes_) chipo_scenes_->Show(SceneKind::Lava); }
+                else if (!strcmp(mode, "dance")) { if (chipo_scenes_) chipo_scenes_->OnVoiceText("baila"); }
+                else if (!strcmp(mode, "rain")) { if (chipo_ambient_) chipo_ambient_->OnVoiceText("pon sonido de lluvia"); }
+                else if (!strcmp(mode, "fire")) { if (chipo_ambient_) chipo_ambient_->OnVoiceText("ponme la chimenea"); }
+                else if (!strcmp(mode, "noise")) { if (chipo_ambient_) chipo_ambient_->OnVoiceText("ruido blanco"); }
+                else if (!strcmp(mode, "lamp")) { if (chipo_fun_) chipo_fun_->StartLamp(LampColor::Warm, now); }
             };
             hooks.cover_face = [this](bool covered) {
                 if (chipo_face_) chipo_face_->SetCovered(covered);  // the tool is full screen: stop redrawing the face under it

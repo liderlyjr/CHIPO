@@ -32,6 +32,7 @@ public:
         std::function<bool()> face_calm;                             // CHIPO is idle and nothing else is going on
         std::function<bool()> other_screen;                          // weather, clock, lamp, car mode... cover the face
         std::function<void(const char* app)> open_app;               // launcher: "weather", "settings", "dice", "coin"
+        std::function<void(const char* mode)> run_mode;              // control panel: "night", "drive", "pomodoro", "clock", ...
         std::function<void(bool on)> fast_sampling;                  // IMU at 50 Hz while level/gravity/horizon are open
         std::function<void(bool covered)> cover_face;                // a full-screen tool is open: hide the face under it
         std::function<void(const char* emotion, uint32_t ms)> emotion;
@@ -52,7 +53,7 @@ public:
     bool Start(lv_obj_t* parent, Hooks hooks);
     void Stop();
 
-    enum class Tool : uint8_t { None, Level, GravityBall, Horizon, Canvas, Menu };
+    enum class Tool : uint8_t { None, Level, GravityBall, Horizon, Canvas, Menu, Panel };
     void Open(Tool tool);
     void Close();
     Tool tool() const { return tool_; }
@@ -106,6 +107,7 @@ private:
     static void RootEvent(lv_event_t* e);
     static void MenuTileEvent(lv_event_t* e);
     static void MenuGestureEvent(lv_event_t* e);
+    static void EdgeEvent(lv_event_t* e);
     void BuildMenu();
     void MenuSetPage(int page);
     void MenuLaunch(int index);
@@ -185,10 +187,13 @@ private:
     float level_calibration_min_x_ = 0.0f, level_calibration_max_x_ = 0.0f;
     float level_calibration_min_y_ = 0.0f, level_calibration_max_y_ = 0.0f;
     // launcher: 2 x 2 apps per page, swipe to change page
-    static constexpr int kMenuPages = 2;
+    static constexpr int kMenuMaxPages = 3;
+    int menu_pages_ = 1, menu_per_page_ = 4;
+    lv_obj_t* edge_ = nullptr;
+    int32_t edge_dy_ = 0;
     lv_obj_t* menu_ = nullptr;
-    lv_obj_t* menu_page_[kMenuPages] = {nullptr, nullptr};
-    lv_obj_t* menu_dot_[kMenuPages] = {nullptr, nullptr};
+    lv_obj_t* menu_page_[kMenuMaxPages] = {nullptr, nullptr, nullptr};
+    lv_obj_t* menu_dot_[kMenuMaxPages] = {nullptr, nullptr, nullptr};
     int menu_cur_ = 0;
     float bubble_x_ = 0, bubble_y_ = 0;
     // Gravity Ball and artificial horizon (QMI8658 accelerometer)

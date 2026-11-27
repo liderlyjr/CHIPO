@@ -263,6 +263,21 @@ int main() {
         r.tools.Stop();
     }
 
+    std::printf("== control panel (swipe down from the top edge)\n");
+    {
+        Rig r;
+        r.Start();
+        r.tools.Open(ChipoTools::Tool::Panel);
+        CHECK(r.tools.tool() == ChipoTools::Tool::Panel, "panel opens");
+        r.tools.OnKey();
+        CHECK(r.tools.tool() == ChipoTools::Tool::None, "button closes the panel");
+        r.tools.Open(ChipoTools::Tool::Panel);
+        r.tools.Close();
+        r.tools.Open(ChipoTools::Tool::Menu);
+        r.tools.Close();
+        r.tools.Stop();
+    }
+
     std::printf("== subtitles\n");
     {
         Rig r;
