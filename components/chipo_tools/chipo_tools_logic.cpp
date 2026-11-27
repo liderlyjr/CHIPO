@@ -54,8 +54,9 @@ LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mi
 
 // ---- Gravitysphere -----------------------------------------------------------------------------------------------
 GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2) {
-    // The AMOLED's screen axes are rotated relative to the sensor axes.
-    return {-accel_x_mps2 * 8.0f, accel_y_mps2 * 8.0f};
+    // Match Waveshare Gravitysphere.cpp: x -= accelY * scale; y += accelX * scale.
+    // The AMOLED display axes are rotated relative to the QMI8658 board axes.
+    return {-accel_y_mps2 * 8.0f, accel_x_mps2 * 8.0f};
 }
 
 // ---- Text helpers ------------------------------------------------------------------------------------------------
