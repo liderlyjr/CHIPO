@@ -12,7 +12,7 @@ dados o el modo coche). Tiene:
 - **Volumen** con − y + (de 10 en 10; suena un aviso para oír el nuevo nivel). Se guarda como el volumen normal de XiaoZhi.
 - **Brillo** con − y + (de 10 en 10, nunca por debajo del 5 % para no perder la pantalla). Se guarda como permanente.
 - **Batería**: porcentaje y estado (cargando, completa, baja...). Si no hay lectura válida pone «Sin lectura» y no se inventa nada.
-- **Wi-Fi**: conectado o no, nombre de la red y calidad de la señal (según el nivel en dBm).
+- **Wi-Fi**: conectado o no, nombre de la red y calidad de la señal (según el nivel en dBm). El botón **Cambiar Wi-Fi** inicia el modo de configuración nativo de XiaoZhi/Waveshare: detiene la conexión actual y abre el punto de acceso/portal de configuración para elegir otra red e introducir su contraseña. Al terminar, XiaoZhi vuelve a intentar conectarse.
 - **Versión** de CHIPO OS.
 - **Reiniciar**: pide confirmar (el botón pasa a «Seguro?» durante 3 s); al tocarlo otra vez, reinicia.
 - **Cerrar**. También se cierra solo a los 30 s sin tocar.
@@ -41,13 +41,13 @@ cualquier otro sitio (arriba o abajo) o por voz, y un toque cierra el clima dond
 ## Detalles técnicos
 
 - Componente `components/chipo_settings` (`ChipoSettings`), con la lógica sin LVGL en `chipo_settings_logic.cpp` (probada aparte).
-- Todo lo que sabe la placa (volumen, retroiluminación, batería, reinicio) entra por funciones (`Hooks`) que conecta `scripts/integrate_chipo.py`. El Wi-Fi sale de `esp_wifi_sta_get_ap_info`.
+- Todo lo que sabe la placa (volumen, retroiluminación, batería, reinicio y cambio de Wi-Fi) entra por funciones (`Hooks`) que conecta `scripts/integrate_chipo.py`. El estado Wi-Fi sale de `esp_wifi_sta_get_ap_info`; el cambio de red reutiliza `WifiBoard::EnterWifiConfigMode()` del firmware base.
 - Sus textos son ASCII sin tildes: la fuente integrada de LVGL no tiene acentos.
 - Herramienta de capturas: `tests/host/render_settings.cpp`.
 
 ## Qué no está verificado
 
-Nada se ha probado en la placa: si la pulsación larga se siente bien en el CST9220, el ajuste real del brillo y del volumen,
+El nuevo botón de cambio de Wi-Fi aún debe probarse en la placa: confirmar que abre el portal de configuración, permite seleccionar otra red y recupera la conexión. Nada se ha probado físicamente en la placa: si la pulsación larga se siente bien en el CST9220, el ajuste real del brillo y del volumen,
 la lectura de batería del AXP2101 en esta revisión, el consumo del protector, y que la fuente de XiaoZhi muestre bien los
 avisos con tildes.
 
