@@ -47,3 +47,9 @@ La 0.7.0 ya está publicada, y CHIPO solo instala versiones **mayores**, así qu
 - **Cara bajo una herramienta:** con nivel, gravedad, horizonte o pizarra abiertos, la cara se oculta (`ChipoFace::SetCovered`). Antes seguía animándose a 25 fps debajo, y LVGL volvía a pintar esa zona cada vez. La animación y el sensor siguen funcionando, así que no se pierde nada al volver.
 - Sigue sin validarse en la placa: la fluidez real hay que medirla allí.
 - **Palabra de activación:** restaurada `cheepo`; la 0.7.0 publicada llevaba `jarvis`.
+
+## 0.7.2 — reloj, clima y tamaño de la cara (27-11-2026)
+
+- **Reloj duplicado:** aparecían dos «23:41» superpuestos: el de CHIPO y el de la barra de estado de XiaoZhi. El parche de integración deja vacío el texto de la barra de XiaoZhi y se queda solo el de CHIPO.
+- **Clima:** la ubicación por IP daba Barcelona desde Sabadell y Tarragona desde otra red. Ahora la ubicación es fija (Sabadell, 41,5463 / 2,1086) en `chipo_weather_config.h`; con `CHIPO_WEATHER_CITY ""` vuelve a la ubicación por IP.
+- **Cara más grande:** ojos y boca pasan de ~52 % a ~76 % del ancho de pantalla (escala hasta 2,6). Hay que verlo en la placa por si choca con el reloj de arriba o la temperatura de abajo.

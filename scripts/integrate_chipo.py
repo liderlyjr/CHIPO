@@ -130,6 +130,14 @@ if not chipo_version or not re.fullmatch(r"\d+\.\d+\.\d+", chipo_version):
     encoding="utf-8", newline="\n")
 print(f"[generated] chipo_version.h = {chipo_version}")
 
+# CHIPO draws its own clock strip: XiaoZhi's status bar must not print a second, misaligned HH:MM on top of it.
+replace_once(
+    main / "display" / "lvgl_display" / "lvgl_display.cc",
+    "                strftime(time_str, sizeof(time_str), \"%H:%M\", tm_now);\n                SetStatus(time_str);\n",
+    "                strftime(time_str, sizeof(time_str), \"%H:%M\", tm_now);\n                (void)time_str;\n                SetStatus(\"\");  // CHIPO TOOLS shows the clock\n",
+    "Hide XiaoZhi's duplicate status-bar clock (CHIPO shows its own)",
+)
+
 # The Waveshare AXP2101 battery monitor shares I2C with the touch controller and other devices.
 # A transient bus timeout must not become an unconditional ESP_ERROR_CHECK abort/reboot.
 i2c_device_cc = main / "boards" / "common" / "i2c_device.cc"
