@@ -272,10 +272,12 @@ void ChipoTools::Open(Tool tool) {
     Show(gravity_ball_, tool == Tool::GravityBall);
     if (tool == Tool::Level) {
         lv_label_set_text(caption_, "NIVEL");
-        lv_label_set_text(hint_, "Toca sobre una superficie plana para calibrar");
+        lv_label_set_text(hint_, "Toca para calibrar · mantén CHIPO quieto");
         have_accel_ = false;
         level_zero_x_ = level_zero_y_ = 0.0f;
         level_calibrated_ = false;
+        level_calibrating_ = false;
+        level_calibration_count_ = 0;
         bubble_x_ = bubble_y_ = 0;
     } else if (tool == Tool::GravityBall) {
         lv_label_set_text(caption_, "GRAVITY BALL");
@@ -304,7 +306,7 @@ void ChipoTools::Open(Tool tool) {
         lv_obj_move_foreground(hint_);
     } else {
         lv_label_set_text(caption_, "DRAW PANEL");
-        lv_label_set_text(hint_, "Dibuja con el dedo · cada trazo cambia de color");
+        lv_label_set_text(hint_, "Toca para dibujar · máximo 1.000 puntos");
         canvas_px_ = AllocPixels(static_cast<size_t>(w_) * static_cast<size_t>(h_));
         if (!canvas_px_) {
             if (hooks_.notify) hooks_.notify("No hay memoria para dibujar");
@@ -335,7 +337,7 @@ void ChipoTools::Open(Tool tool) {
         };
         canvas_close_ = button("Salir"); lv_obj_align(canvas_close_, LV_ALIGN_TOP_MID, 0, 8);
         canvas_clear_ = button("Borrar"); lv_obj_align(canvas_clear_, LV_ALIGN_BOTTOM_MID, 0, -8);
-        dots_ = 0; pen_down_ = false; pen_color_ = 0;
+        dots_ = 0; draw_points_count_ = 0; pen_down_ = false; pen_color_ = 0;
         lv_obj_move_foreground(canvas_close_); lv_obj_move_foreground(canvas_clear_);
     }
 }
@@ -412,6 +414,37 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
     if (!running_) return;
     if (!have_accel_) { ax_ = s.x; ay_ = s.y; az_ = s.z; have_accel_ = true; }
     else { ax_ += (s.x - ax_) * 0.25f; ay_ += (s.y - ay_) * 0.25f; az_ += (s.z - az_) * 0.25f; }
+    if (tool_ == Tool::Level && level_calibrating_) {
+        if (level_calibration_count_ == 0) {
+            level_calibration_min_x_ = level_calibration_max_x_ = s.x;
+            level_calibration_min_y_ = level_calibration_max_y_ = s.y;
+        } else {
+            level_calibration_min_x_ = std::min(level_calibration_min_x_, s.x);
+            level_calibration_max_x_ = std::max(level_calibration_max_x_, s.x);
+            level_calibration_min_y_ = std::min(level_calibration_min_y_, s.y);
+            level_calibration_max_y_ = std::max(level_calibration_max_y_, s.y);
+        }
+        level_calibration_sum_x_ += s.x;
+        level_calibration_sum_y_ += s.y;
+        ++level_calibration_count_;
+        if (level_calibration_count_ >= 200) {
+            const float range_x = level_calibration_max_x_ - level_calibration_min_x_;
+            const float range_y = level_calibration_max_y_ - level_calibration_min_y_;
+            level_calibrating_ = false;
+            if (range_x <= 0.1f && range_y <= 0.1f) {
+                const float mx = level_calibration_sum_x_ / level_calibration_count_;
+                const float my = level_calibration_sum_y_ / level_calibration_count_;
+                const float mag = std::sqrt(mx * mx + my * my + az_ * az_);
+                if (mag > 0.5f && mag < 1.6f) {
+                    level_zero_x_ = mx / mag;
+                    level_zero_y_ = my / mag;
+                    level_calibrated_ = true;
+                    bubble_x_ = bubble_y_ = 0.0f;
+                    if (hooks_.notify) hooks_.notify("Nivel calibrado");
+                } else if (hooks_.notify) hooks_.notify("Calibración no válida");
+            } else if (hooks_.notify) hooks_.notify("CHIPO se movió; vuelve a calibrar");
+        }
+    }
     if (!shake_.Feed(s.x, s.y, s.z, now_ms)) return;
     ++shakes_;
     // `now_ms` is the sensor's clock; everything else here runs on the UI clock.
@@ -696,7 +729,7 @@ void ChipoTools::UpdateRing(uint32_t now_ms) {
 void ChipoTools::UpdateLevel(uint32_t) {
     char buf[32];
     if (!have_accel_) {
-        lv_label_set_text(lvl_angle_, "");
+        lv_label_set_text(lvl_angle_, level_calibrating_ ? "Mantén CHIPO quieto" : "");
         Show(lvl_bubble_, false);
         return;
     }
@@ -716,7 +749,7 @@ void ChipoTools::UpdateLevel(uint32_t) {
     lv_obj_set_style_bg_color(lvl_bubble_, lv_color_hex(level_.level ? kGreen : kLilac), 0);
     lv_obj_set_style_border_color(lvl_target_, lv_color_hex(level_.level ? kGreen : kCyan), 0);
     if (!level_.flat) {
-        lv_label_set_text(caption_, "Ponme plano sobre la mesa");
+        lv_label_set_text(caption_, level_calibrating_ ? "CALIBRANDO..." : "Ponme plano sobre la mesa");
         lv_label_set_text(lvl_angle_, "");
     } else {
         lv_label_set_text(caption_, level_.level ? "Nivelado" : (level_calibrated_ ? "Nivel - calibrado" : "Nivel"));
@@ -795,6 +828,8 @@ ChipoTools::DebugInfo ChipoTools::Debug() const {
     d.ring_work = ring_work_;
     d.level_flat = level_.flat;
     d.level_ok = level_.level;
+    d.level_calibrating = level_calibrating_;
+    d.level_calibrated = level_calibrated_;
     d.level_calibrating = level_calibrating_;
     d.level_calibrated = level_calibrated_;
     d.bubble_x = bubble_x_;
