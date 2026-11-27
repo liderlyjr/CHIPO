@@ -74,6 +74,12 @@ This is official Waveshare source for a related board generation, not proof of b
 
 Ported the published Waveshare 2.06 Gravitysphere worker behavior into CHIPO's LVGL/sensor lifecycle: 200-sample calibration, 0.1 m/s² stability window, up to five attempts with last-window fallback, conversion from CHIPO g samples to m/s², 0.05 m/s² dead zone, original acceleration signs and scale factor 8, and circular confinement using the original 22 px ball and 18 px safety margin. The visual ball uses the upstream 44 px size, pink/orange gradient and pink glow. Touch recalibrates in place of the factory BOOT key, which CHIPO reserves for tool navigation. This is a faithful adaptation of the published 2.06 source, not yet proven identical to the 2.16 factory implementation.
 
+### Gravitysphere sampling correction (follow-up)
+
+The CHIPO adapter now advances the ball once per fresh IMU sample and uses that sample directly, matching the published 2.06 worker's data flow. Previously, calibration used raw samples but the movement step reused the UI-smoothed acceleration on every LVGL tick, which could repeatedly integrate the same reading and make movement depend on UI refresh timing. The correction leaves the smoothed stream available for CHIPO's other tools and adds a host regression test that the ball position does not continue drifting when no new sensor samples arrive.
+
+This is a source-backed improvement relative to the 2.06 Gravitysphere worker. It is not yet proof of exact 2.16 behavior, and the 2.16 caller-to-app relationship for the extracted QMI register setup still needs confirmation.
+
 ### DrawPanel
 
 The DrawPanel presentation and stroke behavior were corrected toward the published Waveshare 2.06 implementation:
