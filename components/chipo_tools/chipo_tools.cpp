@@ -726,8 +726,11 @@ void ChipoTools::UpdateLevel(uint32_t) {
     lv_obj_align(lvl_bubble_, LV_ALIGN_CENTER, static_cast<int>(std::lround(bubble_x_)), static_cast<int>(std::lround(bubble_y_)));
     lv_obj_set_style_bg_color(lvl_bubble_, lv_color_hex(level_.level ? kGreen : kLilac), 0);
     lv_obj_set_style_border_color(lvl_target_, lv_color_hex(level_.level ? kGreen : kCyan), 0);
-    if (!level_.flat) {
-        lv_label_set_text(caption_, level_calibrating_ ? "CALIBRANDO..." : "Ponme plano sobre la mesa");
+    if (level_calibrating_) {
+        lv_label_set_text(caption_, "CALIBRANDO...");
+        lv_label_set_text(lvl_angle_, "Mantén CHIPO quieto");
+    } else if (!level_.flat) {
+        lv_label_set_text(caption_, "Ponme plano sobre la mesa");
         lv_label_set_text(lvl_angle_, "");
     } else {
         lv_label_set_text(caption_, level_.level ? "Nivelado" : (level_calibrated_ ? "Nivel - calibrado" : "Nivel"));
