@@ -110,11 +110,11 @@ int main() {
     // ---- Gravitysphere axis mapping ----
     {
         GravityBallDelta d = GravityBallFromAccel(0.0f, 1.0f);
-        CHECK(std::fabs(d.x) < 1e-5f && std::fabs(d.y - 8.0f) < 1e-5f,
-              "Y sensor tilt must move vertically, got (%f,%f)", d.x, d.y);
-        d = GravityBallFromAccel(1.0f, 0.0f);
         CHECK(std::fabs(d.x + 8.0f) < 1e-5f && std::fabs(d.y) < 1e-5f,
-              "X sensor tilt must move horizontally, got (%f,%f)", d.x, d.y);
+              "Y sensor tilt must move horizontally (Waveshare mapping), got (%f,%f)", d.x, d.y);
+        d = GravityBallFromAccel(1.0f, 0.0f);
+        CHECK(std::fabs(d.x) < 1e-5f && std::fabs(d.y - 8.0f) < 1e-5f,
+              "X sensor tilt must move vertically (Waveshare mapping), got (%f,%f)", d.x, d.y);
         d = GravityBallFromAccel(-1.0f, -1.0f);
         CHECK(std::fabs(d.x - 8.0f) < 1e-5f && std::fabs(d.y + 8.0f) < 1e-5f,
               "negative axes must preserve direction, got (%f,%f)", d.x, d.y);
