@@ -175,11 +175,10 @@ jobs:
             p="$(find . -name "$f" | head -n1)"
             [ -n "$p" ] && FILES+=("$p")
           done
-          # --prerelease: GitHub's /releases/latest (what CHIPO asks) ignores pre-releases, so no board installs this
-          # until you promote it by hand: Releases > Edit > "Set as the latest release". Do it only after testing it
-          # on a board.
+          # Publish as the stable latest release only after host tests and firmware build succeeded.
+          # This job depends on build, which depends on host-tests; any failure blocks publication.
           gh release create "$TAG" "${FILES[@]}" \
-            --prerelease \
+            --latest \
             --target "$GITHUB_SHA" \
             --title "CHIPO OS $VERSION" \
-            --notes "Firmware CHIPO OS $VERSION for the Waveshare ESP32-S3 Touch AMOLED 2.16 (480x480). CHIPO installs this by itself when it finds it (see docs/CHIPO_UPDATE.md). First flash on a new board: use all the files, as in the README. Pre-release: not tested on a board. Promote it to \"latest\" only after testing."
+            --notes "Firmware CHIPO OS $VERSION for the Waveshare ESP32-S3 Touch AMOLED 2.16 (480x480). CHIPO installs this automatically through OTA (see docs/CHIPO_UPDATE.md). First flash on a new board: use all the files, as in the README. Published automatically only after all CI tests and firmware compilation pass."
