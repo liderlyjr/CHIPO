@@ -1,0 +1,11 @@
+Waveshare demo behavior attribution
+
+The CHIPO 0.6.8 DrawPanel interaction model and spirit-level calibration criteria are adapted from the public Waveshare ESP32-S3-Touch-AMOLED-1.75 examples:
+- firmware/brookesia/components/draw/Drawpanel.cpp
+- firmware/brookesia/components/Gravitysphere/Gravitysphere.cpp
+
+Copyright 2023-2026 Espressif Systems (Shanghai) CO LTD.
+Source repository: https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-1.75
+License: Apache License, Version 2.0. A copy is included in this directory.
+
+CHIPO adapts the interaction/calibration behavior to its own LVGL component, black AMOLED presentation, and existing QMI8658 data path. The Brookesia application framework and its separate IMU driver are not included.
