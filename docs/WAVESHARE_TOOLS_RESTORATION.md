@@ -187,3 +187,10 @@ The rendering is rasterized into CHIPO's RGB565 canvas rather than creating one 
 - The CHIPO canvas rasterizes the capsule-shaped stroke into RGB565 rather than allocating one LVGL line object per segment. This is an intentional implementation difference; the user-visible geometry and 1,000-segment FIFO are the target.
 - Corrected the Gravitysphere calibration prompt to use a real line break between the instruction and progress text.
 - The new changes are on the existing draft PR #29. CI run #238 predates these corrections; a fresh workflow run is required before treating this revision as compiled or tested.
+
+
+### CI #244 failure and correction
+
+CI #244 reached the CHIPO Tools LVGL test after the weather, update, gyro, drive, buddy, IMU lifecycle, tilt, face, fun and earlier tool checks had passed. The only reported failure was the DrawPanel FIFO test: repeated `PenDown` calls at the same coordinate were incorrectly deduplicated, so separate taps did not count as separate marks. Waveshare resets the previous-point state on every new `LV_EVENT_PRESSED`, so a new tap at the same coordinate must create another dot/segment entry.
+
+The duplicate-position guard is now applied only to consecutive `PRESSING` samples within one stroke. Separate presses at the same location are retained independently. The host test wording now describes rounded strokes and the 1,000-element FIFO (dots or segments). CI #244 itself remains failed; this correction requires a fresh run.
