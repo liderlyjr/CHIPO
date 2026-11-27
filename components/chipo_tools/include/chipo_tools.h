@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -62,6 +63,7 @@ public:
     // The sentence CHIPO is saying (only drawn when subtitles are on).
     void ShowSubtitle(const char* text);
     void ClearCanvas();
+    bool CalibrateLevel();
 
     // Touch on the canvas (also reachable from tests). Coordinates in screen pixels.
     void PenDown(int x, int y);
@@ -84,7 +86,7 @@ public:
         bool ring_visible;
         int ring_value;        // 0..1000
         bool ring_work;
-        bool level_flat, level_ok;
+        bool level_flat, level_ok, level_calibrating, level_calibrated;
         float bubble_x, bubble_y, angle_deg;
         float gravity_x, gravity_y;
         float horizon_roll, horizon_pitch;
@@ -111,6 +113,8 @@ private:
     void UpdateSubtitle(uint32_t now_ms);
     void SetOpa(lv_obj_t* obj, int opa);
     void DrawDot(int x, int y, int r);
+    void AddDrawPoint(int x, int y);
+    void RedrawCanvas();
     void DrawSegment(int x0, int y0, int x1, int y1);
     void LayoutTempRow();
 
@@ -166,6 +170,11 @@ private:
     // Manual spirit-level zero, captured by tapping the screen while it rests on a flat surface.
     float level_zero_x_ = 0.0f, level_zero_y_ = 0.0f;
     bool level_calibrated_ = false;
+    bool level_calibrating_ = false;
+    int level_calibration_count_ = 0;
+    float level_calibration_sum_x_ = 0.0f, level_calibration_sum_y_ = 0.0f;
+    float level_calibration_min_x_ = 0.0f, level_calibration_max_x_ = 0.0f;
+    float level_calibration_min_y_ = 0.0f, level_calibration_max_y_ = 0.0f;
     float bubble_x_ = 0, bubble_y_ = 0;
     // Gravity Ball and artificial horizon (QMI8658 accelerometer)
     lv_obj_t* gravity_ball_ = nullptr;
@@ -186,6 +195,8 @@ private:
     int pen_x_ = 0, pen_y_ = 0;
     int pen_color_ = 0;
     long dots_ = 0;
+    std::array<lv_point_t, 1000> draw_points_{};
+    size_t draw_points_count_ = 0;
 
     // subtitles
     lv_obj_t* sub_ = nullptr;
