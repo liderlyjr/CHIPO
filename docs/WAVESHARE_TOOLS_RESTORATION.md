@@ -85,13 +85,13 @@ This is a source-backed improvement relative to the 2.06 Gravitysphere worker. I
 The DrawPanel presentation and stroke behavior were corrected toward the published Waveshare 2.06 implementation:
 
 - white drawing canvas;
-- red, round 10 px strokes;
-- continuous joins between touch samples instead of isolated dots;
+- white drawing canvas;
+- red, round 10 px dots created once for each LVGL touch sample (`PRESSED` / `PRESSING`), without synthesizing/interpolating extra points;
 - round-screen corner clipping;
-- 1,000 retained touch points/segments;
+- at most 1,000 retained touch points, deleting the oldest point when the limit is exceeded;
 - no CHIPO-styled Salir/Borrar overlay; the tool is left through the existing hardware-key navigation.
 
-Implementation note: this is a CHIPO/LVGL port of the published 2.06 drawing behavior, not a verbatim copy of the Brookesia `Drawpanel` class. The Brookesia application lifecycle is not part of the XiaoZhi base used by CHIPO.
+Implementation note: this is a CHIPO/LVGL port of the public Waveshare DrawPanel interaction model, not a verbatim copy of the Brookesia `Drawpanel` class. The Brookesia application lifecycle is not part of the XiaoZhi base used by CHIPO.
 
 ## Reverse-engineering findings from the 2.16 factory binary (2026-11-27)
 
@@ -158,3 +158,21 @@ These findings materially narrow the sensor port: CHIPO should use the board's Q
 - No physical-device validation has been performed.
 
 Do not describe the four tools as fully restored until the original implementations have been recovered or faithfully reconstructed and tested on the 2.16 board.
+
+
+### DrawPanel source cross-check and correction (2026-11-27)
+
+A newer official Waveshare source snapshot was checked through the GitHub repository `waveshareteam/ESP32-S3-Touch-AMOLED-1.75`, file `firmware/brookesia/components/draw/Drawpanel.cpp` (blob `2cd03b9ad4cbb6c798b1b0479aeed62a3befe72a`). This is an official related-board reference, not proof that the source is identical to the closed 2.16 FactoryOnly build.
+
+That source confirms the core DrawPanel interaction:
+- white active screen;
+- fixed, non-scrollable drawing surface;
+- touch callbacks on `LV_EVENT_PRESSED` and `LV_EVENT_PRESSING`;
+- one red circular 10 px dot for each reported touch point;
+- circular clipping to the visible round display;
+- FIFO retention capped at 1,000 dots (oldest dot deleted first).
+
+The previous CHIPO port interpolated touch samples into continuous strokes. That was not faithful to this public Waveshare handler, which creates one dot per event. The port has now been corrected to store and render only the reported touch samples. Its 1,000-point eviction redraw also previously cleared the canvas to black; this is corrected to restore a white background before redrawing the retained dots.
+
+This correction aligns CHIPO with the public Waveshare DrawPanel source behavior. It does not establish that the 2.16 factory binary uses the exact same implementation; that still requires comparison against the Drawpanel routines in the extracted 2.16 app.
+
