@@ -453,11 +453,16 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
             const float mean_y = gravity_calibration_sum_y_ / gravity_calibration_count_;
             const bool stable = gravity_calibration_max_x_ - gravity_calibration_min_x_ <= 0.1f &&
                                 gravity_calibration_max_y_ - gravity_calibration_min_y_ <= 0.1f;
-            if (stable || ++gravity_calibration_attempts_ >= 5) {
+            if (stable) {
                 gravity_bias_x_ = mean_x;
                 gravity_bias_y_ = mean_y;
                 gravity_calibrated_ = true;
                 gravity_calibration_progress_ = 100;
+            } else if (++gravity_calibration_attempts_ >= 5) {
+                // Never accept a moving board as a calibration baseline.
+                gravity_calibration_failed_ = true;
+                gravity_calibration_progress_ = 0;
+                if (hooks_.notify) hooks_.notify("No pude calibrar Gravitysphere. Toca para reintentar");
             } else {
                 gravity_calibration_count_ = 0;
                 gravity_calibration_sum_x_ = gravity_calibration_sum_y_ = 0.0f;
