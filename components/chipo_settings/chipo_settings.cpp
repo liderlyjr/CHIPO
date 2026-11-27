@@ -335,6 +335,10 @@ void ChipoSettings::Press(int action) {
     case kClose:
         Close();
         break;
+    case kWifiConfig:
+        Close();
+        if (hooks_.enter_wifi_config) hooks_.enter_wifi_config();
+        return;  // provisioning changes device state; do not refresh the menu
     default:
         break;
     }
