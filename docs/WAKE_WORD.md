@@ -17,6 +17,10 @@ CHIPO sigue usando **MultiNet 7 inglés** como detector de palabra personalizada
 
 La pronunciación inglesa de «Jarvis» puede ser más compatible con el motor inglés, pero eso no garantiza que el detector la reconozca correctamente. No se ha cambiado el umbral, la ganancia del micrófono ni la ruta de audio.
 
+## Estado de versión
+
+La rama de desarrollo configura «Jarvis» como experimento. No se debe describir «Chipo» como palabra ya validada: MultiNet 7 inglés no garantiza que «Jarvis» se detecte bien con pronunciación española. La activación y la transcripción ASR son etapas distintas.
+
 ## Cómo probarlo
 
 1. Compilar e instalar el firmware generado desde la rama `release/chipo-os-0.7.0`.
