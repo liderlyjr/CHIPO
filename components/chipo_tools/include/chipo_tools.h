@@ -170,6 +170,7 @@ private:
     // Gravity Ball and artificial horizon (QMI8658 accelerometer)
     lv_obj_t* gravity_ball_ = nullptr;
     lv_obj_t* gravity_ball_track_ = nullptr;
+    lv_obj_t* gravity_ball_dot_ = nullptr;
     lv_obj_t* horizon_canvas_ = nullptr;
     uint16_t* horizon_px_ = nullptr;
     float gravity_x_ = 0.0f, gravity_y_ = 0.0f;
