@@ -7,6 +7,7 @@ Este documento separa cambios aplicados de tareas pendientes. No equivale a una 
 ## Aplicado
 
 - **DrawPanel:** se desactivaron explícitamente en el canvas las banderas LVGL de scroll, burbujeo de gestos y encadenamiento de scroll horizontal/vertical. El objetivo es impedir que el lienzo se desplace mientras se mantiene un trazo. Pendiente confirmar el comportamiento táctil en la placa.
+- **Indicador de batería/carga:** se movió del centro superior al lateral superior derecho para liberar el centro y evitar tapar el reloj/avisos. Pendiente validar visualmente en la placa.
 - **Cara de CHIPO:** se aumentó el objetivo de anchura del 58 % al 64 % del panel. Se conserva el límite de altura del 85 % para que el canvas no se salga de la pantalla. En el panel 480×480 el límite de altura hace que el aumento efectivo sea moderado (aprox. 5 %).
 - La modificación está en `components/chipo_face/chipo_face.cpp`.
 
