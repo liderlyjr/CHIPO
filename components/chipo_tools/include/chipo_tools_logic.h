@@ -51,6 +51,14 @@ struct GravityBallDelta {
 // QMI8658 axes mapped to the display orientation. Inputs are m/s^2 after rest-bias removal.
 GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2);
 
+// Accelerometer-only artificial horizon, relative to a captured neutral pose.
+struct HorizonReading {
+    bool valid = false;
+    float roll_deg = 0.0f;
+    float pitch_deg = 0.0f;
+};
+HorizonReading HorizonFromAccel(float ax_g, float ay_g, float az_g, float zero_roll_deg, float zero_pitch_deg);
+
 // ---- Text helpers ------------------------------------------------------------------------------------------------
 // Replaces accented letters by plain ones (for fonts that lack them): "Sí, sin duda" -> "Si, sin duda".
 std::string FoldAccents(const char* utf8);
