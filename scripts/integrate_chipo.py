@@ -262,7 +262,7 @@ app_cc = main / "application.cc"
 replace_once(
     app_cc,
     '#include "application.h"\n',
-    '#include "application.h"\n#include "chipo_state_map.h"\n#include "chipo_drive_voice.h"\n',
+    '#include "application.h"\n#include "wifi_board.h"\n#include "chipo_state_map.h"\n#include "chipo_drive_voice.h"\n',
     "Application source include",
 )
 replace_once(
@@ -993,7 +993,7 @@ replace_once(
                 return Board::GetInstance().GetBatteryLevel(*level, *charging, *discharging);
             };
             hooks.wifi = ChipoSettingsWifi;
-            hooks.enter_wifi_config = ChipoSettingsEnterWifiConfigMode;
+            hooks.enter_wifi_config = []() { static_cast<WifiBoard&>(Board::GetInstance()).EnterWifiConfigMode(); };
             hooks.restart = []() { esp_restart(); };
             hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
             hooks.play_clip = [this](const char* id) {
