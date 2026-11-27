@@ -6,6 +6,7 @@ Este documento separa cambios aplicados de tareas pendientes. No equivale a una 
 
 ## Aplicado
 
+- **DrawPanel:** se desactivaron explícitamente en el canvas las banderas LVGL de scroll, burbujeo de gestos y encadenamiento de scroll horizontal/vertical. El objetivo es impedir que el lienzo se desplace mientras se mantiene un trazo. Pendiente confirmar el comportamiento táctil en la placa.
 - **Cara de CHIPO:** se aumentó el objetivo de anchura del 58 % al 64 % del panel. Se conserva el límite de altura del 85 % para que el canvas no se salga de la pantalla. En el panel 480×480 el límite de altura hace que el aumento efectivo sea moderado (aprox. 5 %).
 - La modificación está en `components/chipo_face/chipo_face.cpp`.
 
@@ -21,7 +22,7 @@ Este documento separa cambios aplicados de tareas pendientes. No equivale a una 
 ## Verificación
 
 - Cambio de tamaño: commit creado en la rama de trabajo.
-- No se ha ejecutado aquí una compilación completa ESP-IDF ni la batería de pruebas host después del cambio.
+- Se han creado commits para el aumento de cara y el bloqueo de scroll del canvas; no se ha ejecutado aquí una compilación completa ESP-IDF ni la batería de pruebas host después de esos cambios.
 - No se ha probado en la placa AMOLED.
 - La versión 0.6.9 y su release no se modifican.
 - No se ha hecho merge a `main` ni publicado una release 0.7.0.
