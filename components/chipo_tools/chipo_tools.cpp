@@ -25,9 +25,6 @@ constexpr int kStripOpa = 150;   // the strip is dim on purpose: AMOLED burn-in 
 constexpr int kRingOpa = 190;
 constexpr uint32_t kLilac = 0xC9A6FF, kPaleLilac = 0xE2C8FF, kPink = 0xFF6FB5, kCyan = 0x5CF0FF;
 constexpr uint32_t kAmber = 0xFFB347, kGreen = 0x7CFF9E;
-const uint32_t kPens[] = {0xC9A6FF, 0xFF6FB5, 0x5CF0FF, 0xFFD2B0, 0x9CFFB0, 0xFFFFFF};
-constexpr int kPenCount = static_cast<int>(sizeof(kPens) / sizeof(kPens[0]));
-constexpr int kPenRadius = 4;
 
 lv_obj_t* Plain(lv_obj_t* parent, int w, int h) {
     lv_obj_t* o = lv_obj_create(parent);
@@ -337,7 +334,7 @@ void ChipoTools::Open(Tool tool) {
         };
         canvas_close_ = button("Salir"); lv_obj_align(canvas_close_, LV_ALIGN_TOP_MID, 0, 8);
         canvas_clear_ = button("Borrar"); lv_obj_align(canvas_clear_, LV_ALIGN_BOTTOM_MID, 0, -8);
-        dots_ = 0; draw_points_count_ = 0; pen_down_ = false; pen_color_ = 0;
+        dots_ = 0; draw_points_count_ = 0; pen_down_ = false;
         lv_obj_move_foreground(canvas_close_); lv_obj_move_foreground(canvas_clear_);
     }
 }
@@ -554,8 +551,6 @@ void ChipoTools::PenDown(int x, int y) {
 
 void ChipoTools::PenMove(int x, int y) {
     if (tool_ != Tool::Canvas || !pen_down_) return;
-    pen_x_ = x;
-    pen_y_ = y;
     AddDrawPoint(x, y);
 }
 
