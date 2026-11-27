@@ -913,10 +913,10 @@ void ChipoTools::UpdateGravityBall(uint32_t) {
 
 void ChipoTools::UpdateHorizon(uint32_t) {
     if (!horizon_px_ || !horizon_canvas_ || !have_accel_) return;
-    const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
-    if (mag < 0.55f || mag > 1.55f) return;
-    horizon_roll_ = std::clamp(std::atan2(ay_, az_) * 57.2957795f - horizon_zero_roll_, -89.0f, 89.0f);
-    horizon_pitch_ = std::clamp(std::atan2(-ax_, std::sqrt(ay_ * ay_ + az_ * az_)) * 57.2957795f - horizon_zero_pitch_, -45.0f, 45.0f);
+    const HorizonReading reading = HorizonFromAccel(ax_, ay_, az_, horizon_zero_roll_, horizon_zero_pitch_);
+    if (!reading.valid) return;
+    horizon_roll_ = reading.roll_deg;
+    horizon_pitch_ = reading.pitch_deg;
     const float rad = horizon_roll_ * 0.0174532925f, sn = std::sin(rad), cs = std::cos(rad);
     const float pitch_px = horizon_pitch_ * 5.0f;
     const uint16_t sky = lv_color_to_u16(lv_color_hex(0x1FA9D8));
