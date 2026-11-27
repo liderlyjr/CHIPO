@@ -38,6 +38,23 @@ This confirms the exact 2.16 factory application contains Gravitysphere and Draw
 
 The script also created `factory_strings.txt` in the user's Downloads folder. No source files have yet been reconstructed from the binary. The next reverse-engineering step is to extract the `factory` partition (flash offset `0x200000`, length `0x800000`) and inspect its code, symbols, constants, and relevant strings. No firmware has been flashed.
 
+
+### Additional factory-binary evidence supplied on 2026-11-27
+
+The user supplied the contextual string extraction around the relevant offsets. This confirms and refines the earlier scan:
+
+- Gravitysphere source-path string at full-flash offset `0x0020AB4C`, followed by `BS:Gravitysphere`, `gravitysphere`, `performLevelCalibration`, `releaseImu`, and `~Gravitysphere`.
+- Gravitysphere diagnostics explicitly mention QMI8658 initialization, accelerometer range/rate, filtering, failed reads, calibration attempts with no samples, unstable samples, and fallback to the latest calibration sample set.
+- Its calibration UI strings include `Keep the board level`, `Calibrating %d%%`, `Sensor read failed`, `Retrying...`, and `Tap the screen to recalibrate`.
+- Motion source-path string at `0x0020B038` is `./components/Motion/Motion.cpp`. Nearby strings include `readSensor`, `startSensor`, `buildUi`, `X %+.1f`, `Y %+.1f`, `PITCH`, `Level set here`, `Level reset`, `|a| %.2f g`, `ACCEL g`, `GYRO`, `Level`, and `Horizon`.
+- The Motion component also contains `Tilt to roll`, `tap to bring it back`, and `Motion sensor not found`. These are evidence of additional motion UI behavior, but do not yet establish which exact screen uses each string.
+- DrawPanel source-path string at `0x0020C1D4` is `./components/draw/Drawpanel.cpp`, followed by `BS:Drawpanel` and `Create canvas buffer failed`.
+- The binary contains mangled C++ class names `N13esp_brookesia4apps13GravitysphereE`, `N13esp_brookesia4apps9DrawpanelE`, and `N13esp_brookesia4apps6MotionE`. The Gravitysphere and Drawpanel plugin registrar symbols are also present.
+
+Interpretation: Gravitysphere and DrawPanel are separate Brookesia applications in this exact 2.16 factory build. Level and Horizon appear to be screens/features implemented inside the separate `Motion` application/component, rather than separate registered apps. This is a strong structural inference from source-path and class metadata, not a complete reconstruction of their rendering or interaction logic.
+
+No source code has been recovered from these strings alone. A disassembly/decompilation pass over the extracted 8 MiB `factory` app partition is still required to reconstruct exact behavior. The user has not flashed the image.
+
 ## Closest official source found
 
 Waveshare publishes factory firmware source for ESP32-S3-Touch-AMOLED-2.06 at commit:
