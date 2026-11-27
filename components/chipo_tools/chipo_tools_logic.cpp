@@ -59,6 +59,20 @@ GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2) {
     return {-accel_y_mps2 * 8.0f, accel_x_mps2 * 8.0f};
 }
 
+HorizonReading HorizonFromAccel(float ax_g, float ay_g, float az_g, float zero_roll_deg, float zero_pitch_deg) {
+    HorizonReading out{};
+    const float magnitude = std::sqrt(ax_g * ax_g + ay_g * ay_g + az_g * az_g);
+    if (magnitude < 0.55f || magnitude > 1.55f) return out;
+
+    const float roll = std::atan2(ay_g, az_g) * 57.2957795f;
+    const float pitch = std::atan2(-ax_g, std::sqrt(ay_g * ay_g + az_g * az_g)) * 57.2957795f;
+    // Roll is circular: crossing +180/-180 must be a small change, not a 360-degree jump.
+    out.roll_deg = std::clamp(std::remainder(roll - zero_roll_deg, 360.0f), -89.0f, 89.0f);
+    out.pitch_deg = std::clamp(pitch - zero_pitch_deg, -45.0f, 45.0f);
+    out.valid = true;
+    return out;
+}
+
 // ---- Text helpers ------------------------------------------------------------------------------------------------
 std::string FoldAccents(const char* utf8) {
     std::string out;
