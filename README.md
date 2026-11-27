@@ -28,7 +28,7 @@ La placa viene montada en su caja de 46 × 46 × 22,5 mm. Detalles, fuentes y lo
 
 - **Cara expresiva** de ojos y boca luminosos: escucha, piensa, habla, conecta, error y duerme; emociones, parpadeo y
   reacciones al movimiento (inclinar, caerse, asentir, negar, girar, marearse). [CHIPO_FACE](docs/CHIPO_FACE.md)
-- **Asistente de voz** de XiaoZhi en español; la palabra experimental configurada ahora es «Jarvis» (MultiNet 7 inglés), pendiente de prueba en placa. [WAKE_WORD](docs/WAKE_WORD.md)
+- **Asistente de voz** de XiaoZhi en español; la palabra de activación es «Chipo» (escrita `cheepo` para MultiNet 7 inglés). [WAKE_WORD](docs/WAKE_WORD.md)
 - **Clima** de Open-Meteo al preguntar por el tiempo o con un toque. [CHIPO_WEATHER](docs/CHIPO_WEATHER.md)
 - **BUDDY**: temporizador, pomodoro, cronómetro, alarma y modo dormir con reloj; tumbado de lado es un reloj de
   mesita. [CHIPO_BUDDY](docs/CHIPO_BUDDY.md)
@@ -91,7 +91,7 @@ punto de anclaje no coincide, el script se detiene en lugar de parchear a ciegas
 Solo es posible con la placa:
 
 - Que arranca y la cara se ve fluida en la pantalla de 480 × 480.
-- Micrófonos, altavoz, palabra de activación experimental «Jarvis», reconocimiento de órdenes y volumen de los sonidos.
+- Micrófonos, altavoz, palabra de activación «Chipo», reconocimiento de órdenes y volumen de los sonidos.
 - Táctil, botón GPIO18 y sentido de los ejes del QMI8658.
 - Lectura de batería, consumo y si el AXP2101 apaga la placa con el USB conectado.
 - Clima, Home Assistant y actualizaciones desde tu red.

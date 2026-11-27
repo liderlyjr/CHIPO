@@ -14,7 +14,7 @@ Este documento distingue cambios de código, pruebas automatizadas y validación
 - **Gravitysphere:** mapeo de pantalla alineado con el algoritmo público Waveshare: `x -= accelY * 8`, `y += accelX * 8`. La calibración ahora solo se acepta si las 200 muestras son estables; tras cinco intentos fallidos no adopta una referencia incorrecta y permite reintentar tocando la pantalla.
 - **Horizonte artificial:** cálculo separado en lógica pura y probado en PC. El ángulo de roll usa diferencia circular para evitar saltos de casi 360° al cruzar el límite ±180°. Las muestras fuera del rango de gravedad se descartan.
 - **DrawPanel:** el root y el canvas usan la política de superficie fija de Waveshare: sin scroll, momentum, elasticidad, encadenamiento, burbujeo de gestos/eventos ni barras de desplazamiento; se bloquea la pulsación para mantener el trazo sobre el lienzo.
-- **Palabra experimental:** la configuración actual es «Jarvis» en MultiNet 7 inglés; no está validada en la placa ni garantiza reconocimiento en español.
+- **Palabra de activación:** `cheepo` (la que funciona en la placa). «Jarvis» se revirtió en 0.7.1.
 
 ## QMI8658 — configuración documentada
 
@@ -46,3 +46,4 @@ La 0.7.0 ya está publicada, y CHIPO solo instala versiones **mayores**, así qu
 - **Horizonte artificial:** antes recalculaba los 230 400 píxeles con coma flotante 20 veces por segundo y volcaba la pantalla entera cada vez. Ahora se dibuja por tramos de fila (`HorizonRender`, en `chipo_tools_logic.cpp`) y no se redibuja si el ángulo cambia menos de 0,15°. Un test compara el resultado con la fórmula antigua píxel a píxel: 0 diferencias en 65 combinaciones de giro e inclinación.
 - **Cara bajo una herramienta:** con nivel, gravedad, horizonte o pizarra abiertos, la cara se oculta (`ChipoFace::SetCovered`). Antes seguía animándose a 25 fps debajo, y LVGL volvía a pintar esa zona cada vez. La animación y el sensor siguen funcionando, así que no se pierde nada al volver.
 - Sigue sin validarse en la placa: la fluidez real hay que medirla allí.
+- **Palabra de activación:** restaurada `cheepo`; la 0.7.0 publicada llevaba `jarvis`.
