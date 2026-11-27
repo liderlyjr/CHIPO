@@ -4,7 +4,7 @@
 
 - Hasta la versión 0.4.0 el aviso por voz estaba desactivado (XiaoZhi lo trae apagado).
 - Ahora se activa una palabra personalizada con el modelo MultiNet inglés de ESP-SR.
-  La palabra se escribe como suena: `chee po` (ajuste `CONFIG_CUSTOM_WAKE_WORD` en `scripts/integrate_chipo.py`).
+  La palabra se escribe como una sola unidad fonética: `cheepo` (ajuste `CONFIG_CUSTOM_WAKE_WORD` en `scripts/integrate_chipo.py`). Esta variante busca evitar que el detector exija separar «chi» y «po» con una pausa.
 - Sensibilidad: `CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20` (más bajo = salta con más facilidad, más falsos avisos).
 
 ## Por qué hay que probarlo
@@ -33,3 +33,11 @@ Esto explica por qué no debemos bajar el umbral a ciegas: el modelo inglés no 
 **Próxima corrección segura:** comparar variantes de grafía con el mismo umbral y con pruebas de voz reales, revisar si hay un modelo español compatible en los assets del firmware y medir activaciones falsas con silencio/ruido ambiente. Solo cambiar el modelo o el umbral después de esa comparación. La detección con BOOT confirma que la ruta manual de micrófono funciona, pero no valida el detector en reposo.
 
 El aviso `wakenet model not found` aparece porque esta configuración utiliza MultiNet como detector personalizado y no un modelo WakeNet; por sí solo no demuestra que el detector esté apagado. La prueba física de «CHIPO» sigue pendiente.
+
+
+## Prueba de pronunciación continua (27-11-2026)
+
+- Variante de prueba: `cheepo` (una sola unidad, sin espacio).
+- Se conserva MultiNet 7 inglés y el umbral 20 para aislar el cambio de grafía.
+- Objetivo: comprobar en la placa si «CHIPO» se detecta dicho de corrido, sin pausa.
+- Esta variante no está validada físicamente; comparar con `chipo` y `chi po` antes de ajustar el umbral o cambiar de modelo.
