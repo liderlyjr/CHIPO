@@ -462,6 +462,7 @@ void ChipoTools::ShowSubtitle(const char* text) {
     lv_obj_set_style_opa(sub_, LV_OPA_COVER, 0);
 }
 
+// Calibration criteria adapted from Waveshare's Gravitysphere demo (Apache-2.0, Espressif Systems).
 bool ChipoTools::CalibrateLevel() {
     if (tool_ != Tool::Level || !have_accel_) return false;
     const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
@@ -515,6 +516,7 @@ void ChipoTools::RedrawCanvas() {
     lv_obj_invalidate_area(canvas_, &area);
 }
 
+// DrawPanel interaction model adapted from Waveshare's DrawPanel demo (Apache-2.0, Espressif Systems).
 void ChipoTools::AddDrawPoint(int x, int y) {
     if (!canvas_ || !canvas_px_) return;
     constexpr int radius = 5;  // Waveshare DrawPanel uses 10 px dots.
