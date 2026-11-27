@@ -490,7 +490,6 @@ void ChipoTools::ClearCanvas() {
     lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
     dots_ = 0;
     draw_points_count_ = 0;
-    pen_color_ = 0;
 }
 
 void ChipoTools::DrawDot(int cx, int cy, int r) {
@@ -546,26 +545,10 @@ void ChipoTools::AddDrawPoint(int x, int y) {
     }
 }
 
-void ChipoTools::DrawSegment(int x0, int y0, int x1, int y1) {
-    if (!canvas_) return;
-    const int dx = x1 - x0, dy = y1 - y0;
-    const int steps = std::max(1, static_cast<int>(std::sqrt(static_cast<float>(dx * dx + dy * dy)) / 2.0f));
-    for (int i = 0; i <= steps; ++i) {
-        DrawDot(x0 + dx * i / steps, y0 + dy * i / steps, kPenRadius);
-    }
-    lv_area_t a;
-    a.x1 = std::max(0, std::min(x0, x1) - kPenRadius - 1);
-    a.y1 = std::max(0, std::min(y0, y1) - kPenRadius - 1);
-    a.x2 = std::min(w_ - 1, std::max(x0, x1) + kPenRadius + 1);
-    a.y2 = std::min(h_ - 1, std::max(y0, y1) + kPenRadius + 1);
-    lv_obj_invalidate_area(canvas_, &a);
-}
 
 void ChipoTools::PenDown(int x, int y) {
     if (tool_ != Tool::Canvas) return;
     pen_down_ = true;
-    pen_x_ = x;
-    pen_y_ = y;
     AddDrawPoint(x, y);
 }
 
@@ -579,7 +562,6 @@ void ChipoTools::PenMove(int x, int y) {
 void ChipoTools::PenUp() {
     if (!pen_down_) return;
     pen_down_ = false;
-    pen_color_ = 0;  // DrawPanel uses one red point colour
 }
 
 // ---- LVGL callbacks ------------------------------------------------------------------------------------------------
