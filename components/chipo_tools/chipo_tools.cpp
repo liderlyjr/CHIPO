@@ -210,7 +210,7 @@ void ChipoTools::Build(int w, int h) {
     lv_obj_align(sub_, LV_ALIGN_BOTTOM_MID, 0, -std::max(26, side / 16));
     lv_obj_add_flag(sub_, LV_OBJ_FLAG_HIDDEN);
 
-    // Overlay for the level / 8-ball / canvas.
+    // Overlay for the level, motion tools and DrawPanel.
     root_ = Plain(parent, w, h);
     lv_obj_set_pos(root_, 0, 0);
     lv_obj_set_style_bg_color(root_, lv_color_black(), 0);
@@ -489,6 +489,7 @@ void ChipoTools::ClearCanvas() {
     if (!canvas_) return;
     lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
     dots_ = 0;
+    draw_points_count_ = 0;
     pen_color_ = 0;
 }
 
@@ -578,7 +579,7 @@ void ChipoTools::PenMove(int x, int y) {
 void ChipoTools::PenUp() {
     if (!pen_down_) return;
     pen_down_ = false;
-    pen_color_ = (pen_color_ + 1) % kPenCount;  // every stroke gets the next colour
+    pen_color_ = 0;  // DrawPanel uses one red point colour
 }
 
 // ---- LVGL callbacks ------------------------------------------------------------------------------------------------
@@ -828,8 +829,6 @@ ChipoTools::DebugInfo ChipoTools::Debug() const {
     d.ring_work = ring_work_;
     d.level_flat = level_.flat;
     d.level_ok = level_.level;
-    d.level_calibrating = level_calibrating_;
-    d.level_calibrated = level_calibrated_;
     d.level_calibrating = level_calibrating_;
     d.level_calibrated = level_calibrated_;
     d.bubble_x = bubble_x_;
