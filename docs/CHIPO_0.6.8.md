@@ -2,7 +2,7 @@
 
 **Rama de trabajo:** `feature/0.6.8-four-tools`  
 **Base:** `main` (sin modificar)  
-**Estado de esta rama:** trabajo parcial; todavía no es firmware compilado ni publicable.
+**Estado de esta rama:** implementación de pantallas en progreso; PR #28 abierto como borrador. Aún no hay compilación verificada ni firmware publicable.
 
 ## Objetivo acordado
 
@@ -32,26 +32,30 @@ La salida de cada herramienta debe devolver el control a la pantalla principal s
 
 ## Referencias técnicas localizadas
 
-- Waveshare ESP32-S3 Touch AMOLED 1.75: componentes `Gravitysphere` y `draw/Drawpanel`, localizados como referencias para adaptar Gravity Ball y la pizarra. La placa de ese ejemplo no es la pantalla CHIPO 2.16; no se debe copiar sin adaptar resolución, dependencias y hardware.
+- Waveshare ESP32-S3 Touch AMOLED 1.75: componentes `Gravitysphere` y `draw/Drawpanel`, revisados como referencia. El repositorio declara Apache-2.0. Se adapta el comportamiento de DrawPanel (puntos rojos de 10 px, recorte circular y límite de 1.000 puntos) al buffer RGB565 negro de CHIPO; no se incorpora la app Brookesia ni sus dependencias.
 - `emwstudio/esp32-attitude`: referencia localizada para el horizonte artificial y la fusión de sensores en la variante Waveshare AMOLED 2.16. Antes de reutilizar código literal hay que verificar su licencia; si no autoriza la reutilización, implementar la lógica de forma independiente.
 - El firmware CHIPO ya contiene lectura del QMI8658 y una lógica básica de nivel. Debe aprovecharse esa ruta existente.
 
-## Cambios realmente realizados en esta rama hasta este registro
+## Cambios realizados en esta rama
 
 - Se creó la rama `feature/0.6.8-four-tools` desde `main`.
-- En `components/chipo_tools/include/chipo_tools.h` se cambió el enum de herramientas para declarar `Level`, `GravityBall`, `Horizon` y `Canvas`, retirando `Ball`; se añadieron campos de estado y declaraciones para las nuevas pantallas.
-- En `components/chipo_tools/include/chipo_tools_logic.h` se retiraron las declaraciones de la bola mágica y se añadieron intenciones de voz para Gravity Ball y horizonte.
-- En `components/chipo_tools/chipo_tools_logic.cpp` se retiró la tabla/lógica de respuestas de la bola mágica y se añadieron reconocedores de voz básicos para Gravity Ball y horizonte.
+- En `components/chipo_tools/include/chipo_tools.h` y `chipo_tools_logic.h` se definieron las herramientas `Level`, `GravityBall`, `Horizon` y `Canvas`; se retiró `Ball`/bola mágica.
+- En `components/chipo_tools/chipo_tools_logic.cpp` se eliminaron las respuestas de la bola mágica y se añadieron intenciones de voz para Gravity Ball y horizonte.
+- En `components/chipo_tools/chipo_tools.cpp` se implementó el ciclo GPIO18: Ninguna → Nivel → Gravity Ball → Horizonte → DrawPanel → Ninguna.
+- El nivel ahora permite calibración manual con 200 muestras del QMI8658 y comprueba la estabilidad de las lecturas antes de aceptar el cero. Reutiliza el flujo IMU existente.
+- DrawPanel se adaptó al estilo CHIPO: AMOLED negro, puntos rojos de 10 px, recorte circular y máximo de 1.000 puntos almacenados. No se añade la interfaz Brookesia de Waveshare.
+- Gravity Ball y horizonte artificial tienen una primera implementación LVGL basada en el acelerómetro ya disponible; todavía requieren validación de movimiento, orientación y rendimiento en el dispositivo.
+- Se añadieron pruebas host para la calibración, el límite de puntos y el ciclo GPIO18. Se abrió el PR #28 en borrador para validación.
 
-**Importante:** esos cambios son todavía parciales. En el momento de escribir este registro, el archivo de implementación `components/chipo_tools/chipo_tools.cpp` no ha sido adaptado ni guardado en esta rama. Por tanto, las cuatro aplicaciones todavía no están implementadas y el ciclo GPIO18 no está terminado.
+**Importante:** el código está guardado en la rama y el PR, pero aún no se ha confirmado una ejecución correcta de las pruebas ni una compilación ESP-IDF. No hay release ni OTA.
 
 ## Pendiente antes de considerar 0.6.8 lista
 
-- Implementar el nuevo nivel y su calibración/lectura en pantalla.
-- Integrar y adaptar DrawPanel, incluyendo táctil, borrado y salida.
-- Implementar Gravity Ball con movimiento estable y límites de pantalla.
-- Implementar el horizonte artificial con roll/pitch y una referencia visual fija.
-- Completar el ciclo GPIO18 y retirar todas las rutas, eventos, estados, textos y pruebas de la bola mágica.
+- Ejecutar las pruebas host y corregir fallos.
+- Compilar firmware ESP-IDF para la placa CHIPO y corregir errores de integración.
+- Validar en hardware la calibración del nivel, la respuesta de Gravity Ball, el roll/pitch del horizonte, el tacto y el límite de puntos de DrawPanel.
+- Ajustar el render del horizonte para no saturar CPU/PSRAM y comprobar la liberación de buffers y objetos al cambiar de herramienta.
+- Verificar que no queda ninguna ruta, evento, estado, texto o prueba de la bola mágica.
 - Revisar memoria PSRAM, liberación de buffers, temporizadores LVGL y limpieza de pantallas al cambiar de herramienta.
 - Actualizar pruebas host y ejecutar CI/compilación ESP-IDF.
 - Verificar la OTA y el comportamiento físico en la placa. Una compilación correcta no sustituye esta prueba.
