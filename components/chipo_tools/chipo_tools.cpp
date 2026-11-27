@@ -448,6 +448,30 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
             }
         }
     }
+    if (tool_ == Tool::GravityBall && gravity_calibrated_) {
+        // Waveshare's worker advances the ball once per fresh IMU sample, using the raw sample.
+        // Do not integrate the UI-smoothed ax_/ay_ on every LVGL tick: that repeats old data.
+        gravity_sample_x_mps2_ = s.x * 9.80665f;
+        gravity_sample_y_mps2_ = s.y * 9.80665f;
+        float accel_x = gravity_sample_x_mps2_ - gravity_bias_x_;
+        float accel_y = gravity_sample_y_mps2_ - gravity_bias_y_;
+        if (std::fabs(accel_x) < 0.05f) accel_x = 0.0f;
+        if (std::fabs(accel_y) < 0.05f) accel_y = 0.0f;
+
+        int x = static_cast<int>(gravity_x_) - static_cast<int>(accel_y * 8.0f);
+        int y = static_cast<int>(gravity_y_) + static_cast<int>(accel_x * 8.0f);
+        const int radius = std::max(1, std::min(w_, h_) / 2 - 22 - 18);
+        const int64_t distance_squared = static_cast<int64_t>(x) * x + static_cast<int64_t>(y) * y;
+        const int64_t radius_squared = static_cast<int64_t>(radius) * radius;
+        if (distance_squared > radius_squared) {
+            const double scale = static_cast<double>(radius) /
+                                 std::sqrt(static_cast<double>(distance_squared));
+            x = static_cast<int>(static_cast<double>(x) * scale);
+            y = static_cast<int>(static_cast<double>(y) * scale);
+        }
+        gravity_x_ = static_cast<float>(x);
+        gravity_y_ = static_cast<float>(y);
+    }
     if (tool_ == Tool::Level && level_calibrating_) {
         if (level_calibration_count_ == 0) {
             level_calibration_min_x_ = level_calibration_max_x_ = s.x;
@@ -808,31 +832,19 @@ void ChipoTools::UpdateLevel(uint32_t) {
 }
 
 void ChipoTools::UpdateGravityBall(uint32_t) {
-    if (!gravity_ball_dot_ || !have_accel_) return;
+    if (!gravity_ball_dot_) return;
     if (!gravity_calibrated_) {
         char progress[64];
         std::snprintf(progress, sizeof progress, "Mantén la placa nivelada\\nCalibrando %d%%", gravity_calibration_progress_);
         lv_label_set_text(hint_, progress);
         return;
     }
-    // Waveshare Gravitysphere worker math; CHIPO samples are in g, upstream QMI8658 is configured in m/s².
-    float accel_x = ax_ * 9.80665f - gravity_bias_x_;
-    float accel_y = ay_ * 9.80665f - gravity_bias_y_;
-    if (std::fabs(accel_x) < 0.05f) accel_x = 0.0f;
-    if (std::fabs(accel_y) < 0.05f) accel_y = 0.0f;
-    int x = static_cast<int>(std::lround(gravity_x_)) - static_cast<int>(accel_y * 8.0f);
-    int y = static_cast<int>(std::lround(gravity_y_)) + static_cast<int>(accel_x * 8.0f);
-    const int radius = std::max(1, std::min(w_, h_) / 2 - 22 - 18);
-    const int64_t distance_squared = static_cast<int64_t>(x) * x + static_cast<int64_t>(y) * y;
-    const int64_t radius_squared = static_cast<int64_t>(radius) * radius;
-    if (distance_squared > radius_squared) {
-        const double scale = static_cast<double>(radius) / std::sqrt(static_cast<double>(distance_squared));
-        x = static_cast<int>(static_cast<double>(x) * scale);
-        y = static_cast<int>(static_cast<double>(y) * scale);
-    }
-    gravity_x_ = static_cast<float>(x);
-    gravity_y_ = static_cast<float>(y);
-    lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, x, y);
+    lv_obj_align(
+        gravity_ball_dot_,
+        LV_ALIGN_CENTER,
+        static_cast<int>(gravity_x_),
+        static_cast<int>(gravity_y_)
+    );
     lv_label_set_text(hint_, "Toca la pantalla para recalibrar");
 }
 
