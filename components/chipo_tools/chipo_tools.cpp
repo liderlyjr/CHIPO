@@ -897,6 +897,10 @@ void ChipoTools::UpdateLevel(uint32_t) {
 
 void ChipoTools::UpdateGravityBall(uint32_t) {
     if (!gravity_ball_dot_) return;
+    if (gravity_calibration_failed_) {
+        lv_label_set_text(hint_, "Calibración fallida\nToca para reintentar");
+        return;
+    }
     if (!gravity_calibrated_) {
         char progress[64];
         std::snprintf(progress, sizeof progress, "Mantén la placa nivelada\nCalibrando %d%%", gravity_calibration_progress_);
