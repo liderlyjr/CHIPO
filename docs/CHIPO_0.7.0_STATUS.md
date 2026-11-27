@@ -21,11 +21,12 @@ Este documento separa cambios aplicados de tareas pendientes. No equivale a una 
 - **Pizarra DrawPanel:** el canvas tiene `CLICKABLE` y `PRESS_LOCK`, pero aún hay que revisar el scroll/gestos de los ancestros y validar que el lienzo no se desplace durante el trazo.
 - **Reposo/reloj/logo:** se identificó que el logo central es el `emoji_label_` de XiaoZhi: aunque `SetEmotion()` está anulado para CHIPO, `ShowEmotion()` podía volver a mostrar el glifo robot al limpiar mensajes. El script de integración ahora fuerza ocultar las capas `emoji_label_` y `emoji_image_` también en `ShowEmotion()`. Además, el hook que controla la hora superior ahora considera explícitamente `chipo_buddy_->desk_clock()` para no dibujar la hora de información mientras se activa el reloj lateral BUDDY. CI debe confirmar que los anclajes del script coinciden con la versión XiaoZhi fijada.
 - **Cara y estado de carga:** la cara tiene el ajuste de tamaño aplicado y el indicador de batería se movió al lateral superior derecho. Pendiente validar que no se solape con avisos OTA en pantalla real.
+- **Reconocimiento de voz / palabra de activación:** sigue pendiente validar físicamente. `scripts/integrate_chipo.py` configura ESP-SR MultiNet 7 inglés con la palabra personalizada `cheepo` y umbral 20. No existe evidencia de que esa palabra esté bien reconocida en español; no bajar el umbral a ciegas. Distinguir si falla la activación «Chipo» o si el texto reconocido aparece pero el asistente interpreta mal la orden. Consultar `docs/WAKE_WORD.md`.
 
 ## Verificación
 
 - Cambio de tamaño: commit creado en la rama de trabajo.
-- Se han creado commits para la cara, el mapeo Gravitysphere, el bloqueo de scroll del canvas y el indicador lateral. CI se está ejecutando en la PR #32; los resultados del último commit aún no están disponibles. No se ha probado físicamente en la placa. La ampliación del nivel está cubierta por tests host, pendientes de resultado de CI.
+- Se han creado commits para la cara, el mapeo Gravitysphere, el bloqueo de scroll del canvas y el indicador lateral. En CI del commit `2245005` falló el test host `mirror y`: la expectativa seguía usando la escala antigua de 10° aunque el nivel ahora usa 30°. Se corrigió la expectativa para la nueva escala en el commit `0cc2fa6`; nueva ejecución `46002431542` en cola. No se ha probado físicamente en la placa.
 - No se ha probado en la placa AMOLED.
 - La versión 0.6.9 y su release no se modifican.
 - No se ha hecho merge a `main` ni publicado una release 0.7.0.
