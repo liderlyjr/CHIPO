@@ -193,6 +193,9 @@ int main() {
         Rig r;
         r.Start();
         CHECK(r.tools.OnVoiceText("activa gravity ball") && r.tools.tool() == ChipoTools::Tool::GravityBall, "Gravity Ball opens by voice");
+        // Gravity Ball needs its 200-sample stationary calibration before we tilt it.
+        r.Accel(0.0f, 0.0f, 1.0f, 4000);
+        r.Run(100);
         r.Accel(0.4f, 0.0f, 0.9165f, 3000);
         r.Run(300);
         auto dbg = r.tools.Debug();
