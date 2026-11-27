@@ -110,7 +110,11 @@ The user's disassembly extracts `SENSOR_SIGUIENTE_3.txt` and `SENSOR_SIGUIENTE_4
 - The calibration routine previously identified at `0x4201A5E0` collects 200 samples and checks a stability tolerance of 0.1 in its internal units. A separate periodic motion update path uses a 0.05 dead zone. These thresholds are binary-derived; their exact unit interpretation is not yet proven.
 - The separate Motion component is associated with the Level/Horizon labels. Gravitysphere and DrawPanel remain separately registered applications. This is based on the factory's embedded source-path and class-name strings, not a full source recovery.
 
-These findings materially narrow the sensor port: CHIPO should use the board's QMI8658 at I2C address `0x6B`, preserve the factory register setup, and reproduce the factory's data conversion/calibration only after axis order, endian handling, filtering, and units have been cross-checked. The official Arduino QMI8658 example is a hardware/driver reference, not proof that its example settings equal the Factory 2.16 application settings.
+### Important separation from the published 2.06 Gravitysphere source
+
+The public Waveshare 2.06 `Gravitysphere.cpp` initializes QMI8658 with accelerometer range 8G, accelerometer ODR 500 Hz, m/s² units, and writes `QMI8658_CTRL5 = 0x03` for filtering. The 2.16 factory binary's low-level setup sequence above also configures CTRL2/CTRL3/CTRL7, including the gyroscope. This is a meaningful difference: the 2.16 register sequence must not automatically be treated as the exact Gravitysphere application configuration until its caller/object is linked conclusively to the Gravitysphere instance. It may be shared by the separate Motion component or a common IMU driver. Keep the 2.06 Gravitysphere app settings and the 2.16 low-level driver setup as separate evidence tracks.
+
+These findings materially narrow the sensor port: CHIPO should use the board's QMI8658 at I2C address `0x6B`. The extracted register sequence is a confirmed low-level QMI8658 configuration path, but it must not be copied into the Gravitysphere application until its caller is linked to that app rather than the separate Motion component. Reproduce data conversion/calibration only after axis order, endian handling, filtering, and units have been cross-checked. The official Arduino QMI8658 example is a hardware/driver reference, not proof that its example settings equal the Factory 2.16 application settings.
 
 ## Not yet restored / not verified
 
