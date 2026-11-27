@@ -6,6 +6,7 @@ Este documento separa cambios aplicados de tareas pendientes. No equivale a una 
 
 ## Aplicado
 
+- **Nivel:** se amplió el rango de lectura. La burbuja ahora alcanza su recorrido completo a 30° (antes 10°) y sigue mostrando ángulo/burbuja hasta 35° de inclinación respecto a la horizontal. A 40° se considera fuera del rango. Se añadieron pruebas para 10°, 30° y 40°. El umbral de nivelado (0,6°) no se modificó.
 - **Gravitysphere:** se corrigió el intercambio de ejes en `GravityBallFromAccel()` para seguir la implementación pública de Waveshare 2.06: `x -= accelY * 8` y `y += accelX * 8`. Se actualizaron los tests de mapeo. Esto resuelve el fallo concreto de CI que esperaba que la inclinación X moviese la bola en vertical.
 - **DrawPanel:** se desactivaron explícitamente en el canvas las banderas LVGL de scroll, burbujeo de gestos y encadenamiento de scroll horizontal/vertical. El objetivo es impedir que el lienzo se desplace mientras se mantiene un trazo. Pendiente confirmar el comportamiento táctil en la placa.
 - **Indicador de batería/carga:** se movió del centro superior al lateral superior derecho para liberar el centro y evitar tapar el reloj/avisos. Pendiente validar visualmente en la placa.
@@ -24,7 +25,7 @@ Este documento separa cambios aplicados de tareas pendientes. No equivale a una 
 ## Verificación
 
 - Cambio de tamaño: commit creado en la rama de trabajo.
-- Se han creado commits para la cara, el mapeo Gravitysphere, el bloqueo de scroll del canvas y el indicador lateral. CI se está ejecutando en la PR #32; los resultados del último commit aún no están disponibles. No se ha probado físicamente en la placa.
+- Se han creado commits para la cara, el mapeo Gravitysphere, el bloqueo de scroll del canvas y el indicador lateral. CI se está ejecutando en la PR #32; los resultados del último commit aún no están disponibles. No se ha probado físicamente en la placa. La ampliación del nivel está cubierta por tests host, pendientes de resultado de CI.
 - No se ha probado en la placa AMOLED.
 - La versión 0.6.9 y su release no se modifican.
 - No se ha hecho merge a `main` ni publicado una release 0.7.0.
