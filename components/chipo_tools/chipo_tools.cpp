@@ -424,15 +424,18 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
         }
         level_calibration_sum_x_ += s.x;
         level_calibration_sum_y_ += s.y;
+        level_calibration_sum_z_ += s.z;
         ++level_calibration_count_;
         if (level_calibration_count_ >= 200) {
             const float range_x = level_calibration_max_x_ - level_calibration_min_x_;
             const float range_y = level_calibration_max_y_ - level_calibration_min_y_;
             level_calibrating_ = false;
-            if (range_x <= 0.1f && range_y <= 0.1f) {
+            // Waveshare's 0.1 m/s² stability window is 0.01 g in CHIPO's normalized samples.
+            if (range_x <= 0.01f && range_y <= 0.01f) {
                 const float mx = level_calibration_sum_x_ / level_calibration_count_;
                 const float my = level_calibration_sum_y_ / level_calibration_count_;
-                const float mag = std::sqrt(mx * mx + my * my + az_ * az_);
+                const float mz = level_calibration_sum_z_ / level_calibration_count_;
+                const float mag = std::sqrt(mx * mx + my * my + mz * mz);
                 if (mag > 0.5f && mag < 1.6f) {
                     level_zero_x_ = mx / mag;
                     level_zero_y_ = my / mag;
@@ -474,7 +477,7 @@ bool ChipoTools::CalibrateLevel() {
         return false;
     }
     level_calibration_count_ = 0;
-    level_calibration_sum_x_ = level_calibration_sum_y_ = 0.0f;
+    level_calibration_sum_x_ = level_calibration_sum_y_ = level_calibration_sum_z_ = 0.0f;
     level_calibration_min_x_ = level_calibration_min_y_ = 0.0f;
     level_calibration_max_x_ = level_calibration_max_y_ = 0.0f;
     level_calibrating_ = true;
