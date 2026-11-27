@@ -52,3 +52,12 @@ Obtain the 2.16 factory application source (or a source archive from Waveshare).
 ## Validation still required
 
 Any implementation must pass the ESP-IDF firmware build and host tests, then be tested on the actual 2.16 board for sensor orientation/calibration, touch behavior, round-screen clipping, tool switching, exit/back behavior, and repeated open/close lifecycle. A successful compile alone does not prove factory equivalence or hardware behavior.
+
+
+## Follow-up reverse engineering and adapter correction (2026-11-27)
+
+The authenticated 2.16 factory binary has now been partially disassembled. The Motion/IMU path checks the QMI8658 identity byte (`0x05`) and writes the CTRL1/CTRL2/CTRL3/CTRL7 configuration values recorded in `WAVESHARE_TOOLS_RESTORATION.md`. The low-level register setup is not yet conclusively tied to the Gravitysphere instance, so it must not be copied into the Gravitysphere app as an assumed setting.
+
+The CHIPO Gravitysphere adapter was also corrected to integrate each raw accelerometer sample once, rather than repeatedly applying the latest UI-smoothed value on every LVGL tick. A host regression test covers the no-new-sample case. This follows the published 2.06 Gravitysphere worker more closely, but it does not establish exact equivalence with the 2.16 factory app.
+
+The earlier statement that no implementation changed applied to the initial audit snapshot; subsequent commits on this branch now include the sampling correction and its regression test. The branch remains a draft PR and no release/OTA or physical-device validation has occurred.
