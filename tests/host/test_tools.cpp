@@ -223,13 +223,13 @@ int main() {
         r.tools.PenMove(200, 140);
         r.tools.PenUp();
         const long dots = r.tools.Debug().canvas_dots;
-        CHECK(dots > 100, "DrawPanel places red 10 px dots: %ld", dots);
+        CHECK(dots > 100, "DrawPanel renders a rounded 10 px stroke: %ld", dots);
         r.tools.PenDown(-50, 700);  // off screen: must not crash or write
         r.tools.PenMove(900, -20);
         r.tools.PenUp();
         for (int i = 0; i < 1005; ++i) r.tools.PenDown(240, 240);
         r.tools.PenUp();
-        CHECK(r.tools.Debug().canvas_dots == 81000, "DrawPanel retains at most 1,000 ten-pixel points: %ld", r.tools.Debug().canvas_dots);
+        CHECK(r.tools.Debug().canvas_dots == 81000, "DrawPanel retains at most 1,000 drawing elements (dots or segments): %ld", r.tools.Debug().canvas_dots);
         r.Run(300);
         CHECK(r.tools.OnVoiceText("borra") && r.tools.Debug().canvas_dots == 0, "voice clears it");
         CHECK(r.tools.OnVoiceText("cierra") && r.tools.tool() == ChipoTools::Tool::None, "voice closes it");
