@@ -89,7 +89,7 @@ int main() {
         const float s = std::sin(3.0f * 0.0174533f), c = std::cos(3.0f * 0.0174533f);
         r = LevelFromAccel(s, 0, c, false, false);
         CHECK(r.flat && !r.level && std::fabs(r.angle_deg - 3.0f) < 0.05f, "3 degrees: %f", r.angle_deg);
-        CHECK(r.x > 0.25f && r.x < 0.40f && std::fabs(r.y) < 1e-4f, "bubble x %f", r.x);
+        CHECK(r.x > 0.08f && r.x < 0.12f && std::fabs(r.y) < 1e-4f, "3-degree bubble x on 30-degree scale: %f", r.x);
         LevelReading m = LevelFromAccel(s, 0, c, true, false);
         CHECK(std::fabs(m.x + r.x) < 1e-5f, "mirror x");
         m = LevelFromAccel(0, s, c, false, true);
