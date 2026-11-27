@@ -2,8 +2,6 @@
 #include <cstring>
 
 #include "esp_wifi.h"
-#include "wifi_board.h"
-#include "board.h"
 #include "chipo_settings_logic.h"
 
 bool ChipoSettingsWifi(WifiView* out) {
@@ -19,7 +17,3 @@ bool ChipoSettingsWifi(WifiView* out) {
     return true;
 }
 
-// Reuse the exact provisioning flow provided by XiaoZhi for this Waveshare board.
-void ChipoSettingsEnterWifiConfigMode() {
-    static_cast<WifiBoard&>(Board::GetInstance()).EnterWifiConfigMode();
-}
