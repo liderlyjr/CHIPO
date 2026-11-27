@@ -184,6 +184,13 @@ private:
     uint16_t* horizon_px_ = nullptr;
     float gravity_x_ = 0.0f, gravity_y_ = 0.0f;
     float gravity_vx_ = 0.0f, gravity_vy_ = 0.0f;
+    int gravity_calibration_count_ = 0, gravity_calibration_attempts_ = 0;
+    float gravity_calibration_sum_x_ = 0.0f, gravity_calibration_sum_y_ = 0.0f;
+    float gravity_calibration_min_x_ = 0.0f, gravity_calibration_max_x_ = 0.0f;
+    float gravity_calibration_min_y_ = 0.0f, gravity_calibration_max_y_ = 0.0f;
+    float gravity_bias_x_ = 0.0f, gravity_bias_y_ = 0.0f;
+    int gravity_calibration_progress_ = 0;
+    bool gravity_calibrated_ = false;
     float horizon_roll_ = 0.0f, horizon_pitch_ = 0.0f;
     float horizon_zero_roll_ = 0.0f, horizon_zero_pitch_ = 0.0f;
     // canvas
