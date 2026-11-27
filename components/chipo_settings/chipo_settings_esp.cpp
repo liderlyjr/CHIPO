@@ -16,3 +16,4 @@ bool ChipoSettingsWifi(WifiView* out) {
     out->ssid = reinterpret_cast<const char*>(ap.ssid);
     return true;
 }
+

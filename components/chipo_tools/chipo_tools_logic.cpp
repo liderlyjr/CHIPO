@@ -52,26 +52,6 @@ LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mi
     return r;
 }
 
-// ---- Magic 8-ball -------------------------------------------------------------------------------------------------
-namespace {
-struct Answer { const char* text; int mood; };
-const Answer kAnswers[] = {
-    {"Sí, sin duda", 1},          {"Todo apunta a que sí", 1}, {"Es cierto", 1},
-    {"Sí, definitivamente", 1},   {"Puedes confiar en ello", 1}, {"Probablemente sí", 1},
-    {"Las señales dicen que sí", 1}, {"Yo diría que sí", 1},   {"Buena pinta", 1},
-    {"Respuesta confusa, prueba otra vez", 0}, {"Pregúntame más tarde", 0}, {"Mejor no decírtelo ahora", 0},
-    {"No lo puedo ver ahora", 0}, {"Concéntrate y pregunta otra vez", 0},
-    {"No cuentes con ello", -1},   {"Mi respuesta es no", -1},  {"Mis fuentes dicen que no", -1},
-    {"Las señales no son buenas", -1}, {"Muy dudoso", -1},      {"Ni lo sueñes", -1},
-};
-constexpr int kAnswerCount = static_cast<int>(sizeof(kAnswers) / sizeof(kAnswers[0]));
-int Wrap(int i) { return ((i % kAnswerCount) + kAnswerCount) % kAnswerCount; }
-}  // namespace
-
-int EightBallCount() { return kAnswerCount; }
-const char* EightBallAnswer(int index) { return kAnswers[Wrap(index)].text; }
-int EightBallMood(int index) { return kAnswers[Wrap(index)].mood; }
-
 // ---- Text helpers ------------------------------------------------------------------------------------------------
 std::string FoldAccents(const char* utf8) {
     std::string out;
@@ -154,8 +134,8 @@ ToolsIntent ParseToolsCommand(const char* text, bool tool_open, bool canvas_open
         if (off_verb) return ToolsIntent::InfoOff;
         if (on_verb) return ToolsIntent::InfoOn;
     }
-    if (Has(core, {"bola"}) && Has(core, {"magica", "ocho", "8", "cristal"})) return ToolsIntent::EightBall;
-    if (Has(core, {"oraculo"})) return ToolsIntent::EightBall;
+    if (Has(core, {"horizonte"}) && Has(core, {"artificial", "modo", "pon", "activa"})) return ToolsIntent::Horizon;
+    if (Has(core, {"gravity", "gravedad"}) || (Has(core, {"pelota"}) && Has(core, {"gravedad", "inclinar"}))) return ToolsIntent::GravityBall;
     if (Has(core, {"pizarra", "lienzo", "dibujar", "dibujo", "dibuja"}) && !off_verb) return ToolsIntent::Canvas;
     if (Has(core, {"nivel", "burbuja"}) && !Has(core, {"bateria", "volumen", "brillo", "agua", "sonido", "ruido", "luz", "carga", "animo", "bateria"})) {
         if (Has(core, {"burbuja"}) || on_verb || core.size() <= 2) return ToolsIntent::Level;

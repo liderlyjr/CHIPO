@@ -26,6 +26,7 @@ public:
         std::function<void(int percent, bool permanent)> set_brightness;  // permanent: the user's own choice; not the saver
         std::function<bool(int* level, bool* charging, bool* discharging)> battery;  // false: no reading
         std::function<bool(WifiView*)> wifi;
+        std::function<void()> enter_wifi_config;      // enter XiaoZhi/Waveshare provisioning AP
         std::function<void()> restart;
         std::function<void(const char*)> notify;
         std::function<bool(const char*)> play_clip;
@@ -38,7 +39,7 @@ public:
         std::function<uint32_t()> clock;               // ms, defaults to lv_tick_get
     };
 
-    enum Action : int { kVolDown = 0, kVolUp, kBriDown, kBriUp, kRestart, kClose, kActionCount };
+    enum Action : int { kVolDown = 0, kVolUp, kBriDown, kBriUp, kRestart, kClose, kWifiConfig, kActionCount };
 
     ChipoSettings();
     ~ChipoSettings();

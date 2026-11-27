@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -12,9 +14,9 @@
  * CHIPO TOOLS: small things that make use of the square AMOLED screen.
  *   - info strip around the face: the time on top and the temperature below (only when they are known)
  *   - pomodoro ring: a ring along the edge of the screen that drains while a pomodoro period runs
- *   - spirit level (bubble) with the accelerometer, magic 8-ball (shake or tap), drawing canvas
+ *   - calibrated spirit level, Gravity Ball, artificial horizon and DrawPanel
  *   - subtitles: the sentence CHIPO is saying, in big letters (off until asked)
- *   - shake: throws the dice / flips the coin again (via the FUN component) or asks the 8-ball
+ *   - shake: throws the dice / flips the coin again (via the FUN component)
  *
  * Nothing here invents data: no clock -> no time; no weather downloaded -> no temperature.
  * All methods run on the LVGL task with the display lock held, except OnSample which only needs the same task as the
@@ -47,12 +49,12 @@ public:
     bool Start(lv_obj_t* parent, Hooks hooks);
     void Stop();
 
-    enum class Tool : uint8_t { None, Level, Ball, Canvas };
+    enum class Tool : uint8_t { None, Level, GravityBall, Horizon, Canvas };
     void Open(Tool tool);
     void Close();
     Tool tool() const { return tool_; }
     bool screen_shown() const { return tool_ != Tool::None; }
-    // Hardware user key (click): cycles none -> level -> 8-ball -> canvas -> none.
+    // GPIO18: none -> level -> Gravity Ball -> artificial horizon -> DrawPanel -> none.
     void OnKey();
 
     // Every recognised sentence. True when CHIPO answered with a sound, so the server's spoken reply must be dropped.
@@ -61,8 +63,8 @@ public:
     void OnSample(const ImuSample& sample, uint32_t now_ms);
     // The sentence CHIPO is saying (only drawn when subtitles are on).
     void ShowSubtitle(const char* text);
-    void AskBall(uint32_t now_ms);  // also reachable from a tap and from tests
     void ClearCanvas();
+    bool CalibrateLevel();
 
     // Touch on the canvas (also reachable from tests). Coordinates in screen pixels.
     void PenDown(int x, int y);
@@ -85,10 +87,10 @@ public:
         bool ring_visible;
         int ring_value;        // 0..1000
         bool ring_work;
-        bool level_flat, level_ok;
+        bool level_flat, level_ok, level_calibrating, level_calibrated;
         float bubble_x, bubble_y, angle_deg;
-        int ball_phase;        // 0 waiting, 1 thinking, 2 answer shown
-        int ball_index;
+        float gravity_x, gravity_y;
+        float horizon_roll, horizon_pitch;
         bool subtitle_visible;
         char subtitle_text[200];
         long canvas_dots;      // pixels drawn since the canvas was cleared
@@ -107,11 +109,13 @@ private:
     void UpdateStrip(uint32_t now_ms);
     void UpdateRing(uint32_t now_ms);
     void UpdateLevel(uint32_t now_ms);
-    void UpdateBall(uint32_t now_ms);
+    void UpdateGravityBall(uint32_t now_ms);
+    void UpdateHorizon(uint32_t now_ms);
     void UpdateSubtitle(uint32_t now_ms);
     void SetOpa(lv_obj_t* obj, int opa);
     void DrawDot(int x, int y, int r);
-    void DrawSegment(int x0, int y0, int x1, int y1);
+    void AddDrawPoint(int x, int y);
+    void RedrawCanvas();
     void LayoutTempRow();
 
     Hooks hooks_;
@@ -123,7 +127,7 @@ private:
 
     const lv_font_t* font_big_ = nullptr;
     const lv_font_t* font_mid_ = nullptr;
-    const lv_font_t* font_text_ = nullptr;  // subtitles / 8-ball answers
+    const lv_font_t* font_text_ = nullptr;  // subtitles
     bool text_has_accents_ = false;
 
     // info strip
@@ -166,24 +170,31 @@ private:
     // Manual spirit-level zero, captured by tapping the screen while it rests on a flat surface.
     float level_zero_x_ = 0.0f, level_zero_y_ = 0.0f;
     bool level_calibrated_ = false;
+    bool level_calibrating_ = false;
+    int level_calibration_count_ = 0;
+    float level_calibration_sum_x_ = 0.0f, level_calibration_sum_y_ = 0.0f, level_calibration_sum_z_ = 0.0f;
+    float level_calibration_min_x_ = 0.0f, level_calibration_max_x_ = 0.0f;
+    float level_calibration_min_y_ = 0.0f, level_calibration_max_y_ = 0.0f;
     float bubble_x_ = 0, bubble_y_ = 0;
-    // 8-ball
-    lv_obj_t* ball_ = nullptr;
-    lv_obj_t* ball_disc_ = nullptr;
-    lv_obj_t* ball_eight_ = nullptr;
-    lv_obj_t* ball_answer_ = nullptr;
-    int ball_phase_ = 0;
-    int ball_index_ = -1;
-    uint32_t ball_t0_ = 0;
+    // Gravity Ball and artificial horizon (QMI8658 accelerometer)
+    lv_obj_t* gravity_ball_ = nullptr;
+    lv_obj_t* gravity_ball_track_ = nullptr;
+    lv_obj_t* gravity_ball_dot_ = nullptr;
+    lv_obj_t* horizon_canvas_ = nullptr;
+    uint16_t* horizon_px_ = nullptr;
+    float gravity_x_ = 0.0f, gravity_y_ = 0.0f;
+    float gravity_vx_ = 0.0f, gravity_vy_ = 0.0f;
+    float horizon_roll_ = 0.0f, horizon_pitch_ = 0.0f;
+    float horizon_zero_roll_ = 0.0f, horizon_zero_pitch_ = 0.0f;
     // canvas
     lv_obj_t* canvas_ = nullptr;
     lv_obj_t* canvas_close_ = nullptr;
     lv_obj_t* canvas_clear_ = nullptr;
     uint16_t* canvas_px_ = nullptr;  // w x h RGB565, owned here, handed to the LVGL canvas
     bool pen_down_ = false;
-    int pen_x_ = 0, pen_y_ = 0;
-    int pen_color_ = 0;
     long dots_ = 0;
+    std::array<lv_point_t, 1000> draw_points_{};
+    std::size_t draw_points_count_ = 0;
 
     // subtitles
     lv_obj_t* sub_ = nullptr;

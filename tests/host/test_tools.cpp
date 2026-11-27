@@ -1,4 +1,4 @@
-// CHIPO TOOLS on a real LVGL build: info strip, pomodoro ring, level, 8-ball, canvas, subtitles. Simulated time.
+// CHIPO TOOLS on a real LVGL build: info strip, pomodoro ring, level, Gravity Ball, horizon, DrawPanel, subtitles. Simulated time.
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -170,30 +170,39 @@ int main() {
         r.tools.Stop();
     }
 
-    std::printf("== magic 8-ball and shaking\n");
+    std::printf("== Waveshare-style level calibration\\n");
     {
         Rig r;
         r.Start();
-        r.ShakeIt();
-        CHECK(r.shakes_forwarded == 1, "a shake on the face goes to the dice/coin (%d)", r.shakes_forwarded);
-        CHECK(r.tools.OnVoiceText("bola mágica") && r.tools.tool() == ChipoTools::Tool::Ball, "8-ball opens");
-        CHECK(r.tools.Debug().ball_phase == 0, "waiting for the question");
-        r.Accel(0, 0, 1, 3000);  // quiet: the cooldown of the earlier shake is over
-        r.ShakeIt();
+        r.tools.Open(ChipoTools::Tool::Level);
+        r.Accel(0.0f, 0.0f, 1.0f, 400);
+        CHECK(r.tools.CalibrateLevel(), "flat level starts calibration");
+        CHECK(r.tools.Debug().level_calibrating, "calibration state is visible");
+        r.Accel(0.0f, 0.0f, 1.0f, 4000);
         auto dbg = r.tools.Debug();
-        CHECK(dbg.ball_phase == 1 && r.shakes_forwarded == 1, "a shake asks the ball and is not forwarded (phase %d)", dbg.ball_phase);
-        r.Run(1300);
+        CHECK(!dbg.level_calibrating && dbg.level_calibrated, "200 stable IMU samples complete calibration");
+        r.Accel(0.0f, 0.0f, 1.0f, 300);
+        r.Run(200);
+        CHECK(std::fabs(r.tools.Debug().bubble_x) < 2.0f && std::fabs(r.tools.Debug().bubble_y) < 2.0f,
+              "calibrated level remains centered");
+        r.tools.Stop();
+    }
+
+    std::printf("== Gravity Ball and artificial horizon\n");
+    {
+        Rig r;
+        r.Start();
+        CHECK(r.tools.OnVoiceText("activa gravity ball") && r.tools.tool() == ChipoTools::Tool::GravityBall, "Gravity Ball opens by voice");
+        r.Accel(0.4f, 0.0f, 0.9165f, 3000);
+        r.Run(300);
+        auto dbg = r.tools.Debug();
+        CHECK(std::fabs(dbg.gravity_x) > 1.0f, "Gravity Ball reacts to tilt: %.1f", dbg.gravity_x);
+        CHECK(r.tools.OnVoiceText("horizonte artificial") && r.tools.tool() == ChipoTools::Tool::Horizon, "artificial horizon opens by voice");
+        r.Accel(0.0f, 0.5f, 0.866f, 4000);
+        r.Run(250);
         dbg = r.tools.Debug();
-        CHECK(dbg.ball_phase == 2 && dbg.ball_index >= 0 && dbg.ball_index < EightBallCount(), "answer shown: %d", dbg.ball_index);
-        CHECK(!r.emotions.empty(), "the face reacts");
-        const int mood = EightBallMood(dbg.ball_index);
-        CHECK(r.emotions.back() == (mood > 0 ? "happy" : mood < 0 ? "sad" : "confused"), "reaction matches the answer: %s", r.emotions.back().c_str());
-        const int first = dbg.ball_index;
-        r.tools.AskBall(g_now);
-        r.Run(1300);
-        CHECK(r.tools.Debug().ball_index != first, "a second question gives another answer");
-        r.tools.Close();
-        CHECK(r.tools.tool() == ChipoTools::Tool::None, "closed");
+        CHECK(std::fabs(dbg.horizon_roll) > 1.0f, "horizon follows roll: %.1f", dbg.horizon_roll);
+        CHECK(r.tools.OnVoiceText("cierra") && r.tools.tool() == ChipoTools::Tool::None, "horizon closes cleanly");
         r.tools.Stop();
     }
 
@@ -208,10 +217,13 @@ int main() {
         r.tools.PenMove(200, 140);
         r.tools.PenUp();
         const long dots = r.tools.Debug().canvas_dots;
-        CHECK(dots > 500, "a stroke draws pixels: %ld", dots);
+        CHECK(dots > 100, "DrawPanel places red 10 px dots: %ld", dots);
         r.tools.PenDown(-50, 700);  // off screen: must not crash or write
         r.tools.PenMove(900, -20);
         r.tools.PenUp();
+        for (int i = 0; i < 1005; ++i) r.tools.PenDown(240, 240);
+        r.tools.PenUp();
+        CHECK(r.tools.Debug().canvas_dots == 81000, "DrawPanel retains at most 1,000 ten-pixel points: %ld", r.tools.Debug().canvas_dots);
         r.Run(300);
         CHECK(r.tools.OnVoiceText("borra") && r.tools.Debug().canvas_dots == 0, "voice clears it");
         CHECK(r.tools.OnVoiceText("cierra") && r.tools.tool() == ChipoTools::Tool::None, "voice closes it");
@@ -231,11 +243,13 @@ int main() {
         r.tools.OnKey();
         CHECK(r.tools.tool() == ChipoTools::Tool::Level, "key 1: level");
         r.tools.OnKey();
-        CHECK(r.tools.tool() == ChipoTools::Tool::Ball, "key 2: 8-ball");
+        CHECK(r.tools.tool() == ChipoTools::Tool::GravityBall, "key 2: Gravity Ball");
         r.tools.OnKey();
-        CHECK(r.tools.tool() == ChipoTools::Tool::Canvas, "key 3: canvas");
+        CHECK(r.tools.tool() == ChipoTools::Tool::Horizon, "key 3: artificial horizon");
         r.tools.OnKey();
-        CHECK(r.tools.tool() == ChipoTools::Tool::None, "key 4: closed");
+        CHECK(r.tools.tool() == ChipoTools::Tool::Canvas, "key 4: DrawPanel");
+        r.tools.OnKey();
+        CHECK(r.tools.tool() == ChipoTools::Tool::None, "key 5: closed");
         r.tools.Stop();
     }
 

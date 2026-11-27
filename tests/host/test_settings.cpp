@@ -35,7 +35,7 @@ struct Rig {
     ChipoSettings s;
     int volume = 70, brightness = 80, applied_brightness = 80;
     int level = 60;
-    bool charging = false, battery_ok = true, overlay = false, awake = false, restarted = false;
+    bool charging = false, battery_ok = true, overlay = false, awake = false, restarted = false, wifi_config_requested = false;
     std::vector<std::string> notes, clips, emotions;
     std::vector<TapKind> reactions;
     int shifts = 0, sdx = 0, sdy = 0;
@@ -50,6 +50,7 @@ struct Rig {
         h.set_brightness = [this](int v, bool permanent) { applied_brightness = v; if (permanent) brightness = v; };
         h.battery = [this](int* l, bool* c, bool* d) { *l = level; *c = charging; *d = !charging; return battery_ok; };
         h.wifi = [](WifiView* w) { w->connected = true; w->ssid = "Casa"; w->rssi_dbm = -55; return true; };
+        h.enter_wifi_config = [this] { wifi_config_requested = true; };
         h.restart = [this] { restarted = true; };
         h.notify = [this](const char* t) { notes.push_back(t); };
         h.play_clip = [this](const char* id) { clips.push_back(id); return true; };
@@ -112,6 +113,11 @@ int main() {
         r.overlay = true;
         r.s.OnLongPress();
         CHECK(!r.s.open(), "no menu over the weather, clock or games");
+        r.overlay = false;
+        r.s.Open();
+        r.s.Press(ChipoSettings::kWifiConfig);
+        CHECK(r.wifi_config_requested, "change Wi-Fi invokes the provisioning hook");
+        CHECK(!r.s.open(), "Wi-Fi provisioning closes the settings menu first");
         r.s.Stop();
         r.s.Step(g_now);
     }
