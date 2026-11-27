@@ -316,27 +316,16 @@ void ChipoTools::Open(Tool tool) {
             tool_ = Tool::None; Show(root_, false); return;
         }
         lv_canvas_set_buffer(canvas_, canvas_px_, w_, h_, LV_COLOR_FORMAT_RGB565);
-        lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
+        // Waveshare DrawPanel appearance: full white drawing surface, red 10 px strokes.
+        lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
         lv_obj_set_pos(canvas_, 0, 0);
-        lv_obj_add_flag(canvas_, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(canvas_, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK);
         lv_obj_add_event_cb(canvas_, CanvasEvent, LV_EVENT_ALL, this);
-        auto button = [&](const char* text) {
-            lv_obj_t* b = Plain(root_, 104, 42);
-            lv_obj_set_style_radius(b, 21, 0);
-            lv_obj_set_style_bg_color(b, lv_color_hex(0x16092E), 0);
-            lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-            lv_obj_set_style_border_color(b, lv_color_hex(kLilac), 0);
-            lv_obj_set_style_border_width(b, 2, 0);
-            lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_event_cb(b, ButtonEvent, LV_EVENT_CLICKED, this);
-            lv_obj_t* l = Label(b, font_mid_, kPaleLilac);
-            lv_label_set_text(l, text); lv_obj_center(l);
-            return b;
-        };
-        canvas_close_ = button("Salir"); lv_obj_align(canvas_close_, LV_ALIGN_TOP_MID, 0, 8);
-        canvas_clear_ = button("Borrar"); lv_obj_align(canvas_clear_, LV_ALIGN_BOTTOM_MID, 0, -8);
+        Show(caption_, false);
+        Show(hint_, false);
+        canvas_close_ = nullptr;
+        canvas_clear_ = nullptr;
         dots_ = 0; draw_points_count_ = 0; pen_down_ = false;
-        lv_obj_move_foreground(canvas_close_); lv_obj_move_foreground(canvas_clear_);
     }
 }
 
@@ -489,14 +478,14 @@ bool ChipoTools::CalibrateLevel() {
 // ---- canvas --------------------------------------------------------------------------------------------------------
 void ChipoTools::ClearCanvas() {
     if (!canvas_) return;
-    lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
+    lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
     dots_ = 0;
     draw_points_count_ = 0;
 }
 
 void ChipoTools::DrawDot(int cx, int cy, int r) {
     if (!canvas_px_) return;
-    const uint16_t v = lv_color_to_u16(lv_color_hex(0xFF3030));
+    const uint16_t v = lv_color_to_u16(lv_color_make(255, 0, 0));
     for (int dy = -r; dy <= r; ++dy) {
         const int y = cy + dy;
         if (y < 0 || y >= h_) continue;
@@ -536,17 +525,35 @@ void ChipoTools::AddDrawPoint(int x, int y) {
         for (size_t i = 1; i < draw_points_count_; ++i) draw_points_[i - 1] = draw_points_[i];
         --draw_points_count_;
     }
-    draw_points_[draw_points_count_++] = lv_point_t{x, y};
+    const lv_point_t current{x, y};
+    const lv_point_t previous = draw_points_count_ ? draw_points_[draw_points_count_ - 1] : current;
+    draw_points_[draw_points_count_++] = current;
     if (evict_oldest) {
         RedrawCanvas();
-    } else {
-        DrawDot(x, y, radius);
-        lv_area_t area{x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1};
-        area.x1 = std::max<int32_t>(0, area.x1); area.y1 = std::max<int32_t>(0, area.y1);
-        area.x2 = std::min<int32_t>(static_cast<int32_t>(w_) - 1, area.x2);
-        area.y2 = std::min<int32_t>(static_cast<int32_t>(h_) - 1, area.y2);
-        lv_obj_invalidate_area(canvas_, &area);
+        return;
     }
+
+    // Waveshare's factory DrawPanel joins touch samples with rounded 10 px red segments.
+    const int dx = current.x - previous.x;
+    const int dy = current.y - previous.y;
+    const int steps = std::max(std::abs(dx), std::abs(dy));
+    if (steps == 0) {
+        DrawDot(x, y, radius);
+    } else {
+        for (int i = 0; i <= steps; ++i) {
+            const int px = previous.x + (dx * i) / steps;
+            const int py = previous.y + (dy * i) / steps;
+            DrawDot(px, py, radius);
+        }
+    }
+    lv_area_t area{std::min(previous.x, current.x) - radius - 1,
+                   std::min(previous.y, current.y) - radius - 1,
+                   std::max(previous.x, current.x) + radius + 1,
+                   std::max(previous.y, current.y) + radius + 1};
+    area.x1 = std::max<int32_t>(0, area.x1); area.y1 = std::max<int32_t>(0, area.y1);
+    area.x2 = std::min<int32_t>(static_cast<int32_t>(w_) - 1, area.x2);
+    area.y2 = std::min<int32_t>(static_cast<int32_t>(h_) - 1, area.y2);
+    lv_obj_invalidate_area(canvas_, &area);
 }
 
 
