@@ -725,14 +725,19 @@ void ChipoTools::CanvasEvent(lv_event_t* e) {
     if (code != LV_EVENT_PRESSED && code != LV_EVENT_PRESSING && code != LV_EVENT_RELEASED && code != LV_EVENT_PRESS_LOST) return;
     lv_point_t p{0, 0};
     lv_indev_t* in = lv_event_get_indev(e);
-    if (in) lv_indev_get_point(in, &p);
+    if (!in) return;
+    lv_indev_get_point(in, &p);
     lv_area_t area;
     lv_obj_get_coords(self->canvas_, &area);
     const int x = p.x - area.x1;
     const int y = p.y - area.y1;
     if (code == LV_EVENT_PRESSED) self->PenDown(x, y);
-    else if (code == LV_EVENT_PRESSING) self->PenMove(x, y);
-    else self->PenUp();
+    else if (code == LV_EVENT_PRESSING) {
+        // Like Waveshare's _has_prev_point reset, re-entering the round
+        // visible area after an outside-corner touch starts a fresh dot.
+        if (self->pen_down_) self->PenMove(x, y);
+        else self->PenDown(x, y);
+    } else self->PenUp();
 }
 
 void ChipoTools::ButtonEvent(lv_event_t* e) {
