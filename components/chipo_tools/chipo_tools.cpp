@@ -307,6 +307,7 @@ void ChipoTools::Open(Tool tool) {
         gravity_bias_x_ = gravity_bias_y_ = 0.0f;
         gravity_calibration_progress_ = 0;
         gravity_calibrated_ = false;
+        gravity_calibration_failed_ = false;
         lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, 0, 0);
     } else if (tool == Tool::Horizon) {
         lv_label_set_text(caption_, "HORIZONTE ARTIFICIAL");
