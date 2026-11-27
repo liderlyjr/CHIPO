@@ -1,32 +1,39 @@
 # CHIPO OS 0.7.0 — seguimiento de correcciones
 
-Rama: `release/chipo-os-0.7.0`
+Rama: `release/chipo-os-0.7.0`  
+PR: [#32](https://github.com/liderlyjr/CHIPO/pull/32) (sigue en Draft)
 
-Este documento separa cambios aplicados de tareas pendientes. No equivale a una validación en la placa.
+Este documento distingue cambios de código, pruebas automatizadas y validación física. **CI verde no equivale a firmware validado en la placa.**
 
-## Aplicado
+## Corregido en código
 
-- **Nivel:** se amplió el rango de lectura. La burbuja ahora alcanza su recorrido completo a 30° (antes 10°) y sigue mostrando ángulo/burbuja hasta 35° de inclinación respecto a la horizontal. A 40° se considera fuera del rango. Se añadieron pruebas para 10°, 30° y 40°. El umbral de nivelado (0,6°) no se modificó.
-- **Gravitysphere:** se corrigió el intercambio de ejes en `GravityBallFromAccel()` para seguir la implementación pública de Waveshare 2.06: `x -= accelY * 8` y `y += accelX * 8`. Se actualizaron los tests de mapeo. Esto resuelve el fallo concreto de CI que esperaba que la inclinación X moviese la bola en vertical.
-- **DrawPanel:** se desactivaron explícitamente en el canvas las banderas LVGL de scroll, burbujeo de gestos y encadenamiento de scroll horizontal/vertical. El objetivo es impedir que el lienzo se desplace mientras se mantiene un trazo. Pendiente confirmar el comportamiento táctil en la placa.
-- **Indicador de batería/carga:** se movió del centro superior al lateral superior derecho para liberar el centro y evitar tapar el reloj/avisos. Pendiente validar visualmente en la placa.
-- **Cara de CHIPO:** se aumentó el objetivo de anchura del 58 % al 64 % del panel. Se conserva el límite de altura del 85 % para que el canvas no se salga de la pantalla. En el panel 480×480 el límite de altura hace que el aumento efectivo sea moderado (aprox. 5 %).
-- La modificación está en `components/chipo_face/chipo_face.cpp`.
+- **Cara:** objetivo de anchura aumentado del 58 % al 64 %, conservando el límite vertical del 85 %.
+- **Indicador de batería/carga:** movido a la esquina superior derecha para dejar libre el centro.
+- **XiaoZhi / emociones:** el parche de integración vuelve a ocultar las capas de emoji/logo de XiaoZhi al limpiar mensajes y pausa el GIF ajeno a CHIPO. El hook del reloj superior contempla el modo Desk Clock de BUDDY.
+- **Nivel:** escala completa de burbuja a 30°; lectura disponible hasta 35°; el umbral de nivelado sigue en 0,6°. Hay tests a 3°, 10°, 30° y 40°.
+- **Gravitysphere:** mapeo de pantalla alineado con el algoritmo público Waveshare: `x -= accelY * 8`, `y += accelX * 8`. La calibración ahora solo se acepta si las 200 muestras son estables; tras cinco intentos fallidos no adopta una referencia incorrecta y permite reintentar tocando la pantalla.
+- **Horizonte artificial:** cálculo separado en lógica pura y probado en PC. El ángulo de roll usa diferencia circular para evitar saltos de casi 360° al cruzar el límite ±180°. Las muestras fuera del rango de gravedad se descartan.
+- **DrawPanel:** el root y el canvas usan la política de superficie fija de Waveshare: sin scroll, momentum, elasticidad, encadenamiento, burbujeo de gestos/eventos ni barras de desplazamiento; se bloquea la pulsación para mantener el trazo sobre el lienzo.
+- **Palabra experimental:** la configuración actual es «Jarvis» en MultiNet 7 inglés; no está validada en la placa ni garantiza reconocimiento en español.
 
-## Pendiente de corregir y validar
+## QMI8658 — configuración documentada
 
-- **Horizonte artificial:** la implementación actual calcula roll y pitch directamente de la aceleración filtrada y resta una referencia capturada al tocar. No está demostrado que el mapeo de ejes coincida con la orientación física de la placa ni con el comportamiento original de Waveshare. No invertir ejes ni cambiar escalas sin contrastar la fuente original o una prueba física controlada.
-- **Giroscopio:** el QMI8658 se configura actualmente a ±512 °/s y se interpreta en little-endian. Falta contrastar configuración, orden de bytes y escalas con el driver exacto de Waveshare para esta placa; no se declara calibrado.
-- **Gravitysphere:** el mapeo de software ahora coincide con Waveshare 2.06. Aún requiere confirmación física en la placa AMOLED 2.16 para comprobar la orientación real del módulo y el sentido visual.
-- **Pizarra DrawPanel:** el canvas tiene `CLICKABLE` y `PRESS_LOCK`, pero aún hay que revisar el scroll/gestos de los ancestros y validar que el lienzo no se desplace durante el trazo.
-- **Reposo/reloj/logo:** se identificó que el logo central es el `emoji_label_` de XiaoZhi: aunque `SetEmotion()` está anulado para CHIPO, `ShowEmotion()` podía volver a mostrar el glifo robot al limpiar mensajes. El script de integración ahora fuerza ocultar las capas `emoji_label_` y `emoji_image_` también en `ShowEmotion()`. Además, el hook que controla la hora superior ahora considera explícitamente `chipo_buddy_->desk_clock()` para no dibujar la hora de información mientras se activa el reloj lateral BUDDY. CI debe confirmar que los anclajes del script coinciden con la versión XiaoZhi fijada.
-- **Cara y estado de carga:** la cara tiene el ajuste de tamaño aplicado y el indicador de batería se movió al lateral superior derecho. Pendiente validar que no se solape con avisos OTA en pantalla real.
-- **Reconocimiento de voz / palabra de activación:** sigue pendiente validar físicamente. `scripts/integrate_chipo.py` configura ESP-SR MultiNet 7 inglés con la palabra personalizada `cheepo` y umbral 20. No existe evidencia de que esa palabra esté bien reconocida en español; no bajar el umbral a ciegas. Distinguir si falla la activación «Chipo» o si el texto reconocido aparece pero el asistente interpreta mal la orden. Consultar `docs/WAKE_WORD.md`.
+El lector de CHIPO usa el bus I²C ya inicializado por XiaoZhi y comparte sus muestras entre cara, herramientas y DRIVE; no crea un segundo bus. La lectura actual usa auto-incremento y bytes little-endian, acelerómetro ±4 g a 250 Hz, y giroscopio opcional ±512 °/s. El consumidor de UI recibe muestras a 25 Hz (50 Hz en modo DRIVE). No se cambió la configuración del sensor en esta corrección para evitar regresiones sin prueba física.
 
-## Verificación
+Referencia de la placa 2.16: [ejemplo QMI8658 de Waveshare](https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.16/tree/main/examples/arduino/04_LVGL_QMI8658_ui) y [SensorQMI8658.hpp](https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.16/blob/main/examples/arduino/libraries/SensorLib/src/SensorQMI8658.hpp). La configuración Gravitysphere de Waveshare se usa como referencia de algoritmo, no como prueba de equivalencia de todo el firmware.
 
-- Cambio de tamaño: commit creado en la rama de trabajo.
-- Se han creado commits para la cara, el mapeo Gravitysphere, el bloqueo de scroll del canvas y el indicador lateral. En CI del commit `2245005` falló el test host `mirror y`: la expectativa seguía usando la escala antigua de 10° aunque el nivel ahora usa 30°. Se corrigió la expectativa para la nueva escala en el commit `0cc2fa6`; nueva ejecución `46002431542` en cola. No se ha probado físicamente en la placa.
-- No se ha probado en la placa AMOLED.
-- La versión 0.6.9 y su release no se modifican.
-- No se ha hecho merge a `main` ni publicado una release 0.7.0.
+## Pendiente de validación física
+
+- Confirmar orientación y signos del nivel, horizonte y Gravitysphere en la AMOLED 2.16.
+- Probar táctil de DrawPanel con trazos largos, esquinas y gesto de salida.
+- Comprobar que hora superior, logo/emociones y reloj BUDDY no se solapan en reposo y al limpiar mensajes.
+- Probar micrófonos, altavoz, activación «Jarvis» y reconocimiento de órdenes por separado.
+- Prueba prolongada de estabilidad, memoria PSRAM, batería y actualizaciones OTA.
+- Confirmar que no reaparecen los reinicios o bloqueos ya registrados.
+
+## Estado de publicación
+
+- `VERSION` apunta a 0.7.0 para que el candidato se identifique correctamente.
+- La rama no se ha fusionado a `main`; no se ha publicado una Release 0.7.0.
+- La 0.6.9 y su Release permanecen intactas.
+- La PR sigue en Draft hasta cerrar los pendientes y validar en hardware.
