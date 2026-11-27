@@ -52,6 +52,12 @@ LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mi
     return r;
 }
 
+// ---- Gravitysphere -----------------------------------------------------------------------------------------------
+GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2) {
+    // The AMOLED's screen axes are rotated relative to the sensor axes.
+    return {-accel_x_mps2 * 8.0f, accel_y_mps2 * 8.0f};
+}
+
 // ---- Text helpers ------------------------------------------------------------------------------------------------
 std::string FoldAccents(const char* utf8) {
     std::string out;

@@ -458,8 +458,11 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
         if (std::fabs(accel_x) < 0.05f) accel_x = 0.0f;
         if (std::fabs(accel_y) < 0.05f) accel_y = 0.0f;
 
-        int x = static_cast<int>(gravity_x_) - static_cast<int>(accel_y * 8.0f);
-        int y = static_cast<int>(gravity_y_) + static_cast<int>(accel_x * 8.0f);
+        // The display is rotated relative to the QMI8658 board axes:
+        // X tilt controls vertical motion; Y tilt controls horizontal motion.
+        const GravityBallDelta delta = GravityBallFromAccel(accel_x, accel_y);
+        int x = static_cast<int>(gravity_x_) + static_cast<int>(delta.x);
+        int y = static_cast<int>(gravity_y_) + static_cast<int>(delta.y);
         const int radius = std::max(1, std::min(w_, h_) / 2 - 22 - 18);
         const int64_t distance_squared = static_cast<int64_t>(x) * x + static_cast<int64_t>(y) * y;
         const int64_t radius_squared = static_cast<int64_t>(radius) * radius;
