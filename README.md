@@ -6,8 +6,7 @@ añade una cara animada, pantallas propias, juegos, temporizadores y Home Assist
 
 **Placa: Waveshare ESP32-S3 Touch AMOLED 2.16** (pantalla cuadrada de 480 × 480). Es la única placa soportada.
 
-> **Estado: V0.6.0. Compila en GitHub Actions y pasa 30 grupos de pruebas en PC, pero todavía no se ha probado en la
-> placa física.** Lo que solo se puede confirmar con ella está en [Qué falta por probar](#qué-falta-por-probar).
+> **Estado: V0.6.9 (candidato OTA).** Las pruebas de PC y la compilación para la Waveshare 2.16 pasan en GitHub Actions; todavía no se ha validado en la placa física. Lo que falta comprobar está en [Qué falta por probar](#qué-falta-por-probar).
 
 ## Hardware
 

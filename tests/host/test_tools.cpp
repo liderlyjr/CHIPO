@@ -193,10 +193,16 @@ int main() {
         Rig r;
         r.Start();
         CHECK(r.tools.OnVoiceText("activa gravity ball") && r.tools.tool() == ChipoTools::Tool::GravityBall, "Gravity Ball opens by voice");
+        // Gravity Ball needs its 200-sample stationary calibration before we tilt it.
+        r.Accel(0.0f, 0.0f, 1.0f, 4000);
+        r.Run(100);
         r.Accel(0.4f, 0.0f, 0.9165f, 3000);
+        const float gravity_y_after_samples = r.tools.Debug().gravity_y;
         r.Run(300);
         auto dbg = r.tools.Debug();
-        CHECK(std::fabs(dbg.gravity_x) > 1.0f, "Gravity Ball reacts to tilt: %.1f", dbg.gravity_x);
+        CHECK(std::fabs(dbg.gravity_y) > 1.0f, "Gravity Ball reacts to X-axis tilt through Y displacement: %.1f", dbg.gravity_y);
+        CHECK(std::fabs(dbg.gravity_y - gravity_y_after_samples) < 0.01f,
+              "Gravitysphere integrates fresh IMU samples once, not the same sample on every UI tick");
         CHECK(r.tools.OnVoiceText("horizonte artificial") && r.tools.tool() == ChipoTools::Tool::Horizon, "artificial horizon opens by voice");
         r.Accel(0.0f, 0.5f, 0.866f, 4000);
         r.Run(250);
@@ -217,13 +223,13 @@ int main() {
         r.tools.PenMove(200, 140);
         r.tools.PenUp();
         const long dots = r.tools.Debug().canvas_dots;
-        CHECK(dots > 100, "DrawPanel places red 10 px dots: %ld", dots);
+        CHECK(dots > 100, "DrawPanel renders a rounded 10 px stroke: %ld", dots);
         r.tools.PenDown(-50, 700);  // off screen: must not crash or write
         r.tools.PenMove(900, -20);
         r.tools.PenUp();
         for (int i = 0; i < 1005; ++i) r.tools.PenDown(240, 240);
         r.tools.PenUp();
-        CHECK(r.tools.Debug().canvas_dots == 81000, "DrawPanel retains at most 1,000 ten-pixel points: %ld", r.tools.Debug().canvas_dots);
+        CHECK(r.tools.Debug().canvas_dots == 81000, "DrawPanel retains at most 1,000 drawing elements (dots or segments): %ld", r.tools.Debug().canvas_dots);
         r.Run(300);
         CHECK(r.tools.OnVoiceText("borra") && r.tools.Debug().canvas_dots == 0, "voice clears it");
         CHECK(r.tools.OnVoiceText("cierra") && r.tools.tool() == ChipoTools::Tool::None, "voice closes it");

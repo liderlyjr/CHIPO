@@ -246,10 +246,14 @@ void ChipoTools::Build(int w, int h) {
 
     // Gravity Ball: a ball follows gravity on the QMI8658 accelerometer.
     gravity_ball_ = Plain(root_, w, h);
-    gravity_ball_track_ = Circle(gravity_ball_, side - 104, 0x000000, LV_OPA_TRANSP, kLilac, 3, LV_OPA_70);
+    // Match Waveshare's movement radius: display radius - 22 px ball - 18 px glow margin.
+    gravity_ball_track_ = Circle(gravity_ball_, side - 80, 0x000000, LV_OPA_TRANSP, 0x52627F, 1, LV_OPA_30);
     lv_obj_align(gravity_ball_track_, LV_ALIGN_CENTER, 0, 0);
-    gravity_ball_dot_ = Circle(gravity_ball_, side / 9, 0xFF7048, LV_OPA_COVER, 0xFFE3D8, 3, LV_OPA_COVER);
-    lv_obj_set_style_shadow_color(gravity_ball_dot_, lv_color_hex(0xFF7048), 0);
+    // Waveshare Gravitysphere: 44 px pink-to-orange gradient ball.
+    gravity_ball_dot_ = Circle(gravity_ball_, 44, 0xFF4F70, LV_OPA_COVER, 0xFF4F70, 0, LV_OPA_COVER);
+    lv_obj_set_style_bg_grad_color(gravity_ball_dot_, lv_color_hex(0xFFB14E), 0);
+    lv_obj_set_style_bg_grad_dir(gravity_ball_dot_, LV_GRAD_DIR_VER, 0);
+    lv_obj_set_style_shadow_color(gravity_ball_dot_, lv_color_hex(0xFF4F70), 0);
     lv_obj_set_style_shadow_width(gravity_ball_dot_, 18, 0);
     lv_obj_set_style_shadow_opa(gravity_ball_dot_, LV_OPA_50, 0);
     lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, 0, 0);
@@ -268,6 +272,7 @@ void ChipoTools::Open(Tool tool) {
     Show(lvl_, tool == Tool::Level);
     Show(gravity_ball_, tool == Tool::GravityBall);
     if (tool == Tool::Level) {
+        lv_obj_set_style_bg_color(root_, lv_color_black(), 0);
         lv_label_set_text(caption_, "NIVEL");
         lv_label_set_text(hint_, "Toca para calibrar · mantén CHIPO quieto");
         have_accel_ = false;
@@ -277,9 +282,18 @@ void ChipoTools::Open(Tool tool) {
         level_calibration_count_ = 0;
         bubble_x_ = bubble_y_ = 0;
     } else if (tool == Tool::GravityBall) {
-        lv_label_set_text(caption_, "GRAVITY BALL");
-        lv_label_set_text(hint_, "Inclina CHIPO para mover la pelota");
+        lv_obj_set_style_bg_color(root_, lv_color_hex(0x0B1020), 0);
+        lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
+        lv_label_set_text(caption_, "GRAVITYSPHERE");
+        lv_label_set_text(hint_, "Mantén la placa nivelada · calibrando 0%");
         gravity_x_ = gravity_y_ = gravity_vx_ = gravity_vy_ = 0.0f;
+        gravity_calibration_count_ = gravity_calibration_attempts_ = 0;
+        gravity_calibration_sum_x_ = gravity_calibration_sum_y_ = 0.0f;
+        gravity_calibration_min_x_ = gravity_calibration_min_y_ = 0.0f;
+        gravity_calibration_max_x_ = gravity_calibration_max_y_ = 0.0f;
+        gravity_bias_x_ = gravity_bias_y_ = 0.0f;
+        gravity_calibration_progress_ = 0;
+        gravity_calibrated_ = false;
         lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, 0, 0);
     } else if (tool == Tool::Horizon) {
         lv_label_set_text(caption_, "HORIZONTE ARTIFICIAL");
@@ -316,27 +330,17 @@ void ChipoTools::Open(Tool tool) {
             tool_ = Tool::None; Show(root_, false); return;
         }
         lv_canvas_set_buffer(canvas_, canvas_px_, w_, h_, LV_COLOR_FORMAT_RGB565);
-        lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
+        // Waveshare DrawPanel appearance: full white drawing surface, red 10 px strokes.
+        lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
         lv_obj_set_pos(canvas_, 0, 0);
         lv_obj_add_flag(canvas_, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(canvas_, LV_OBJ_FLAG_PRESS_LOCK);
         lv_obj_add_event_cb(canvas_, CanvasEvent, LV_EVENT_ALL, this);
-        auto button = [&](const char* text) {
-            lv_obj_t* b = Plain(root_, 104, 42);
-            lv_obj_set_style_radius(b, 21, 0);
-            lv_obj_set_style_bg_color(b, lv_color_hex(0x16092E), 0);
-            lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-            lv_obj_set_style_border_color(b, lv_color_hex(kLilac), 0);
-            lv_obj_set_style_border_width(b, 2, 0);
-            lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
-            lv_obj_add_event_cb(b, ButtonEvent, LV_EVENT_CLICKED, this);
-            lv_obj_t* l = Label(b, font_mid_, kPaleLilac);
-            lv_label_set_text(l, text); lv_obj_center(l);
-            return b;
-        };
-        canvas_close_ = button("Salir"); lv_obj_align(canvas_close_, LV_ALIGN_TOP_MID, 0, 8);
-        canvas_clear_ = button("Borrar"); lv_obj_align(canvas_clear_, LV_ALIGN_BOTTOM_MID, 0, -8);
+        Show(caption_, false);
+        Show(hint_, false);
+        canvas_close_ = nullptr;
+        canvas_clear_ = nullptr;
         dots_ = 0; draw_points_count_ = 0; pen_down_ = false;
-        lv_obj_move_foreground(canvas_close_); lv_obj_move_foreground(canvas_clear_);
     }
 }
 
@@ -412,6 +416,62 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
     if (!running_) return;
     if (!have_accel_) { ax_ = s.x; ay_ = s.y; az_ = s.z; have_accel_ = true; }
     else { ax_ += (s.x - ax_) * 0.25f; ay_ += (s.y - ay_) * 0.25f; az_ += (s.z - az_) * 0.25f; }
+    if (tool_ == Tool::GravityBall && !gravity_calibrated_) {
+        const float sx = s.x * 9.80665f, sy = s.y * 9.80665f;
+        if (gravity_calibration_count_ == 0) {
+            gravity_calibration_min_x_ = gravity_calibration_max_x_ = sx;
+            gravity_calibration_min_y_ = gravity_calibration_max_y_ = sy;
+        } else {
+            gravity_calibration_min_x_ = std::min(gravity_calibration_min_x_, sx);
+            gravity_calibration_max_x_ = std::max(gravity_calibration_max_x_, sx);
+            gravity_calibration_min_y_ = std::min(gravity_calibration_min_y_, sy);
+            gravity_calibration_max_y_ = std::max(gravity_calibration_max_y_, sy);
+        }
+        gravity_calibration_sum_x_ += sx;
+        gravity_calibration_sum_y_ += sy;
+        ++gravity_calibration_count_;
+        gravity_calibration_progress_ = gravity_calibration_count_ * 100 / 200;
+        if (gravity_calibration_count_ >= 200) {
+            const float mean_x = gravity_calibration_sum_x_ / gravity_calibration_count_;
+            const float mean_y = gravity_calibration_sum_y_ / gravity_calibration_count_;
+            const bool stable = gravity_calibration_max_x_ - gravity_calibration_min_x_ <= 0.1f &&
+                                gravity_calibration_max_y_ - gravity_calibration_min_y_ <= 0.1f;
+            if (stable || ++gravity_calibration_attempts_ >= 5) {
+                gravity_bias_x_ = mean_x;
+                gravity_bias_y_ = mean_y;
+                gravity_calibrated_ = true;
+                gravity_calibration_progress_ = 100;
+            } else {
+                gravity_calibration_count_ = 0;
+                gravity_calibration_sum_x_ = gravity_calibration_sum_y_ = 0.0f;
+                gravity_calibration_progress_ = 0;
+            }
+        }
+    }
+    if (tool_ == Tool::GravityBall && gravity_calibrated_) {
+        // Waveshare's worker advances the ball once per fresh IMU sample, using the raw sample.
+        // Do not integrate the UI-smoothed ax_/ay_ on every LVGL tick: that repeats old data.
+        gravity_sample_x_mps2_ = s.x * 9.80665f;
+        gravity_sample_y_mps2_ = s.y * 9.80665f;
+        float accel_x = gravity_sample_x_mps2_ - gravity_bias_x_;
+        float accel_y = gravity_sample_y_mps2_ - gravity_bias_y_;
+        if (std::fabs(accel_x) < 0.05f) accel_x = 0.0f;
+        if (std::fabs(accel_y) < 0.05f) accel_y = 0.0f;
+
+        int x = static_cast<int>(gravity_x_) - static_cast<int>(accel_y * 8.0f);
+        int y = static_cast<int>(gravity_y_) + static_cast<int>(accel_x * 8.0f);
+        const int radius = std::max(1, std::min(w_, h_) / 2 - 22 - 18);
+        const int64_t distance_squared = static_cast<int64_t>(x) * x + static_cast<int64_t>(y) * y;
+        const int64_t radius_squared = static_cast<int64_t>(radius) * radius;
+        if (distance_squared > radius_squared) {
+            const double scale = static_cast<double>(radius) /
+                                 std::sqrt(static_cast<double>(distance_squared));
+            x = static_cast<int>(static_cast<double>(x) * scale);
+            y = static_cast<int>(static_cast<double>(y) * scale);
+        }
+        gravity_x_ = static_cast<float>(x);
+        gravity_y_ = static_cast<float>(y);
+    }
     if (tool_ == Tool::Level && level_calibrating_) {
         if (level_calibration_count_ == 0) {
             level_calibration_min_x_ = level_calibration_max_x_ = s.x;
@@ -489,14 +549,16 @@ bool ChipoTools::CalibrateLevel() {
 // ---- canvas --------------------------------------------------------------------------------------------------------
 void ChipoTools::ClearCanvas() {
     if (!canvas_) return;
-    lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
+    lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
     dots_ = 0;
     draw_points_count_ = 0;
+    draw_connect_.fill(false);
+    pen_down_ = false;
 }
 
 void ChipoTools::DrawDot(int cx, int cy, int r) {
     if (!canvas_px_) return;
-    const uint16_t v = lv_color_to_u16(lv_color_hex(0xFF3030));
+    const uint16_t v = lv_color_to_u16(lv_color_make(255, 0, 0));
     for (int dy = -r; dy <= r; ++dy) {
         const int y = cy + dy;
         if (y < 0 || y >= h_) continue;
@@ -509,56 +571,105 @@ void ChipoTools::DrawDot(int cx, int cy, int r) {
     }
 }
 
+void ChipoTools::DrawStroke(const lv_point_t& from, const lv_point_t& to) {
+    if (!canvas_px_) return;
+    constexpr float radius = 5.0f;  // Waveshare DRAW_STROKE_WIDTH = 10
+    const float vx = static_cast<float>(to.x - from.x);
+    const float vy = static_cast<float>(to.y - from.y);
+    const float length2 = vx * vx + vy * vy;
+    // LVGL 9.5 may define lv_point_t coordinates as long; convert once
+    // to the canvas' integer coordinate domain before using std::min/max.
+    const int from_x = static_cast<int>(from.x);
+    const int from_y = static_cast<int>(from.y);
+    const int to_x = static_cast<int>(to.x);
+    const int to_y = static_cast<int>(to.y);
+    const int min_x = std::max(0, std::min(from_x, to_x) - 5);
+    const int max_x = std::min(w_ - 1, std::max(from_x, to_x) + 5);
+    const int min_y = std::max(0, std::min(from_y, to_y) - 5);
+    const int max_y = std::min(h_ - 1, std::max(from_y, to_y) + 5);
+    const uint16_t red = lv_color_to_u16(lv_color_make(255, 0, 0));
+    for (int y = min_y; y <= max_y; ++y) {
+        for (int x = min_x; x <= max_x; ++x) {
+            const float px = static_cast<float>(x - from.x);
+            const float py = static_cast<float>(y - from.y);
+            const float t = length2 > 0.0f
+                ? std::clamp((px * vx + py * vy) / length2, 0.0f, 1.0f)
+                : 0.0f;
+            const float dx = px - t * vx;
+            const float dy = py - t * vy;
+            if (dx * dx + dy * dy <= radius * radius) {
+                canvas_px_[static_cast<size_t>(y) * w_ + x] = red;
+                ++dots_;
+            }
+        }
+    }
+}
+
 void ChipoTools::RedrawCanvas() {
     if (!canvas_px_ || !canvas_) return;
-    lv_canvas_fill_bg(canvas_, lv_color_black(), LV_OPA_COVER);
+    lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
     dots_ = 0;
     for (size_t i = 0; i < draw_points_count_; ++i) {
-        DrawDot(draw_points_[i].x, draw_points_[i].y, 5);
+        if (draw_connect_[i] && i > 0) DrawStroke(draw_points_[i - 1], draw_points_[i]);
+        else DrawDot(draw_points_[i].x, draw_points_[i].y, 5);
     }
     lv_area_t area{0, 0, w_ - 1, h_ - 1};
     lv_obj_invalidate_area(canvas_, &area);
 }
 
-// DrawPanel interaction model adapted from Waveshare's DrawPanel demo (Apache-2.0, Espressif Systems).
-void ChipoTools::AddDrawPoint(int x, int y) {
+// Waveshare 2.06 DrawPanel draws a rounded 10 px segment between consecutive
+// touch samples, while a tap creates a 10 px circular dot. It retains 1,000 segments.
+void ChipoTools::AddDrawPoint(int x, int y, bool connect_to_previous) {
     if (!canvas_ || !canvas_px_) return;
-    constexpr int radius = 5;  // Waveshare DrawPanel uses 10 px dots.
-    x = std::clamp(x, radius, w_ - radius - 1);
-    y = std::clamp(y, radius, h_ - radius - 1);
+    constexpr int radius = 5;
     const int dx = x - (w_ - 1) / 2;
     const int dy = y - (h_ - 1) / 2;
     const int circle_radius = std::min(w_, h_) / 2 - radius;
-    if (dx * dx + dy * dy > circle_radius * circle_radius) return;
+    if (dx * dx + dy * dy > circle_radius * circle_radius) {
+        pen_down_ = false;
+        return;
+    }
+    x = std::clamp(x, radius, w_ - radius - 1);
+    y = std::clamp(y, radius, h_ - radius - 1);
+    if (connect_to_previous && draw_points_count_ > 0 &&
+        draw_points_[draw_points_count_ - 1].x == x &&
+        draw_points_[draw_points_count_ - 1].y == y) return;
 
     const bool evict_oldest = draw_points_count_ == draw_points_.size();
     if (evict_oldest) {
-        for (size_t i = 1; i < draw_points_count_; ++i) draw_points_[i - 1] = draw_points_[i];
+        for (size_t i = 1; i < draw_points_count_; ++i) {
+            draw_points_[i - 1] = draw_points_[i];
+            draw_connect_[i - 1] = draw_connect_[i];
+        }
         --draw_points_count_;
+        draw_connect_[0] = false;
     }
-    draw_points_[draw_points_count_++] = lv_point_t{x, y};
+    const size_t index = draw_points_count_++;
+    draw_points_[index] = lv_point_t{x, y};
+    draw_connect_[index] = connect_to_previous && index > 0;
     if (evict_oldest) {
         RedrawCanvas();
-    } else {
-        DrawDot(x, y, radius);
-        lv_area_t area{x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1};
-        area.x1 = std::max<int32_t>(0, area.x1); area.y1 = std::max<int32_t>(0, area.y1);
-        area.x2 = std::min<int32_t>(static_cast<int32_t>(w_) - 1, area.x2);
-        area.y2 = std::min<int32_t>(static_cast<int32_t>(h_) - 1, area.y2);
-        lv_obj_invalidate_area(canvas_, &area);
+        return;
     }
+    if (draw_connect_[index]) DrawStroke(draw_points_[index - 1], draw_points_[index]);
+    else DrawDot(x, y, radius);
+    lv_area_t area{x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1};
+    area.x1 = std::max<int32_t>(0, area.x1);
+    area.y1 = std::max<int32_t>(0, area.y1);
+    area.x2 = std::min<int32_t>(static_cast<int32_t>(w_) - 1, area.x2);
+    area.y2 = std::min<int32_t>(static_cast<int32_t>(h_) - 1, area.y2);
+    lv_obj_invalidate_area(canvas_, &area);
 }
-
 
 void ChipoTools::PenDown(int x, int y) {
     if (tool_ != Tool::Canvas) return;
     pen_down_ = true;
-    AddDrawPoint(x, y);
+    AddDrawPoint(x, y, false);
 }
 
 void ChipoTools::PenMove(int x, int y) {
     if (tool_ != Tool::Canvas || !pen_down_) return;
-    AddDrawPoint(x, y);
+    AddDrawPoint(x, y, true);
 }
 
 void ChipoTools::PenUp() {
@@ -597,6 +708,13 @@ void ChipoTools::RootEvent(lv_event_t* e) {
         self->level_calibrated_ = true;
         self->bubble_x_ = self->bubble_y_ = 0.0f;
         if (self->hooks_.notify) self->hooks_.notify("Nivel calibrado");
+    } else if (self->tool_ == Tool::GravityBall) {
+        self->gravity_calibration_count_ = self->gravity_calibration_attempts_ = 0;
+        self->gravity_calibration_sum_x_ = self->gravity_calibration_sum_y_ = 0.0f;
+        self->gravity_calibration_progress_ = 0;
+        self->gravity_calibrated_ = false;
+        self->gravity_x_ = self->gravity_y_ = 0.0f;
+        if (self->hooks_.notify) self->hooks_.notify("Recalibrando Gravitysphere");
     } else if (self->tool_ == Tool::Horizon && self->have_accel_) {
         const float mag = std::sqrt(self->ax_ * self->ax_ + self->ay_ * self->ay_ + self->az_ * self->az_);
         if (mag > 0.5f && mag < 1.6f) {
@@ -614,14 +732,19 @@ void ChipoTools::CanvasEvent(lv_event_t* e) {
     if (code != LV_EVENT_PRESSED && code != LV_EVENT_PRESSING && code != LV_EVENT_RELEASED && code != LV_EVENT_PRESS_LOST) return;
     lv_point_t p{0, 0};
     lv_indev_t* in = lv_event_get_indev(e);
-    if (in) lv_indev_get_point(in, &p);
+    if (!in) return;
+    lv_indev_get_point(in, &p);
     lv_area_t area;
     lv_obj_get_coords(self->canvas_, &area);
     const int x = p.x - area.x1;
     const int y = p.y - area.y1;
     if (code == LV_EVENT_PRESSED) self->PenDown(x, y);
-    else if (code == LV_EVENT_PRESSING) self->PenMove(x, y);
-    else self->PenUp();
+    else if (code == LV_EVENT_PRESSING) {
+        // Like Waveshare's _has_prev_point reset, re-entering the round
+        // visible area after an outside-corner touch starts a fresh dot.
+        if (self->pen_down_) self->PenMove(x, y);
+        else self->PenDown(x, y);
+    } else self->PenUp();
 }
 
 void ChipoTools::ButtonEvent(lv_event_t* e) {
@@ -747,17 +870,20 @@ void ChipoTools::UpdateLevel(uint32_t) {
 }
 
 void ChipoTools::UpdateGravityBall(uint32_t) {
-    if (!gravity_ball_dot_ || !have_accel_) return;
-    const float mag = std::sqrt(ax_ * ax_ + ay_ * ay_ + az_ * az_);
-    if (mag < 0.55f || mag > 1.55f) return;
-    const float limit = static_cast<float>(std::min(w_, h_) - 104 - w_ / 9) / 2.0f;
-    const float tx = std::clamp(ax_ / mag, -1.0f, 1.0f) * limit;
-    const float ty = std::clamp(ay_ / mag, -1.0f, 1.0f) * limit;
-    gravity_vx_ = (gravity_vx_ + (tx - gravity_x_) * 0.10f) * 0.82f;
-    gravity_vy_ = (gravity_vy_ + (ty - gravity_y_) * 0.10f) * 0.82f;
-    gravity_x_ = std::clamp(gravity_x_ + gravity_vx_, -limit, limit);
-    gravity_y_ = std::clamp(gravity_y_ + gravity_vy_, -limit, limit);
-    lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, static_cast<int>(std::lround(gravity_x_)), static_cast<int>(std::lround(gravity_y_)));
+    if (!gravity_ball_dot_) return;
+    if (!gravity_calibrated_) {
+        char progress[64];
+        std::snprintf(progress, sizeof progress, "Mantén la placa nivelada\nCalibrando %d%%", gravity_calibration_progress_);
+        lv_label_set_text(hint_, progress);
+        return;
+    }
+    lv_obj_align(
+        gravity_ball_dot_,
+        LV_ALIGN_CENTER,
+        static_cast<int>(gravity_x_),
+        static_cast<int>(gravity_y_)
+    );
+    lv_label_set_text(hint_, "Toca la pantalla para recalibrar");
 }
 
 void ChipoTools::UpdateHorizon(uint32_t) {

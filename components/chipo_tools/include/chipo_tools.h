@@ -114,7 +114,8 @@ private:
     void UpdateSubtitle(uint32_t now_ms);
     void SetOpa(lv_obj_t* obj, int opa);
     void DrawDot(int x, int y, int r);
-    void AddDrawPoint(int x, int y);
+    void DrawStroke(const lv_point_t& from, const lv_point_t& to);
+    void AddDrawPoint(int x, int y, bool connect_to_previous);
     void RedrawCanvas();
     void LayoutTempRow();
 
@@ -184,6 +185,14 @@ private:
     uint16_t* horizon_px_ = nullptr;
     float gravity_x_ = 0.0f, gravity_y_ = 0.0f;
     float gravity_vx_ = 0.0f, gravity_vy_ = 0.0f;
+    int gravity_calibration_count_ = 0, gravity_calibration_attempts_ = 0;
+    float gravity_calibration_sum_x_ = 0.0f, gravity_calibration_sum_y_ = 0.0f;
+    float gravity_calibration_min_x_ = 0.0f, gravity_calibration_max_x_ = 0.0f;
+    float gravity_calibration_min_y_ = 0.0f, gravity_calibration_max_y_ = 0.0f;
+    float gravity_bias_x_ = 0.0f, gravity_bias_y_ = 0.0f;
+    float gravity_sample_x_mps2_ = 0.0f, gravity_sample_y_mps2_ = 0.0f;
+    int gravity_calibration_progress_ = 0;
+    bool gravity_calibrated_ = false;
     float horizon_roll_ = 0.0f, horizon_pitch_ = 0.0f;
     float horizon_zero_roll_ = 0.0f, horizon_zero_pitch_ = 0.0f;
     // canvas
@@ -194,6 +203,7 @@ private:
     bool pen_down_ = false;
     long dots_ = 0;
     std::array<lv_point_t, 1000> draw_points_{};
+    std::array<bool, 1000> draw_connect_{};
     std::size_t draw_points_count_ = 0;
 
     // subtitles
