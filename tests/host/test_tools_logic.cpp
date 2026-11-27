@@ -93,7 +93,7 @@ int main() {
         LevelReading m = LevelFromAccel(s, 0, c, true, false);
         CHECK(std::fabs(m.x + r.x) < 1e-5f, "mirror x");
         m = LevelFromAccel(0, s, c, false, true);
-        CHECK(m.y < -0.25f, "mirror y");
+        CHECK(m.y < -0.08f && m.y > -0.12f, "mirror y with 30-degree scale: %f", m.y);
         const float s10 = std::sin(10.0f * 0.0174533f), c10 = std::cos(10.0f * 0.0174533f);
         r = LevelFromAccel(s10, 0, c10, false, false);
         CHECK(r.flat && std::fabs(r.angle_deg - 10.0f) < 0.05f && r.x > 0.30f && r.x < 0.36f,
