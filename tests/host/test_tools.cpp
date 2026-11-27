@@ -199,7 +199,7 @@ int main() {
         r.Accel(0.4f, 0.0f, 0.9165f, 3000);
         r.Run(300);
         auto dbg = r.tools.Debug();
-        CHECK(std::fabs(dbg.gravity_x) > 1.0f, "Gravity Ball reacts to tilt: %.1f", dbg.gravity_x);
+        CHECK(std::fabs(dbg.gravity_y) > 1.0f, "Gravity Ball reacts to X-axis tilt through Y displacement: %.1f", dbg.gravity_y);
         CHECK(r.tools.OnVoiceText("horizonte artificial") && r.tools.tool() == ChipoTools::Tool::Horizon, "artificial horizon opens by voice");
         r.Accel(0.0f, 0.5f, 0.866f, 4000);
         r.Run(250);
