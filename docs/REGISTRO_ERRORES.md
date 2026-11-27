@@ -4,13 +4,13 @@ Este documento mantiene la trazabilidad de los fallos encontrados en CHIPO OS, l
 
 **Regla del registro:** un error solo se marca como corregido cuando existe una modificación identificable y una prueba que lo respalda. Que el firmware compile en GitHub Actions no demuestra por sí solo que el fallo esté resuelto en la placa física.
 
-## Estado actual — 26 de noviembre de 2026
+## Estado actual — 27 de noviembre de 2026
 
-- **Versión del repositorio:** CHIPO OS 0.6.0.
+- **Versión en desarrollo:** CHIPO OS 0.7.0, rama `release/chipo-os-0.7.0`; la Release oficial sigue siendo 0.6.9.
 - **Placa objetivo:** Waveshare ESP32-S3 Touch AMOLED 2.16 (480 × 480).
-- **Incidencias abiertas:** bloqueos/reinicios intermitentes, desfase de orientación, calibración manual del modo NIVEL y activación por voz «CHIPO».
-- **Estado:** ambos problemas siguen en diagnóstico; no hay todavía un parche correctivo confirmado.
-- **Prueba física:** el usuario confirma que CHIPO ya arranca y llega a funcionar, pero después presenta fallos y se reinicia.
+- **Incidencias abiertas:** bloqueos/reinicios intermitentes, desfase de orientación, validación física de NIVEL/Gravitysphere/HORIZONTE/DrawPanel y activación por voz experimental «Jarvis».
+- **Estado:** hay correcciones de código y CI, pero la placa física todavía debe validar el comportamiento real.
+- **Prueba física:** el usuario informó que CHIPO arranca y funciona, pero luego presenta fallos y se reinicia; falta un nuevo log serie para cerrar esa incidencia.
 
 ## Incidencias
 
@@ -448,3 +448,48 @@ Qué falta comprobar y qué no debe darse por resuelto.
 ```
 
 **Regla final para agentes:** si no puedes demostrar que una solución está en el código actual, no afirmes que existe. Si no puedes demostrar que una prueba se ejecutó, no afirmes que pasó. Si no tienes el log necesario, pide el log antes de inventar una causa. Documenta también los intentos fallidos y por qué se descartaron.
+
+
+---
+
+## 27-11-2026 — Correcciones adicionales de CHIPO OS 0.7.0
+
+**Rama:** `release/chipo-os-0.7.0`  
+**Estado:** código actualizado; CI de esta revisión pendiente; validación física pendiente.
+
+### Horizonte artificial — salto angular
+- Se extrajo el cálculo a `HorizonFromAccel()` dentro de `chipo_tools_logic.cpp`, sin dependencias ESP-IDF/LVGL.
+- Roll ahora usa diferencia circular con `std::remainder(..., 360)`, evitando saltos de casi 360° al cruzar el límite +180°/-180°.
+- Se rechazan muestras cuya magnitud no representa gravedad estática dentro del rango configurado.
+- Tests host añadidos: posición neutra, cruce ±180°, muestra de caída libre y pitch de 12°.
+- Esto corrige un fallo matemático reproducible; no demuestra que los signos físicos coincidan con la orientación de la placa hasta probarlo en hardware.
+
+### Gravitysphere — calibración
+- Antes, tras cinco intentos de calibración inestable, el código aceptaba igualmente la media de las muestras como bias. Eso podía fijar una referencia incorrecta si se movía la placa.
+- Ahora solo se marca calibrada cuando el rango de las 200 muestras cumple el umbral de estabilidad. Si agota cinco intentos, informa del fallo y espera un toque para reintentar.
+- El mapeo de aceleración conserva el algoritmo Waveshare: `x -= accelY * 8`, `y += accelX * 8`.
+
+### DrawPanel — superficie táctil fija
+- Se aplica tanto al root del overlay como al canvas la política de superficie fija de Waveshare: desactivar scroll, elasticidad, momentum, scroll-chain, gesto/event bubbling y barras de desplazamiento.
+- Se mantiene `CLICKABLE | PRESS_LOCK` para que un trazo no se pierda al arrastrar el dedo.
+- El buffer RGB565 y el almacenamiento de trazos siguen siendo la implementación CHIPO; no se afirma que toda la aplicación sea un port literal de la app DrawPanel de Waveshare.
+- Pendiente validar trazos largos, esquinas y salida en la pantalla real.
+
+### QMI8658 — estado de configuración
+- Se documentó la configuración efectiva del lector CHIPO: acelerómetro ±4 g/250 Hz, giroscopio opcional ±512 °/s, auto-incremento y lectura little-endian; el consumidor procesa a 25 Hz y a 50 Hz en DRIVE.
+- No se alteró la configuración compartida del sensor en esta revisión: cambiar escalas/ODR sin medición física podría afectar cara, herramientas y DRIVE a la vez.
+- Referencia oficial 2.16: ejemplo [QMI8658 de Waveshare](https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.16/tree/main/examples/arduino/04_LVGL_QMI8658_ui) y driver [SensorQMI8658.hpp](https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.16/blob/main/examples/arduino/libraries/SensorLib/src/SensorQMI8658.hpp).
+
+### Versionado y documentación
+- `VERSION` se actualizó a `CHIPO_OS_VERSION=0.7.0`, con estado `development-not-ready-for-release`. Esto identifica el firmware de desarrollo; no publica una Release.
+- README, CHIPO_TOOLS, WAKE_WORD y el documento `CHIPO_0.7.0_STATUS.md` se sincronizaron con la configuración experimental Jarvis y las correcciones anteriores.
+- No se ha fusionado a `main`, no se ha creado tag ni Release 0.7.0. La 0.6.9 permanece intacta.
+
+### Validaciones pendientes
+1. Ejecutar CI completo para el nuevo HEAD y comprobar que el script de integración y el build ESP-IDF siguen pasando.
+2. En la placa: verificar signos de los ejes, horizonte, nivel y Gravitysphere.
+3. Probar DrawPanel en toda la pantalla y que no se desplace.
+4. Revisar hora superior/logo/emociones y modo reloj BUDDY.
+5. Probar audio, wake word Jarvis y ASR por separado.
+6. Ejecutar prueba prolongada y recopilar log serie si vuelve a reiniciarse.
+
