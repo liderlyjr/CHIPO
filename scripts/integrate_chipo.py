@@ -78,6 +78,36 @@ replace_once(
     "    return true;\n",
     "Disable XiaoZhi emotion artwork in CHIPO mode",
 )
+replace_once(
+    lcd_display_cc,
+    "void LcdDisplay::ShowEmotion() {\n"
+    "    // Message cleanup must restore the selected renderer, not the boot logo.\n"
+    "    if (emoji_label_ != nullptr) {\n"
+    "        if (emotion_uses_image_) {\n"
+    "            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);\n"
+    "        } else {\n"
+    "            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);\n"
+    "        }\n"
+    "    }\n"
+    "    if (emoji_image_ != nullptr) {\n"
+    "        if (emotion_uses_image_) {\n"
+    "            lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);\n"
+    "        } else {\n"
+    "            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);\n"
+    "        }\n"
+    "    }\n"
+    "    if (emotion_uses_image_ && gif_controller_ && !gif_controller_->IsPlaying()) {\n"
+    "        gif_controller_->Start();\n"
+    "    }\n"
+    "}\n",
+    "void LcdDisplay::ShowEmotion() {\n"
+    "    // CHIPO owns the face: XiaoZhi must never restore its centred robot logo or emoji.\n"
+    "    if (emoji_label_ != nullptr) lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);\n"
+    "    if (emoji_image_ != nullptr) lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);\n"
+    "    if (gif_controller_) gif_controller_->Pause();\n"
+    "}\n",
+    "Keep XiaoZhi logo and emoji layers hidden after message cleanup",
+)
 
 for component in ("chipo_face", "chipo_weather", "chipo_update", "chipo_drive", "chipo_buddy", "chipo_ha", "chipo_fun", "chipo_pet", "chipo_remind", "chipo_ambient", "chipo_scenes", "chipo_settings", "chipo_tools", "chipo_boot"):
 
@@ -915,7 +945,7 @@ replace_once(
             };
             hooks.other_screen = [this]() {
                 return (chipo_weather_ && chipo_weather_->IsShown()) || (chipo_fun_ && chipo_fun_->mode() != ChipoFun::Mode::Off) ||
-                       (chipo_buddy_ && (chipo_buddy_->screen_shown() || chipo_buddy_->bedtime())) ||
+                       (chipo_buddy_ && (chipo_buddy_->screen_shown() || chipo_buddy_->desk_clock() || chipo_buddy_->bedtime())) ||
                        (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
             };
             hooks.emotion = [this](const char* name, uint32_t ms) {
