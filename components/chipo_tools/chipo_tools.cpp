@@ -616,8 +616,6 @@ void ChipoTools::RedrawCanvas() {
 void ChipoTools::AddDrawPoint(int x, int y, bool connect_to_previous) {
     if (!canvas_ || !canvas_px_) return;
     constexpr int radius = 5;
-    x = std::clamp(x, radius, w_ - radius - 1);
-    y = std::clamp(y, radius, h_ - radius - 1);
     const int dx = x - (w_ - 1) / 2;
     const int dy = y - (h_ - 1) / 2;
     const int circle_radius = std::min(w_, h_) / 2 - radius;
@@ -625,6 +623,8 @@ void ChipoTools::AddDrawPoint(int x, int y, bool connect_to_previous) {
         pen_down_ = false;
         return;
     }
+    x = std::clamp(x, radius, w_ - radius - 1);
+    y = std::clamp(y, radius, h_ - radius - 1);
     if (draw_points_count_ > 0 && draw_points_[draw_points_count_ - 1].x == x &&
         draw_points_[draw_points_count_ - 1].y == y) return;
 
