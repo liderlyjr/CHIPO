@@ -114,7 +114,8 @@ private:
     void UpdateSubtitle(uint32_t now_ms);
     void SetOpa(lv_obj_t* obj, int opa);
     void DrawDot(int x, int y, int r);
-    void AddDrawPoint(int x, int y);
+    void DrawStroke(const lv_point_t& from, const lv_point_t& to);
+    void AddDrawPoint(int x, int y, bool connect_to_previous);
     void RedrawCanvas();
     void LayoutTempRow();
 
@@ -202,6 +203,7 @@ private:
     bool pen_down_ = false;
     long dots_ = 0;
     std::array<lv_point_t, 1000> draw_points_{};
+    std::array<bool, 1000> draw_connect_{};
     std::size_t draw_points_count_ = 0;
 
     // subtitles
