@@ -592,26 +592,26 @@ void ChipoTools::AddDrawPoint(int x, int y) {
     const int circle_radius = std::min(w_, h_) / 2 - radius;
     if (dx * dx + dy * dy > circle_radius * circle_radius) return;
 
-    if (draw_points_count_ == draw_points_.size()) {
+    const bool evict_oldest = draw_points_count_ == draw_points_.size();
+    if (evict_oldest) {
         for (size_t i = 1; i < draw_points_count_; ++i) {
             draw_points_[i - 1] = draw_points_[i];
         }
         --draw_points_count_;
     }
     draw_points_[draw_points_count_++] = lv_point_t{x, y};
-    DrawDot(x, y, radius);
+    if (evict_oldest) {
+        RedrawCanvas();
+        return;
+    }
 
+    DrawDot(x, y, radius);
     lv_area_t area{x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1};
     area.x1 = std::max<int32_t>(0, area.x1);
     area.y1 = std::max<int32_t>(0, area.y1);
     area.x2 = std::min<int32_t>(static_cast<int32_t>(w_) - 1, area.x2);
     area.y2 = std::min<int32_t>(static_cast<int32_t>(h_) - 1, area.y2);
     lv_obj_invalidate_area(canvas_, &area);
-
-    if (draw_points_count_ == draw_points_.size()) {
-        // The oldest sample has just been evicted; redraw the retained 1,000 points.
-        RedrawCanvas();
-    }
 }
 
 
