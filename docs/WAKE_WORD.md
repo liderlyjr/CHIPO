@@ -35,9 +35,15 @@ Esto explica por qué no debemos bajar el umbral a ciegas: el modelo inglés no 
 El aviso `wakenet model not found` aparece porque esta configuración utiliza MultiNet como detector personalizado y no un modelo WakeNet; por sí solo no demuestra que el detector esté apagado. La prueba física de «CHIPO» sigue pendiente.
 
 
-## Prueba de pronunciación continua (27-11-2026)
+## Restauración de pronunciación (27-11-2026)
 
-- Variante de prueba: `cheepo` (una sola unidad, sin espacio).
-- Se conserva MultiNet 7 inglés y el umbral 20 para aislar el cambio de grafía.
-- Objetivo: comprobar en la placa si «CHIPO» se detecta dicho de corrido, sin pausa.
-- Esta variante no está validada físicamente; comparar con `chipo` y `chi po` antes de ajustar el umbral o cambiar de modelo.
+- Se restaura `CONFIG_CUSTOM_WAKE_WORD="chee po"` para volver a la grafía anterior que ya se había probado en la placa.
+- Se conserva MultiNet 7 inglés y el umbral 20; no se cambia ninguna ganancia ni configuración del micrófono.
+- Esta restauración no garantiza por sí sola que la detección funcione: hay que probarla físicamente y revisar el texto de inicialización de MultiNet.
+- `hey` o `ey` no es una alternativa equivalente configurada ahora mismo. Para usar «Hey Chipo» habría que validar o entrenar una palabra/frase de activación compatible; no basta con cambiar el texto de pantalla.
+
+## Alternativas
+
+1. Mantener `chee po`: opción inmediata de menor riesgo, porque recupera la grafía anterior.
+2. Usar una palabra WakeNet incluida por Espressif, como «Hola ESP» o «Hi ESP», si el modelo concreto está disponible y es compatible con la versión de ESP-SR integrada en Waveshare. Requiere cambiar la ruta de activación, no solo el nombre.
+3. Entrenar una palabra propia como «Hey Chipo» con el proceso de personalización de Espressif; requiere generar e integrar el modelo y validarlo en la placa.
