@@ -542,8 +542,9 @@ void ChipoTools::AddDrawPoint(int x, int y) {
     } else {
         DrawDot(x, y, radius);
         lv_area_t area{x - radius - 1, y - radius - 1, x + radius + 1, y + radius + 1};
-        area.x1 = std::max(0, area.x1); area.y1 = std::max(0, area.y1);
-        area.x2 = std::min(w_ - 1, area.x2); area.y2 = std::min(h_ - 1, area.y2);
+        area.x1 = std::max<int32_t>(0, area.x1); area.y1 = std::max<int32_t>(0, area.y1);
+        area.x2 = std::min<int32_t>(static_cast<int32_t>(w_) - 1, area.x2);
+        area.y2 = std::min<int32_t>(static_cast<int32_t>(h_) - 1, area.y2);
         lv_obj_invalidate_area(canvas_, &area);
     }
 }
