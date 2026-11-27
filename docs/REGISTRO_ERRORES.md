@@ -493,3 +493,10 @@ Qué falta comprobar y qué no debe darse por resuelto.
 5. Probar audio, wake word Jarvis y ASR por separado.
 6. Ejecutar prueba prolongada y recopilar log serie si vuelve a reiniciarse.
 
+## 2026-11-27 — Corrección de compilación LVGL 9.5 (CI)
+
+- **Fallo observado:** el job `Face and tilt tests (on a PC)` del run [46006214443](https://github.com/liderlyjr/CHIPO/actions/runs/46006214443) falló al compilar `components/chipo_tools/chipo_tools.cpp`.
+- **Causa:** `lv_obj_clear_flag()`, `lv_obj_add_flag()` y `lv_obj_remove_flag()` reciben un único `lv_obj_flag_t` en LVGL 9.5; combinar varias banderas con OR las promociona a `int` y provoca error de conversión.
+- **Corrección aplicada:** `ConfigureFixedTouchObject()` ahora recorre una lista de banderas y hace una llamada por bandera. CLICKABLE y PRESS_LOCK también se configuran en llamadas separadas.
+- **Commit:** `ec117e05173175cdeff508eebe8b3586c3abdc61`.
+- **Estado:** corrección subida a `release/chipo-os-0.7.0`; pendiente comprobar el nuevo CI, la compilación ESP32-S3 y las pruebas físicas. No publicar hasta completar las comprobaciones.
