@@ -1,5 +1,6 @@
 #include "chipo_tools_logic.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <initializer_list>
