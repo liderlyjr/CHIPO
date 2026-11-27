@@ -157,8 +157,9 @@ void ChipoSettings::Build(const lv_font_t* font, const char* version) {
     int h = static_cast<int>(lv_display_get_vertical_resolution(nullptr));
     if (w <= 0) w = kLayoutW;
     if (h <= 0) h = kLayoutH;
-    // ---- battery indicator (top centre, only while charging or low) ----------------------------
-    indicator_ = Box(lv_screen_active(), (w - 134) / 2, 8, 134, 34, 8, 0x000000, 0);
+    // ---- battery indicator (top-right side, only while charging or low) -----------------------
+    // Keep the centre clear for the clock and XiaoZhi/CHIPO status overlays.
+    indicator_ = Box(lv_screen_active(), std::max(8, w - 142), 8, 134, 34, 8, 0x000000, 0);
     lv_obj_set_style_border_width(indicator_, 3, 0);
     lv_obj_set_style_border_color(indicator_, lv_color_hex(kGreen), 0);
     lv_obj_set_style_border_opa(indicator_, LV_OPA_COVER, 0);
