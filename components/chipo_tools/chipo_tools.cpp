@@ -333,7 +333,8 @@ void ChipoTools::Open(Tool tool) {
         // Waveshare DrawPanel appearance: full white drawing surface, red 10 px strokes.
         lv_canvas_fill_bg(canvas_, lv_color_white(), LV_OPA_COVER);
         lv_obj_set_pos(canvas_, 0, 0);
-        lv_obj_add_flag(canvas_, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK);
+        lv_obj_add_flag(canvas_, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(canvas_, LV_OBJ_FLAG_PRESS_LOCK);
         lv_obj_add_event_cb(canvas_, CanvasEvent, LV_EVENT_ALL, this);
         Show(caption_, false);
         Show(hint_, false);
@@ -580,15 +581,15 @@ void ChipoTools::AddDrawPoint(int x, int y) {
     }
 
     // Waveshare's factory DrawPanel joins touch samples with rounded 10 px red segments.
-    const int dx = current.x - previous.x;
-    const int dy = current.y - previous.y;
-    const int steps = std::max(std::abs(dx), std::abs(dy));
+    const int segment_dx = current.x - previous.x;
+    const int segment_dy = current.y - previous.y;
+    const int steps = std::max(std::abs(segment_dx), std::abs(segment_dy));
     if (steps == 0) {
         DrawDot(x, y, radius);
     } else {
         for (int i = 0; i <= steps; ++i) {
-            const int px = previous.x + (dx * i) / steps;
-            const int py = previous.y + (dy * i) / steps;
+            const int px = previous.x + (segment_dx * i) / steps;
+            const int py = previous.y + (segment_dy * i) / steps;
             DrawDot(px, py, radius);
         }
     }
