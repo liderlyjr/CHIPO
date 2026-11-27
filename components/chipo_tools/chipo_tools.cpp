@@ -738,6 +738,7 @@ void ChipoTools::RootEvent(lv_event_t* e) {
         self->gravity_calibration_sum_x_ = self->gravity_calibration_sum_y_ = 0.0f;
         self->gravity_calibration_progress_ = 0;
         self->gravity_calibrated_ = false;
+        self->gravity_calibration_failed_ = false;
         self->gravity_x_ = self->gravity_y_ = 0.0f;
         if (self->hooks_.notify) self->hooks_.notify("Recalibrando Gravitysphere");
     } else if (self->tool_ == Tool::Horizon && self->have_accel_) {
