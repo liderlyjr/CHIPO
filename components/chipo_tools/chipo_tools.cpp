@@ -19,6 +19,7 @@
 
 namespace {
 constexpr uint32_t kTickMs = 50;
+constexpr uint32_t kToolTickMs = 25;  // while a tool is open the screen is redrawn 40 times per second
 constexpr uint32_t kPrefetchEveryMs = 30u * 60u * 1000u;
 constexpr uint32_t kWeatherMaxAgeMs = 3u * 60u * 60u * 1000u;
 constexpr int kStripOpa = 150;   // the strip is dim on purpose: AMOLED burn-in and it must not compete with the face
@@ -298,7 +299,16 @@ void ChipoTools::Open(Tool tool) {
     lv_obj_move_foreground(root_);
     Show(lvl_, tool == Tool::Level);
     Show(gravity_ball_, tool == Tool::GravityBall);
-    if (tool == Tool::Level) {
+    Show(caption_, true);
+    Show(hint_, true);
+    if (tool == Tool::Menu) {
+        lv_obj_set_style_bg_color(root_, lv_color_hex(0x0B1020), 0);
+        lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
+        lv_label_set_text(caption_, "APPS");
+        lv_label_set_text(hint_, "Desliza para ver más · pulsa el botón para salir");
+        BuildMenu();
+        MenuSetPage(0);
+    } else if (tool == Tool::Level) {
         lv_obj_set_style_bg_color(root_, lv_color_black(), 0);
         lv_label_set_text(caption_, "NIVEL");
         lv_label_set_text(hint_, "Toca para calibrar · mantén CHIPO quieto");
@@ -314,6 +324,9 @@ void ChipoTools::Open(Tool tool) {
         lv_label_set_text(caption_, "GRAVITYSPHERE");
         lv_label_set_text(hint_, "Mantén la placa nivelada · calibrando 0%");
         gravity_x_ = gravity_y_ = gravity_vx_ = gravity_vy_ = 0.0f;
+        gravity_draw_x_ = gravity_draw_y_ = 0.0f;
+        gravity_shown_x_ = gravity_shown_y_ = 1 << 20;
+        gravity_hint_set_ = false;
         gravity_calibration_count_ = gravity_calibration_attempts_ = 0;
         gravity_calibration_sum_x_ = gravity_calibration_sum_y_ = 0.0f;
         gravity_calibration_min_x_ = gravity_calibration_min_y_ = 0.0f;
@@ -374,16 +387,19 @@ void ChipoTools::Open(Tool tool) {
         canvas_clear_ = nullptr;
         dots_ = 0; draw_points_count_ = 0; pen_down_ = false;
     }
-    if (tool_ != Tool::None && hooks_.cover_face) hooks_.cover_face(true);
+    if (tool_ != Tool::None) {
+        if (hooks_.cover_face) hooks_.cover_face(true);
+        if (hooks_.fast_sampling) hooks_.fast_sampling(true);  // 50 samples/s instead of 25: smoother ball and bubble
+        if (timer_) lv_timer_set_period(timer_, kToolTickMs);
+    }
 }
 
 void ChipoTools::OnKey() {
+    // One press opens the app launcher; pressing again (or from inside an app) goes back out.
     switch (tool_) {
-    case Tool::None: Open(Tool::Level); break;
-    case Tool::Level: Close(); Open(Tool::GravityBall); break;
-    case Tool::GravityBall: Close(); Open(Tool::Horizon); break;
-    case Tool::Horizon: Close(); Open(Tool::Canvas); break;
-    case Tool::Canvas: Close(); break;
+    case Tool::None: Open(Tool::Menu); break;
+    case Tool::Menu: Close(); break;
+    default: Close(); Open(Tool::Menu); break;
     }
 }
 
@@ -398,9 +414,16 @@ void ChipoTools::Close() {
     if (canvas_px_) { FreePixels(canvas_px_); canvas_px_ = nullptr; }
     if (horizon_canvas_) { lv_obj_delete(horizon_canvas_); horizon_canvas_ = nullptr; }
     if (horizon_px_) { FreePixels(horizon_px_); horizon_px_ = nullptr; }
+    if (menu_) {
+        lv_obj_delete(menu_);
+        menu_ = nullptr;
+        for (int i = 0; i < kMenuPages; ++i) menu_page_[i] = menu_dot_[i] = nullptr;
+    }
     pen_down_ = false; tool_ = Tool::None;
     Show(root_, false); Show(lvl_, false); Show(gravity_ball_, false);
     if (hooks_.cover_face) hooks_.cover_face(false);
+    if (hooks_.fast_sampling) hooks_.fast_sampling(false);
+    if (timer_) lv_timer_set_period(timer_, kTickMs);
 }
 
 // ---- voice, sensors ------------------------------------------------------------------------------------------------
@@ -500,19 +523,18 @@ void ChipoTools::OnSample(const ImuSample& s, uint32_t now_ms) {
         // The display is rotated relative to the QMI8658 board axes:
         // X tilt controls vertical motion; Y tilt controls horizontal motion.
         const GravityBallDelta delta = GravityBallFromAccel(accel_x, accel_y);
-        int x = static_cast<int>(gravity_x_) + static_cast<int>(delta.x);
-        int y = static_cast<int>(gravity_y_) + static_cast<int>(delta.y);
-        const int radius = std::max(1, std::min(w_, h_) / 2 - 22 - 18);
-        const int64_t distance_squared = static_cast<int64_t>(x) * x + static_cast<int64_t>(y) * y;
-        const int64_t radius_squared = static_cast<int64_t>(radius) * radius;
-        if (distance_squared > radius_squared) {
-            const double scale = static_cast<double>(radius) /
-                                 std::sqrt(static_cast<double>(distance_squared));
-            x = static_cast<int>(static_cast<double>(x) * scale);
-            y = static_cast<int>(static_cast<double>(y) * scale);
+        // Float position: truncating to int every sample dropped every step smaller than 1 px and made the ball jump.
+        float x = gravity_x_ + delta.x;
+        float y = gravity_y_ + delta.y;
+        const float radius = static_cast<float>(std::max(1, std::min(w_, h_) / 2 - 22 - 18));
+        const float distance = std::sqrt(x * x + y * y);
+        if (distance > radius) {
+            const float scale = radius / distance;
+            x *= scale;
+            y *= scale;
         }
-        gravity_x_ = static_cast<float>(x);
-        gravity_y_ = static_cast<float>(y);
+        gravity_x_ = x;
+        gravity_y_ = y;
     }
     if (tool_ == Tool::Level && level_calibrating_) {
         if (level_calibration_count_ == 0) {
@@ -719,6 +741,105 @@ void ChipoTools::PenUp() {
     pen_down_ = false;
 }
 
+// ---- app launcher --------------------------------------------------------------------------------------------------
+namespace {
+struct MenuApp { const char* label; uint32_t color; };
+// Page 1: the sensor tools. Page 2: the other CHIPO apps (opened through the open_app hook).
+constexpr MenuApp kMenuApps[] = {
+    {"Nivel", 0x5CF0FF}, {"Gravedad", 0xFF6FB5}, {"Horizonte", 0x1FA9D8}, {"Pizarra", 0xFFB347},
+    {"Clima", 0x7CFF9E}, {"Ajustes", 0xC9A6FF}, {"Dados", 0xFFD166}, {"Moneda", 0xE2C8FF},
+};
+constexpr int kMenuPerPage = 4;
+}  // namespace
+
+void ChipoTools::BuildMenu() {
+    if (menu_) return;
+    menu_ = Plain(root_, w_, h_);
+    lv_obj_set_pos(menu_, 0, 0);
+    lv_obj_add_flag(menu_, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(menu_, LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(menu_, MenuGestureEvent, LV_EVENT_GESTURE, this);
+    const int side = std::min(w_, h_);
+    const int gap = side / 24;
+    const int tile = (side - 4 * gap) / 2;
+    const int left = (w_ - (2 * tile + gap)) / 2;
+    const int top = (h_ - (2 * tile + gap)) / 2;
+    for (int p = 0; p < kMenuPages; ++p) {
+        menu_page_[p] = Plain(menu_, w_, h_);
+        lv_obj_set_pos(menu_page_[p], 0, 0);
+        for (int i = 0; i < kMenuPerPage; ++i) {
+            const int idx = p * kMenuPerPage + i;
+            lv_obj_t* b = lv_obj_create(menu_page_[p]);
+            lv_obj_remove_style_all(b);
+            lv_obj_set_size(b, tile, tile);
+            lv_obj_set_pos(b, left + (i % 2) * (tile + gap), top + (i / 2) * (tile + gap));
+            lv_obj_set_style_radius(b, tile / 5, 0);
+            lv_obj_set_style_bg_color(b, lv_color_hex(0x1A2238), 0);
+            lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_color(b, lv_color_hex(kMenuApps[idx].color), 0);
+            lv_obj_set_style_border_width(b, 2, 0);
+            lv_obj_set_style_border_opa(b, LV_OPA_60, 0);
+            lv_obj_set_style_bg_color(b, lv_color_hex(0x2A3556), LV_STATE_PRESSED);
+            lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(b, LV_OBJ_FLAG_GESTURE_BUBBLE);
+            lv_obj_add_event_cb(b, MenuTileEvent, LV_EVENT_CLICKED, this);
+            lv_obj_set_user_data(b, reinterpret_cast<void*>(static_cast<intptr_t>(idx)));
+            lv_obj_t* dot = Circle(b, tile / 2, kMenuApps[idx].color, LV_OPA_COVER, kMenuApps[idx].color, 0, LV_OPA_COVER);
+            lv_obj_set_style_bg_opa(dot, LV_OPA_70, 0);
+            lv_obj_align(dot, LV_ALIGN_CENTER, 0, -tile / 10);
+            lv_obj_t* l = Label(b, font_mid_, kPaleLilac);
+            lv_label_set_text(l, kMenuApps[idx].label);
+            lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -tile / 14);
+        }
+    }
+    for (int p = 0; p < kMenuPages; ++p) {
+        menu_dot_[p] = Circle(menu_, 12, kLilac, LV_OPA_COVER, kLilac, 0, LV_OPA_COVER);
+        lv_obj_align(menu_dot_[p], LV_ALIGN_BOTTOM_MID, (p - (kMenuPages - 1) / 2.0f) * 28, -std::max(56, side / 8));
+    }
+    menu_cur_ = 0;
+}
+
+void ChipoTools::MenuSetPage(int page) {
+    if (!menu_) return;
+    menu_cur_ = std::clamp(page, 0, kMenuPages - 1);
+    for (int p = 0; p < kMenuPages; ++p) {
+        Show(menu_page_[p], p == menu_cur_);
+        if (menu_dot_[p]) lv_obj_set_style_bg_opa(menu_dot_[p], p == menu_cur_ ? LV_OPA_COVER : LV_OPA_30, 0);
+    }
+}
+
+void ChipoTools::MenuLaunch(int index) {
+    switch (index) {
+        case 0: Open(Tool::Level); return;
+        case 1: Open(Tool::GravityBall); return;
+        case 2: Open(Tool::Horizon); return;
+        case 3: Open(Tool::Canvas); return;
+        default: break;
+    }
+    static const char* const kIds[] = {"weather", "settings", "dice", "coin"};
+    const int k = index - kMenuPerPage;
+    Close();
+    if (k >= 0 && k < 4 && hooks_.open_app) hooks_.open_app(kIds[k]);
+}
+
+void ChipoTools::MenuTileEvent(lv_event_t* e) {
+    auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
+    if (!self || self->tool_ != Tool::Menu) return;
+    const int idx = static_cast<int>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(static_cast<lv_obj_t*>(lv_event_get_target(e)))));
+    self->MenuLaunch(idx);
+}
+
+void ChipoTools::MenuGestureEvent(lv_event_t* e) {
+    auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
+    if (!self || self->tool_ != Tool::Menu) return;
+    lv_indev_t* indev = lv_indev_active();
+    if (!indev) return;
+    const lv_dir_t dir = lv_indev_get_gesture_dir(indev);
+    if (dir == LV_DIR_LEFT) self->MenuSetPage(self->menu_cur_ + 1);
+    else if (dir == LV_DIR_RIGHT) self->MenuSetPage(self->menu_cur_ - 1);
+}
+
 // ---- LVGL callbacks ------------------------------------------------------------------------------------------------
 void ChipoTools::TimerCallback(lv_timer_t* timer) {
     auto* self = static_cast<ChipoTools*>(lv_timer_get_user_data(timer));
@@ -727,7 +848,7 @@ void ChipoTools::TimerCallback(lv_timer_t* timer) {
 
 void ChipoTools::RootEvent(lv_event_t* e) {
     auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
-    if (!self || self->tool_ == Tool::None || self->tool_ == Tool::Canvas) return;
+    if (!self || self->tool_ == Tool::None || self->tool_ == Tool::Canvas || self->tool_ == Tool::Menu) return;
     const uint32_t now = self->Now();
     if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) {
         self->last_long_ms_ = now;
@@ -754,15 +875,16 @@ void ChipoTools::RootEvent(lv_event_t* e) {
         self->gravity_calibration_count_ = self->gravity_calibration_attempts_ = 0;
         self->gravity_calibration_sum_x_ = self->gravity_calibration_sum_y_ = 0.0f;
         self->gravity_calibration_progress_ = 0;
+        self->gravity_hint_set_ = false;
         self->gravity_calibrated_ = false;
         self->gravity_calibration_failed_ = false;
         self->gravity_x_ = self->gravity_y_ = 0.0f;
         if (self->hooks_.notify) self->hooks_.notify("Recalibrando Gravitysphere");
     } else if (self->tool_ == Tool::Horizon && self->have_accel_) {
-        const float mag = std::sqrt(self->ax_ * self->ax_ + self->ay_ * self->ay_ + self->az_ * self->az_);
-        if (mag > 0.5f && mag < 1.6f) {
-            self->horizon_zero_roll_ = std::atan2(self->ay_, self->az_) * 57.2957795f;
-            self->horizon_zero_pitch_ = std::atan2(-self->ax_, std::sqrt(self->ay_ * self->ay_ + self->az_ * self->az_)) * 57.2957795f;
+        float roll = 0.0f, pitch = 0.0f;
+        if (HorizonRawAngles(self->ax_, self->ay_, self->az_, &roll, &pitch)) {
+            self->horizon_zero_roll_ = roll;
+            self->horizon_zero_pitch_ = pitch;
             if (self->hooks_.notify) self->hooks_.notify("Horizonte calibrado");
         }
     }
@@ -924,13 +1046,20 @@ void ChipoTools::UpdateGravityBall(uint32_t) {
         lv_label_set_text(hint_, progress);
         return;
     }
-    lv_obj_align(
-        gravity_ball_dot_,
-        LV_ALIGN_CENTER,
-        static_cast<int>(gravity_x_),
-        static_cast<int>(gravity_y_)
-    );
-    lv_label_set_text(hint_, "Toca la pantalla para recalibrar");
+    // The IMU delivers 25-50 samples/s; the ball is drawn every tick and eases towards the latest position.
+    gravity_draw_x_ += (gravity_x_ - gravity_draw_x_) * 0.5f;
+    gravity_draw_y_ += (gravity_y_ - gravity_draw_y_) * 0.5f;
+    const int px = static_cast<int>(std::lround(gravity_draw_x_));
+    const int py = static_cast<int>(std::lround(gravity_draw_y_));
+    if (px != gravity_shown_x_ || py != gravity_shown_y_) {
+        gravity_shown_x_ = px;
+        gravity_shown_y_ = py;
+        lv_obj_align(gravity_ball_dot_, LV_ALIGN_CENTER, px, py);
+    }
+    if (!gravity_hint_set_) {
+        lv_label_set_text(hint_, "Toca la pantalla para recalibrar");
+        gravity_hint_set_ = true;
+    }
 }
 
 void ChipoTools::UpdateHorizon(uint32_t) {

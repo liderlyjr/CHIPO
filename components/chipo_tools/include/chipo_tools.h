@@ -31,6 +31,8 @@ public:
         std::function<bool(float* remaining, bool* work)> pomodoro;  // a pomodoro runs: fraction left, work period?
         std::function<bool()> face_calm;                             // CHIPO is idle and nothing else is going on
         std::function<bool()> other_screen;                          // weather, clock, lamp, car mode... cover the face
+        std::function<void(const char* app)> open_app;               // launcher: "weather", "settings", "dice", "coin"
+        std::function<void(bool on)> fast_sampling;                  // IMU at 50 Hz while level/gravity/horizon are open
         std::function<void(bool covered)> cover_face;                // a full-screen tool is open: hide the face under it
         std::function<void(const char* emotion, uint32_t ms)> emotion;
         std::function<bool(const char* clip_id)> play_clip;          // false if the clip does not exist
@@ -50,7 +52,7 @@ public:
     bool Start(lv_obj_t* parent, Hooks hooks);
     void Stop();
 
-    enum class Tool : uint8_t { None, Level, GravityBall, Horizon, Canvas };
+    enum class Tool : uint8_t { None, Level, GravityBall, Horizon, Canvas, Menu };
     void Open(Tool tool);
     void Close();
     Tool tool() const { return tool_; }
@@ -102,6 +104,11 @@ public:
 private:
     static void TimerCallback(lv_timer_t* timer);
     static void RootEvent(lv_event_t* e);
+    static void MenuTileEvent(lv_event_t* e);
+    static void MenuGestureEvent(lv_event_t* e);
+    void BuildMenu();
+    void MenuSetPage(int page);
+    void MenuLaunch(int index);
     static void CanvasEvent(lv_event_t* e);
     static void ButtonEvent(lv_event_t* e);
     uint32_t Now() const;
@@ -177,6 +184,12 @@ private:
     float level_calibration_sum_x_ = 0.0f, level_calibration_sum_y_ = 0.0f, level_calibration_sum_z_ = 0.0f;
     float level_calibration_min_x_ = 0.0f, level_calibration_max_x_ = 0.0f;
     float level_calibration_min_y_ = 0.0f, level_calibration_max_y_ = 0.0f;
+    // launcher: 2 x 2 apps per page, swipe to change page
+    static constexpr int kMenuPages = 2;
+    lv_obj_t* menu_ = nullptr;
+    lv_obj_t* menu_page_[kMenuPages] = {nullptr, nullptr};
+    lv_obj_t* menu_dot_[kMenuPages] = {nullptr, nullptr};
+    int menu_cur_ = 0;
     float bubble_x_ = 0, bubble_y_ = 0;
     // Gravity Ball and artificial horizon (QMI8658 accelerometer)
     lv_obj_t* gravity_ball_ = nullptr;
@@ -185,6 +198,9 @@ private:
     lv_obj_t* horizon_canvas_ = nullptr;
     uint16_t* horizon_px_ = nullptr;
     float gravity_x_ = 0.0f, gravity_y_ = 0.0f;
+    float gravity_draw_x_ = 0.0f, gravity_draw_y_ = 0.0f;
+    int gravity_shown_x_ = 1 << 20, gravity_shown_y_ = 1 << 20;
+    bool gravity_hint_set_ = false;
     float gravity_vx_ = 0.0f, gravity_vy_ = 0.0f;
     int gravity_calibration_count_ = 0, gravity_calibration_attempts_ = 0;
     float gravity_calibration_sum_x_ = 0.0f, gravity_calibration_sum_y_ = 0.0f;

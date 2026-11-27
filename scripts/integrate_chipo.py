@@ -956,6 +956,17 @@ replace_once(
                        (chipo_buddy_ && (chipo_buddy_->screen_shown() || chipo_buddy_->desk_clock() || chipo_buddy_->bedtime())) ||
                        (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
             };
+            hooks.open_app = [this](const char* app) {
+                const uint32_t now = static_cast<uint32_t>(esp_timer_get_time() / 1000);
+                if (!app) return;
+                if (!strcmp(app, "weather") && chipo_weather_) chipo_weather_->Show();
+                else if (!strcmp(app, "settings") && chipo_settings_) chipo_settings_->Open();
+                else if (!strcmp(app, "dice") && chipo_fun_) chipo_fun_->StartDice(1, now);
+                else if (!strcmp(app, "coin") && chipo_fun_) chipo_fun_->StartCoin(now);
+            };
+            hooks.fast_sampling = [this](bool on) {
+                if (chipo_face_) chipo_face_->SetFastSampling(on);
+            };
             hooks.cover_face = [this](bool covered) {
                 if (chipo_face_) chipo_face_->SetCovered(covered);  // the tool is full screen: stop redrawing the face under it
             };
