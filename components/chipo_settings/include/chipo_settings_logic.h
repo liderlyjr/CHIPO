@@ -43,3 +43,4 @@ private:
     int count_ = 0;
 };
 bool ChipoSettingsWifi(WifiView* out);  // ESP only
+void ChipoSettingsEnterWifiConfigMode();  // ESP only: starts the board's native Wi-Fi provisioning flow
