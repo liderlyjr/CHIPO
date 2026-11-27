@@ -246,7 +246,8 @@ void ChipoTools::Build(int w, int h) {
 
     // Gravity Ball: a ball follows gravity on the QMI8658 accelerometer.
     gravity_ball_ = Plain(root_, w, h);
-    gravity_ball_track_ = Circle(gravity_ball_, side - 104, 0x000000, LV_OPA_TRANSP, kLilac, 3, LV_OPA_70);
+    // Match Waveshare's movement radius: display radius - 22 px ball - 18 px glow margin.
+    gravity_ball_track_ = Circle(gravity_ball_, side - 80, 0x000000, LV_OPA_TRANSP, 0x52627F, 1, LV_OPA_30);
     lv_obj_align(gravity_ball_track_, LV_ALIGN_CENTER, 0, 0);
     // Waveshare Gravitysphere: 44 px pink-to-orange gradient ball.
     gravity_ball_dot_ = Circle(gravity_ball_, 44, 0xFF4F70, LV_OPA_COVER, 0xFF4F70, 0, LV_OPA_COVER);
@@ -271,6 +272,7 @@ void ChipoTools::Open(Tool tool) {
     Show(lvl_, tool == Tool::Level);
     Show(gravity_ball_, tool == Tool::GravityBall);
     if (tool == Tool::Level) {
+        lv_obj_set_style_bg_color(root_, lv_color_black(), 0);
         lv_label_set_text(caption_, "NIVEL");
         lv_label_set_text(hint_, "Toca para calibrar · mantén CHIPO quieto");
         have_accel_ = false;
@@ -280,6 +282,8 @@ void ChipoTools::Open(Tool tool) {
         level_calibration_count_ = 0;
         bubble_x_ = bubble_y_ = 0;
     } else if (tool == Tool::GravityBall) {
+        lv_obj_set_style_bg_color(root_, lv_color_hex(0x0B1020), 0);
+        lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
         lv_label_set_text(caption_, "GRAVITYSPHERE");
         lv_label_set_text(hint_, "Mantén la placa nivelada · calibrando 0%");
         gravity_x_ = gravity_y_ = gravity_vx_ = gravity_vy_ = 0.0f;
