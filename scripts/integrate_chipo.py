@@ -993,6 +993,7 @@ replace_once(
                 return Board::GetInstance().GetBatteryLevel(*level, *charging, *discharging);
             };
             hooks.wifi = ChipoSettingsWifi;
+            hooks.enter_wifi_config = ChipoSettingsEnterWifiConfigMode;
             hooks.restart = []() { esp_restart(); };
             hooks.notify = [display](const char* text) { display->ShowNotification(text, 3000); };
             hooks.play_clip = [this](const char* id) {
