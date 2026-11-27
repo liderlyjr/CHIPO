@@ -42,6 +42,14 @@ constexpr float kLevelOkDeg = 0.6f;
 // ax, ay, az in g. The sign of the sensor axes is not documented for the board: mirror_x / mirror_y flip them.
 LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mirror_y);
 
+// ---- Gravitysphere -----------------------------------------------------------------------------------------------
+struct GravityBallDelta {
+    float x = 0.0f;  // horizontal screen displacement
+    float y = 0.0f;  // vertical screen displacement
+};
+// QMI8658 axes mapped to the display orientation. Inputs are m/s^2 after rest-bias removal.
+GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2);
+
 // ---- Text helpers ------------------------------------------------------------------------------------------------
 // Replaces accented letters by plain ones (for fonts that lack them): "Sí, sin duda" -> "Si, sin duda".
 std::string FoldAccents(const char* utf8);
