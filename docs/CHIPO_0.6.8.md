@@ -2,7 +2,7 @@
 
 **Rama de trabajo:** `feature/0.6.8-four-tools`  
 **Base:** `main` (sin modificar)  
-**Estado de esta rama:** implementación de pantallas en progreso; PR #28 abierto como borrador. Aún no hay compilación verificada ni firmware publicable.
+**Estado de esta rama:** implementación de pantallas en progreso; PR #28 abierto como borrador. La ejecución de CI #200 seguía ejecutando las pruebas host con AddressSanitizer/UBSan al último chequeo; la compilación ESP-IDF todavía no ha confirmado resultado. No es firmware publicable.
 
 ## Objetivo acordado
 
@@ -42,7 +42,7 @@ La salida de cada herramienta debe devolver el control a la pantalla principal s
 - En `components/chipo_tools/include/chipo_tools.h` y `chipo_tools_logic.h` se definieron las herramientas `Level`, `GravityBall`, `Horizon` y `Canvas`; se retiró `Ball`/bola mágica.
 - En `components/chipo_tools/chipo_tools_logic.cpp` se eliminaron las respuestas de la bola mágica y se añadieron intenciones de voz para Gravity Ball y horizonte.
 - En `components/chipo_tools/chipo_tools.cpp` se implementó el ciclo GPIO18: Ninguna → Nivel → Gravity Ball → Horizonte → DrawPanel → Ninguna.
-- El nivel ahora permite calibración manual con 200 muestras del QMI8658 y comprueba la estabilidad de las lecturas antes de aceptar el cero. Reutiliza el flujo IMU existente.
+- El nivel permite calibración manual con 200 muestras del QMI8658; comprueba la estabilidad X/Y con una ventana de 0,01 g (equivalente a los 0,1 m/s² del ejemplo Waveshare) y calcula el cero con la media de los tres ejes. Reutiliza el flujo IMU existente.
 - DrawPanel se adaptó al estilo CHIPO: AMOLED negro, puntos rojos de 10 px, recorte circular y máximo de 1.000 puntos almacenados. No se añade la interfaz Brookesia de Waveshare.
 - Gravity Ball y horizonte artificial tienen una primera implementación LVGL basada en el acelerómetro ya disponible; todavía requieren validación de movimiento, orientación y rendimiento en el dispositivo.
 - Se añadieron pruebas host para la calibración, el límite de puntos y el ciclo GPIO18. Se abrió el PR #28 en borrador para validación.
