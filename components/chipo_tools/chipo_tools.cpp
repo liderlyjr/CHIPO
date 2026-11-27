@@ -625,7 +625,8 @@ void ChipoTools::AddDrawPoint(int x, int y, bool connect_to_previous) {
     }
     x = std::clamp(x, radius, w_ - radius - 1);
     y = std::clamp(y, radius, h_ - radius - 1);
-    if (draw_points_count_ > 0 && draw_points_[draw_points_count_ - 1].x == x &&
+    if (connect_to_previous && draw_points_count_ > 0 &&
+        draw_points_[draw_points_count_ - 1].x == x &&
         draw_points_[draw_points_count_ - 1].y == y) return;
 
     const bool evict_oldest = draw_points_count_ == draw_points_.size();
