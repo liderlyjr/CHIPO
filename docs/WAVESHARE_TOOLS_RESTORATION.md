@@ -87,12 +87,37 @@ The DrawPanel presentation and stroke behavior were corrected toward the publish
 
 Implementation note: this is a CHIPO/LVGL port of the published 2.06 drawing behavior, not a verbatim copy of the Brookesia `Drawpanel` class. The Brookesia application lifecycle is not part of the XiaoZhi base used by CHIPO.
 
+## Reverse-engineering findings from the 2.16 factory binary (2026-11-27)
+
+The user's disassembly extracts `SENSOR_SIGUIENTE_3.txt` and `SENSOR_SIGUIENTE_4.txt` expose the QMI8658 setup path.
+
+### QMI8658 identification and configuration
+
+- The board's official 2.16 documentation identifies the onboard IMU as QMI8658A/QMI8658C on the shared I2C bus, with SCL GPIO14, SDA GPIO15, and interrupt lines GPIO17/GPIO21. The official Arduino SensorLib declares the low-address I2C address as `0x6B` and WHO_AM_I as `0x05`.
+- In the factory binary, the initialization routine around `0x42031D44–0x42031F9E` reads the chip identity and compares the returned byte against `0x05`. This directly ties the factory Motion/IMU path to the QMI8658 family.
+- The firmware then issues these two-byte register/value writes (little-endian command words in the disassembly):
+  - `0x6002`: CTRL1 (register `0x02`) = `0x60`; enables address auto-increment and big-endian output format.
+  - `0x2303`: CTRL2 (register `0x03`) = `0x23`; accelerometer range bits select ±8 g and ODR code 3.
+  - `0x4304`: CTRL3 (register `0x04`) = `0x43`; gyroscope range bits select ±256 °/s and ODR code 3.
+  - `0x0308`: CTRL7 (register `0x08`) = `0x03`; enables accelerometer and gyroscope together.
+- Since both sensors are enabled, ODR code 3 corresponds to the 6-DOF operating rate (896.8 Hz) in the QMI8658 data sheet; the accelerometer-only table labels code 3 as 1000 Hz. Do not describe this as a 1000 Hz combined stream.
+- The generic read/write service routines at `0x4224681C` and `0x422467B0` are used by this setup path. The binary also contains masked register-update helpers around `0x42031D44` and `0x42031D9C`. Their full semantics still need to be reconstructed before reimplementing every configuration detail.
+
+### Motion data and calibration
+
+- Earlier disassembly shows a vector processing path that reads multiple sensor bytes, constructs signed values, converts them to floats, and applies scale/coordinate transformations. Constants near 9.804 suggest conversion involving standard gravity, but the complete axis mapping and exact units still require verification.
+- The factory Gravitysphere strings explicitly mention QMI8658 initialization, accelerometer range/rate, filtering, failed reads, calibration retries, unstable samples, and fallback to a recent sample window.
+- The calibration routine previously identified at `0x4201A5E0` collects 200 samples and checks a stability tolerance of 0.1 in its internal units. A separate periodic motion update path uses a 0.05 dead zone. These thresholds are binary-derived; their exact unit interpretation is not yet proven.
+- The separate Motion component is associated with the Level/Horizon labels. Gravitysphere and DrawPanel remain separately registered applications. This is based on the factory's embedded source-path and class-name strings, not a full source recovery.
+
+These findings materially narrow the sensor port: CHIPO should use the board's QMI8658 at I2C address `0x6B`, preserve the factory register setup, and reproduce the factory's data conversion/calibration only after axis order, endian handling, filtering, and units have been cross-checked. The official Arduino QMI8658 example is a hardware/driver reference, not proof that its example settings equal the Factory 2.16 application settings.
+
 ## Not yet restored / not verified
 
 - The exact 2.16 factory binary has been authenticated and its partition table and printable strings inspected.
 - Gravitysphere and DrawPanel are confirmed present in the 2.16 factory app, but their original source has not yet been recovered.
 - Level and Horizon are confirmed by factory app labels and horizon-related diagnostic strings; their original implementations have not yet been recovered.
-- No complete disassembly, decompilation, or source reconstruction has been performed.
+- A targeted disassembly has identified the QMI8658 identity check, core register configuration, and several motion/calibration routines; a complete disassembly/decompilation or full source reconstruction has not been completed.
 - No physical-device validation has been performed.
 
 Do not describe the four tools as fully restored until the original implementations have been recovered or faithfully reconstructed and tested on the 2.16 board.
