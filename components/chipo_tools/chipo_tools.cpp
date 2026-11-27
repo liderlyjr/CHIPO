@@ -48,13 +48,27 @@ void ConfigureFixedTouchObject(lv_obj_t* obj, bool clickable) {
     if (!obj) return;
     // Same fixed-surface policy used by Waveshare DrawPanel: neither the drawing area nor
     // its child canvas may scroll, bubble gestures, or hand a drag to a scrollable ancestor.
-    lv_obj_clear_flag(obj,
-        LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM |
-        LV_OBJ_FLAG_SCROLL_ONE | LV_OBJ_FLAG_SCROLL_CHAIN | LV_OBJ_FLAG_SCROLL_ON_FOCUS |
-        LV_OBJ_FLAG_SCROLL_WITH_ARROW | LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_EVENT_BUBBLE);
+    // LVGL 9.5 accepts one lv_obj_flag_t per call; OR-ing flags promotes the value to int.
+    constexpr lv_obj_flag_t fixed_flags[] = {
+        LV_OBJ_FLAG_SCROLLABLE,
+        LV_OBJ_FLAG_SCROLL_ELASTIC,
+        LV_OBJ_FLAG_SCROLL_MOMENTUM,
+        LV_OBJ_FLAG_SCROLL_ONE,
+        LV_OBJ_FLAG_SCROLL_CHAIN,
+        LV_OBJ_FLAG_SCROLL_ON_FOCUS,
+        LV_OBJ_FLAG_SCROLL_WITH_ARROW,
+        LV_OBJ_FLAG_GESTURE_BUBBLE,
+        LV_OBJ_FLAG_EVENT_BUBBLE,
+    };
+    for (lv_obj_flag_t flag : fixed_flags) lv_obj_remove_flag(obj, flag);
     lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
-    if (clickable) lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK);
-    else lv_obj_clear_flag(obj, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK);
+    if (clickable) {
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(obj, LV_OBJ_FLAG_PRESS_LOCK);
+    } else {
+        lv_obj_remove_flag(obj, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(obj, LV_OBJ_FLAG_PRESS_LOCK);
+    }
 }
 
 lv_obj_t* Circle(lv_obj_t* parent, int d, uint32_t fill, int fill_opa, uint32_t border, int border_w, int border_opa) {
