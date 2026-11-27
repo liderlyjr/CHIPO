@@ -1282,13 +1282,13 @@ settings = [
     # header sent to the server (ota.cc). Without it the device is in English (the Kconfig default).
     "CONFIG_LANGUAGE_ES_ES=y",
     "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
-    # Experimental wake word "hola": still uses the English MultiNet 7 custom-command path.
+    # Experimental wake word "jarvis": still uses the English MultiNet 7 custom-command path.
     # This is a pronunciation experiment, NOT the Spanish WakeNet "Hola ESP" model.
     # Validate on the physical board before treating it as working.
     "CONFIG_USE_CUSTOM_WAKE_WORD=y",
     "CONFIG_SR_MN_CN_NONE=y",
     "CONFIG_SR_MN_EN_MULTINET7_QUANT=y",
-    'CONFIG_CUSTOM_WAKE_WORD="hola"',
+    'CONFIG_CUSTOM_WAKE_WORD="jarvis"',
     'CONFIG_CUSTOM_WAKE_WORD_DISPLAY="Chipo"',
     "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20",
     # Fonts for the weather screen (LVGL built-in Montserrat, ASCII).
