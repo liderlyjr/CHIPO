@@ -225,7 +225,7 @@ void ChipoTools::Build(int w, int h) {
     lv_obj_set_pos(root_, 0, 0);
     lv_obj_set_style_bg_color(root_, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
-    lv_obj_add_flag(root_, LV_OBJ_FLAG_CLICKABLE);
+    ConfigureFixedTouchObject(root_, true);
     lv_obj_add_flag(root_, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(root_, RootEvent, LV_EVENT_CLICKED, this);
     lv_obj_add_event_cb(root_, RootEvent, LV_EVENT_LONG_PRESSED, this);
