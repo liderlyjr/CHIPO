@@ -948,6 +948,9 @@ replace_once(
                        (chipo_buddy_ && (chipo_buddy_->screen_shown() || chipo_buddy_->desk_clock() || chipo_buddy_->bedtime())) ||
                        (chipo_scenes_ && chipo_scenes_->screen_shown()) || (chipo_drive_ && chipo_drive_->active());
             };
+            hooks.cover_face = [this](bool covered) {
+                if (chipo_face_) chipo_face_->SetCovered(covered);  // the tool is full screen: stop redrawing the face under it
+            };
             hooks.emotion = [this](const char* name, uint32_t ms) {
                 if (chipo_face_) chipo_face_->ShowEmotionByName(name, ms);
             };
@@ -1282,13 +1285,12 @@ settings = [
     # header sent to the server (ota.cc). Without it the device is in English (the Kconfig default).
     "CONFIG_LANGUAGE_ES_ES=y",
     "CONFIG_USE_WECHAT_MESSAGE_STYLE=y",
-    # Experimental wake word "jarvis": still uses the English MultiNet 7 custom-command path.
-    # This is a pronunciation experiment, NOT the Spanish WakeNet "Hola ESP" model.
-    # Validate on the physical board before treating it as working.
+    # Wake word "Chipo", written phonetically as one unit ("cheepo") for the English MultiNet 7 custom-command path.
+    # Confirmed on the board by the user (0.6.7-0.6.9 used this exact string; 0.7.0 had switched to "jarvis" by mistake).
     "CONFIG_USE_CUSTOM_WAKE_WORD=y",
     "CONFIG_SR_MN_CN_NONE=y",
     "CONFIG_SR_MN_EN_MULTINET7_QUANT=y",
-    'CONFIG_CUSTOM_WAKE_WORD="jarvis"',
+    'CONFIG_CUSTOM_WAKE_WORD="cheepo"',
     'CONFIG_CUSTOM_WAKE_WORD_DISPLAY="Chipo"',
     "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20",
     # Fonts for the weather screen (LVGL built-in Montserrat, ASCII).
@@ -1297,7 +1299,12 @@ settings = [
     "CONFIG_LV_FONT_MONTSERRAT_32=y",  # time and temperature strip, level, 8-ball
     "CONFIG_LV_USE_CANVAS=y",          # drawing canvas
 ]
-kept_lines = [ln for ln in defaults_text.splitlines() if ln.strip() not in OLD_BOARD_SYMBOLS]
+# Settings that CHIPO sets with a value: drop any older line of the same key so the new value is the only one
+# (a previous run may have left e.g. CONFIG_CUSTOM_WAKE_WORD="jarvis" behind).
+OWN_KEYS = ("CONFIG_CUSTOM_WAKE_WORD=", "CONFIG_CUSTOM_WAKE_WORD_DISPLAY=", "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=")
+kept_lines = [ln for ln in defaults_text.splitlines()
+              if ln.strip() not in OLD_BOARD_SYMBOLS
+              and not (ln.strip().startswith(OWN_KEYS) and ln.strip() not in settings)]
 if len(kept_lines) != len(defaults_text.splitlines()):
     defaults_text = "\n".join(kept_lines) + "\n"
     defaults.write_text(defaults_text, encoding="utf-8", newline="\n")

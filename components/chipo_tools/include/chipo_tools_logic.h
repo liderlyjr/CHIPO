@@ -59,6 +59,11 @@ struct HorizonReading {
 };
 HorizonReading HorizonFromAccel(float ax_g, float ay_g, float az_g, float zero_roll_deg, float zero_pitch_deg);
 
+// Draws the artificial horizon into a w x h RGB565 buffer: sky above, earth below, white line, yellow centre mark.
+// Row by row with spans (no per-pixel maths), so a full 480 x 480 frame costs a few ms instead of ~100 ms.
+void HorizonRender(uint16_t* px, int w, int h, float roll_deg, float pitch_deg,
+                   uint16_t sky, uint16_t earth, uint16_t white, uint16_t mark);
+
 // ---- Text helpers ------------------------------------------------------------------------------------------------
 // Replaces accented letters by plain ones (for fonts that lack them): "Sí, sin duda" -> "Si, sin duda".
 std::string FoldAccents(const char* utf8);

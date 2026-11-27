@@ -31,6 +31,7 @@ public:
         std::function<bool(float* remaining, bool* work)> pomodoro;  // a pomodoro runs: fraction left, work period?
         std::function<bool()> face_calm;                             // CHIPO is idle and nothing else is going on
         std::function<bool()> other_screen;                          // weather, clock, lamp, car mode... cover the face
+        std::function<void(bool covered)> cover_face;                // a full-screen tool is open: hide the face under it
         std::function<void(const char* emotion, uint32_t ms)> emotion;
         std::function<bool(const char* clip_id)> play_clip;          // false if the clip does not exist
         std::function<void(const char* text)> notify;
@@ -195,6 +196,7 @@ private:
     bool gravity_calibrated_ = false;
     bool gravity_calibration_failed_ = false;
     float horizon_roll_ = 0.0f, horizon_pitch_ = 0.0f;
+    float horizon_drawn_roll_ = 1.0e9f, horizon_drawn_pitch_ = 1.0e9f;  // last angles actually drawn
     float horizon_zero_roll_ = 0.0f, horizon_zero_pitch_ = 0.0f;
     // canvas
     lv_obj_t* canvas_ = nullptr;

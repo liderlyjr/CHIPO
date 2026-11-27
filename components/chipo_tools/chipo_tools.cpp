@@ -327,6 +327,7 @@ void ChipoTools::Open(Tool tool) {
         lv_label_set_text(caption_, "HORIZONTE ARTIFICIAL");
         lv_label_set_text(hint_, "Toca para fijar el horizonte neutro");
         horizon_px_ = AllocPixels(static_cast<size_t>(w_) * static_cast<size_t>(h_));
+        horizon_drawn_roll_ = horizon_drawn_pitch_ = 1.0e9f;  // force the first frame
         if (!horizon_px_) {
             if (hooks_.notify) hooks_.notify("No hay memoria para el horizonte");
             tool_ = Tool::None; Show(root_, false); return;
@@ -373,6 +374,7 @@ void ChipoTools::Open(Tool tool) {
         canvas_clear_ = nullptr;
         dots_ = 0; draw_points_count_ = 0; pen_down_ = false;
     }
+    if (tool_ != Tool::None && hooks_.cover_face) hooks_.cover_face(true);
 }
 
 void ChipoTools::OnKey() {
@@ -398,6 +400,7 @@ void ChipoTools::Close() {
     if (horizon_px_) { FreePixels(horizon_px_); horizon_px_ = nullptr; }
     pen_down_ = false; tool_ = Tool::None;
     Show(root_, false); Show(lvl_, false); Show(gravity_ball_, false);
+    if (hooks_.cover_face) hooks_.cover_face(false);
 }
 
 // ---- voice, sensors ------------------------------------------------------------------------------------------------
@@ -936,25 +939,14 @@ void ChipoTools::UpdateHorizon(uint32_t) {
     if (!reading.valid) return;
     horizon_roll_ = reading.roll_deg;
     horizon_pitch_ = reading.pitch_deg;
-    const float rad = horizon_roll_ * 0.0174532925f, sn = std::sin(rad), cs = std::cos(rad);
-    const float pitch_px = horizon_pitch_ * 5.0f;
-    const uint16_t sky = lv_color_to_u16(lv_color_hex(0x1FA9D8));
-    const uint16_t earth = lv_color_to_u16(lv_color_hex(0xBF5A06));
-    const uint16_t white = lv_color_to_u16(lv_color_hex(0xFFFFFF));
-    const uint16_t mark = lv_color_to_u16(lv_color_hex(0xFFF2A8));
-    const int cx = w_ / 2, cy = h_ / 2;
-    for (int y = 0; y < h_; ++y) {
-        const float dy = static_cast<float>(y - cy);
-        for (int x = 0; x < w_; ++x) {
-            const float dx = static_cast<float>(x - cx);
-            const float d = -dx * sn + dy * cs + pitch_px;
-            uint16_t color = d >= 0.0f ? earth : sky;
-            if (std::fabs(d) < 1.4f) color = white;
-            const int rx = std::abs(x - cx), ry = std::abs(y - cy);
-            if ((ry <= 2 && rx >= 30 && rx <= 88) || (rx <= 2 && ry <= 14)) color = mark;
-            horizon_px_[y * w_ + x] = color;
-        }
-    }
+    // Nothing to redraw while the board is still: skips a full-screen flush (the AMOLED link and PSRAM are shared with
+    // audio and Wi-Fi, so every avoided frame helps the rest of the firmware).
+    if (std::fabs(horizon_roll_ - horizon_drawn_roll_) < 0.15f && std::fabs(horizon_pitch_ - horizon_drawn_pitch_) < 0.15f) return;
+    horizon_drawn_roll_ = horizon_roll_;
+    horizon_drawn_pitch_ = horizon_pitch_;
+    HorizonRender(horizon_px_, w_, h_, horizon_roll_, horizon_pitch_,
+                  lv_color_to_u16(lv_color_hex(0x1FA9D8)), lv_color_to_u16(lv_color_hex(0xBF5A06)),
+                  lv_color_to_u16(lv_color_hex(0xFFFFFF)), lv_color_to_u16(lv_color_hex(0xFFF2A8)));
     lv_obj_invalidate(horizon_canvas_);
 }
 

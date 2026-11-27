@@ -8,7 +8,7 @@ Este documento mantiene la trazabilidad de los fallos encontrados en CHIPO OS, l
 
 - **Versión en desarrollo:** CHIPO OS 0.7.0, rama `release/chipo-os-0.7.0`; la Release oficial sigue siendo 0.6.9.
 - **Placa objetivo:** Waveshare ESP32-S3 Touch AMOLED 2.16 (480 × 480).
-- **Incidencias abiertas:** bloqueos/reinicios intermitentes, desfase de orientación, validación física de NIVEL/Gravitysphere/HORIZONTE/DrawPanel y activación por voz experimental «Jarvis».
+- **Incidencias abiertas:** bloqueos/reinicios intermitentes, desfase de orientación, validación física de NIVEL/Gravitysphere/HORIZONTE/DrawPanel y activación por voz «Chipo» (`cheepo`, restaurada en 0.7.1).
 - **Estado:** hay correcciones de código y CI, pero la placa física todavía debe validar el comportamiento real.
 - **Prueba física:** el usuario informó que CHIPO arranca y funciona, pero luego presenta fallos y se reinicia; falta un nuevo log serie para cerrar esa incidencia.
 

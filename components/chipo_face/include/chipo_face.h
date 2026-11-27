@@ -185,6 +185,9 @@ public:
     using LevelSource = std::function<float()>;  // 0..1
     void SetLevelSource(LevelSource source) { level_source_ = std::move(source); }
     void SetDance(bool on);
+    // A full-screen tool (level, horizon, DrawPanel...) covers the face: hide it so LVGL stops redrawing it underneath.
+    // The animation and the tilt sensor keep running, so nothing is lost when it is shown again.
+    void SetCovered(bool covered);
     bool dancing() const { return dance_on_; }
     // One slow, affectionate blink (like a cat) instead of the quick one.
     void SlowBlink();
