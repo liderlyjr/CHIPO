@@ -1256,7 +1256,7 @@ settings = [
     "CONFIG_USE_CUSTOM_WAKE_WORD=y",
     "CONFIG_SR_MN_CN_NONE=y",
     "CONFIG_SR_MN_EN_MULTINET7_QUANT=y",
-    'CONFIG_CUSTOM_WAKE_WORD="chee po"',
+    'CONFIG_CUSTOM_WAKE_WORD="cheepo"',
     'CONFIG_CUSTOM_WAKE_WORD_DISPLAY="Chipo"',
     "CONFIG_CUSTOM_WAKE_WORD_THRESHOLD=20",
     # Fonts for the weather screen (LVGL built-in Montserrat, ASCII).
