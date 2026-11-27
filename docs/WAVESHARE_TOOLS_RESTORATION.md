@@ -120,6 +120,22 @@ The same binary region exposes the sensor's output-register reads, which can be 
 
 This maps the temperature, timestamp, acceleration, and gyroscope reads to documented QMI8658 registers rather than merely identifying the sensor family by its WHO_AM_I byte.
 
+### Difference from CHIPO's current shared IMU profile
+
+The current `components/chipo_face/chipo_imu.cpp` does not configure the QMI8658 like the recovered 2.16 factory driver:
+
+| Register | 2.16 factory binary | Current CHIPO shared IMU |
+|---|---:|---:|
+| CTRL1 (0x02) | 0x60 | 0x40 |
+| CTRL2 (0x03) | 0x23 (±8 g, ODR code 3) | 0x15 (±4 g, 250 Hz) |
+| CTRL3 (0x04) | 0x43 (±256 °/s, ODR code 3) | 0x55 (±512 °/s, 250 Hz) |
+| CTRL7 (0x08) | 0x03 (accelerometer + gyroscope) | 0x03 when gyro enabled; otherwise 0x01 |
+| Read cadence | not fully established yet | 25 Hz normal / configured fast mode |
+
+CHIPO also currently decodes the six sensor words as little-endian. The factory writes CTRL1=0x60, whose BE bit requests big-endian sensor output according to the QMI register definition. The factory read helper may perform byte ordering internally, so this must be verified before changing CHIPO's decoder.
+
+Do not globally replace CHIPO's shared IMU configuration yet: it also feeds face/tilt and drive behavior. The safe next design is to establish the exact factory byte order, data scaling, and sampling cadence, then decide whether the four tools need a dedicated QMI profile or whether the shared reader can be adjusted without changing unrelated features.
+
 ### Motion data and calibration
 
 - Earlier disassembly shows a vector processing path that reads multiple sensor bytes, constructs signed values, converts them to floats, and applies scale/coordinate transformations. Constants near 9.804 suggest conversion involving standard gravity, but the complete axis mapping and exact units still require verification.
