@@ -59,3 +59,13 @@ La salida de cada herramienta debe devolver el control a la pantalla principal s
 ## Criterio de publicación
 
 No crear una release ni anunciar una OTA 0.6.8 hasta que el firmware compile y las pruebas automatizadas pasen. Los resultados de hardware deben marcarse aparte como pendientes hasta que se prueben en el dispositivo.
+
+## Cambios anteriores del proyecto que esta rama debe conservar
+
+Según el historial de trabajo de CHIPO, estos cambios son parte de la línea base previa y no deben perderse al integrar 0.6.8:
+
+- **0.6.6 — interfaz CHIPO:** fondo AMOLED negro y visualización de los ojos/boca de CHIPO sin la interfaz ni los textos de XiaoZhi.
+- **PR #26 — temporizador:** mantener visible la cuenta atrás durante su ejecución y regresar después a la pantalla adecuada, en vez de volver prematuramente a la cara.
+- **PR #27 — palabra de activación:** ajuste de la configuración de la palabra personalizada a `cheepo`, conservando MultiNet7 y el umbral indicado en ese cambio.
+
+Estos puntos se registran como requisitos de conservación de la base existente. No se presentan como nuevas modificaciones realizadas por esta rama ni como pruebas físicas confirmadas durante esta integración.
