@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -115,7 +116,6 @@ private:
     void DrawDot(int x, int y, int r);
     void AddDrawPoint(int x, int y);
     void RedrawCanvas();
-    void DrawSegment(int x0, int y0, int x1, int y1);
     void LayoutTempRow();
 
     Hooks hooks_;
@@ -192,11 +192,9 @@ private:
     lv_obj_t* canvas_clear_ = nullptr;
     uint16_t* canvas_px_ = nullptr;  // w x h RGB565, owned here, handed to the LVGL canvas
     bool pen_down_ = false;
-    int pen_x_ = 0, pen_y_ = 0;
-    int pen_color_ = 0;
     long dots_ = 0;
     std::array<lv_point_t, 1000> draw_points_{};
-    size_t draw_points_count_ = 0;
+    std::size_t draw_points_count_ = 0;
 
     // subtitles
     lv_obj_t* sub_ = nullptr;
