@@ -94,9 +94,16 @@ int main() {
         CHECK(std::fabs(m.x + r.x) < 1e-5f, "mirror x");
         m = LevelFromAccel(0, s, c, false, true);
         CHECK(m.y < -0.25f, "mirror y");
+        const float s10 = std::sin(10.0f * 0.0174533f), c10 = std::cos(10.0f * 0.0174533f);
+        r = LevelFromAccel(s10, 0, c10, false, false);
+        CHECK(r.flat && std::fabs(r.angle_deg - 10.0f) < 0.05f && r.x > 0.30f && r.x < 0.36f,
+              "10 degrees must remain visible and use the wider scale, got angle=%f bubble=%f", r.angle_deg, r.x);
         const float s30 = std::sin(30.0f * 0.0174533f), c30 = std::cos(30.0f * 0.0174533f);
         r = LevelFromAccel(s30, 0, c30, false, false);
-        CHECK(!r.flat, "30 degrees is no longer flat enough");
+        CHECK(r.flat && std::fabs(r.x - 1.0f) < 1e-4f, "30 degrees must reach full bubble deflection");
+        const float s40 = std::sin(40.0f * 0.0174533f), c40 = std::cos(40.0f * 0.0174533f);
+        r = LevelFromAccel(s40, 0, c40, false, false);
+        CHECK(!r.flat, "40 degrees should be outside the level's operating range");
         r = LevelFromAccel(0, 1, 0, false, false);
         CHECK(!r.flat, "standing upright is not flat");
         r = LevelFromAccel(0.2f, 0.9f, 0.4f, false, false);
