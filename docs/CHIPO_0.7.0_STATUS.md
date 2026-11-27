@@ -18,8 +18,8 @@ Este documento separa cambios aplicados de tareas pendientes. No equivale a una 
 - **Giroscopio:** el QMI8658 se configura actualmente a ±512 °/s y se interpreta en little-endian. Falta contrastar configuración, orden de bytes y escalas con el driver exacto de Waveshare para esta placa; no se declara calibrado.
 - **Gravitysphere:** el mapeo de software ahora coincide con Waveshare 2.06. Aún requiere confirmación física en la placa AMOLED 2.16 para comprobar la orientación real del módulo y el sentido visual.
 - **Pizarra DrawPanel:** el canvas tiene `CLICKABLE` y `PRESS_LOCK`, pero aún hay que revisar el scroll/gestos de los ancestros y validar que el lienzo no se desplace durante el trazo.
-- **Reposo/reloj/logo:** BUDDY dibuja su reloj en una capa LVGL independiente y CHIPO Face dibuja sobre la UI de XiaoZhi. Falta rastrear en la integración de la aplicación qué vista adicional permanece activa cuando aparece el logo y la hora duplicada. No se debe ocultar el logo a ciegas sin identificar su propietario.
-- **Cara y estado de carga:** la cara tiene el ajuste de tamaño aplicado; falta mover el indicador de carga a un lateral y comprobar que no se solape con la hora ni con avisos OTA.
+- **Reposo/reloj/logo:** se identificó que el logo central es el `emoji_label_` de XiaoZhi: aunque `SetEmotion()` está anulado para CHIPO, `ShowEmotion()` podía volver a mostrar el glifo robot al limpiar mensajes. El script de integración ahora fuerza ocultar las capas `emoji_label_` y `emoji_image_` también en `ShowEmotion()`. Además, el hook que controla la hora superior ahora considera explícitamente `chipo_buddy_->desk_clock()` para no dibujar la hora de información mientras se activa el reloj lateral BUDDY. CI debe confirmar que los anclajes del script coinciden con la versión XiaoZhi fijada.
+- **Cara y estado de carga:** la cara tiene el ajuste de tamaño aplicado y el indicador de batería se movió al lateral superior derecho. Pendiente validar que no se solape con avisos OTA en pantalla real.
 
 ## Verificación
 
