@@ -1311,6 +1311,31 @@ replace_once(
     "CHIPO: force the white light theme for the complete XiaoZhi interface",
 )
 
+# Fluidity: the stock SPI path renders 20 lines into ONE DMA strip and waits for it to be sent before drawing the next,
+# so drawing and transferring never overlap. Two strips let LVGL draw strip N+1 while the DMA sends strip N.
+# If the internal DMA RAM cannot hold two strips the display falls back to the stock single strip instead of staying black.
+replace_once(
+    lcd_display_cc,
+    """        .buffer_size = static_cast<uint32_t>(width_ * 20),
+        .double_buffer = false,""",
+    """        .buffer_size = static_cast<uint32_t>(width_ * 20),
+        .double_buffer = true,  // CHIPO: overlap drawing and DMA transfer""",
+    "CHIPO: double-buffered SPI display strips (smoother animations)",
+)
+replace_once(
+    lcd_display_cc,
+    """    display_ = lvgl_port_add_disp(&display_cfg);
+""",
+    """    display_ = lvgl_port_add_disp(&display_cfg);
+    if (display_ == nullptr) {  // CHIPO: not enough internal DMA RAM for two strips: use the stock single strip
+        lvgl_port_display_cfg_t single_strip = display_cfg;
+        single_strip.double_buffer = false;
+        display_ = lvgl_port_add_disp(&single_strip);
+    }
+""",
+    "CHIPO: fall back to a single display strip when the second one does not fit",
+)
+
 root_cmake = xiaozhi / "CMakeLists.txt"
 text = root_cmake.read_text(encoding="utf-8")
 new_text, n = re.subn(r'set\(PROJECT_VER "[^"]*"\)', f'set(PROJECT_VER "{chipo_version}")', text, count=1)

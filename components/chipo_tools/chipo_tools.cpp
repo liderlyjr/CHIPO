@@ -1,4 +1,5 @@
 #include "chipo_tools.h"
+#include "chipo_icons.h"
 
 #include <algorithm>
 #include <cmath>
@@ -754,7 +755,7 @@ namespace {
 struct GridItem { const char* label; uint32_t color; const char* id; };
 // Launcher (button): the sensor tools first, then the other CHIPO apps (opened through the open_app hook).
 constexpr GridItem kLauncherItems[] = {
-    {"Nivel", 0x5CF0FF, nullptr}, {"Gravedad", 0xFF6FB5, nullptr}, {"Horizonte", 0x1FA9D8, nullptr}, {"Pizarra", 0xFFB347, nullptr},
+    {"Nivel", 0x5CF0FF, "level"}, {"Gravedad", 0xFF6FB5, "gravity"}, {"Horizonte", 0x1FA9D8, "horizon"}, {"Pizarra", 0xFFB347, "canvas"},
     {"Clima", 0x7CFF9E, "weather"}, {"Ajustes", 0xC9A6FF, "settings"}, {"Dados", 0xFFD166, "dice"}, {"Moneda", 0xE2C8FF, "coin"},
 };
 // Control panel (swipe down from the top edge): modes and screens that otherwise need a voice command.
@@ -808,8 +809,17 @@ void ChipoTools::BuildMenu() {
             lv_obj_add_flag(b, LV_OBJ_FLAG_GESTURE_BUBBLE);
             lv_obj_add_event_cb(b, MenuTileEvent, LV_EVENT_CLICKED, this);
             lv_obj_set_user_data(b, reinterpret_cast<void*>(static_cast<intptr_t>(idx)));
-            lv_obj_t* dot = Circle(b, tile / 2, items[idx].color, LV_OPA_70, items[idx].color, 0, LV_OPA_COVER);
-            lv_obj_align(dot, LV_ALIGN_CENTER, 0, -tile / 10);
+            // App icon: an alpha-only picture recoloured with the app colour (zoomed to roughly half the tile).
+            const char* icon_id = items[idx].id;
+            lv_obj_t* img = lv_image_create(b);
+            lv_obj_remove_flag(img, LV_OBJ_FLAG_CLICKABLE);
+            if (const lv_image_dsc_t* dsc = ChipoIcon(icon_id)) {
+                lv_image_set_src(img, dsc);
+                lv_image_set_scale(img, std::max(64, tile * 256 / 2 / 80));  // 256 = 100 %
+                lv_obj_set_style_image_recolor(img, lv_color_hex(items[idx].color), 0);
+                lv_obj_set_style_image_recolor_opa(img, LV_OPA_COVER, 0);
+            }
+            lv_obj_align(img, LV_ALIGN_CENTER, 0, -tile / 10);
             lv_obj_t* l = Label(b, font_mid_, kPaleLilac);
             lv_label_set_text(l, items[idx].label);
             lv_obj_align(l, LV_ALIGN_BOTTOM_MID, 0, -tile / 14);
