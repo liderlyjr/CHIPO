@@ -83,6 +83,7 @@ public:
     void DriveReact(DriveReaction reaction, float intensity);
     // 50 Hz IMU readout (needs the real board; no effect elsewhere).
     void SetFastSampling(bool fast);
+    void SetImuPaused(bool paused);
 
     struct DebugInfo {
         uint32_t step_period_ms;  // animation timer period: slower while asleep

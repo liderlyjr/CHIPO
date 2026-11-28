@@ -33,6 +33,7 @@ public:
         std::function<bool()> other_screen;                          // weather, clock, lamp, car mode... cover the face
         std::function<void(const char* app)> open_app;               // launcher: "weather", "settings", "dice", "coin"
         std::function<void(const char* mode)> run_mode;              // control panel: "night", "drive", "pomodoro", "clock", ...
+        std::function<void(bool paused)> pause_imu;                  // stop IMU reads while the touch controller is in use
         std::function<void(bool on)> fast_sampling;                  // IMU at 50 Hz while level/gravity/horizon are open
         std::function<void(bool covered)> cover_face;                // a full-screen tool is open: hide the face under it
         std::function<void(const char* emotion, uint32_t ms)> emotion;

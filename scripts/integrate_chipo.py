@@ -963,6 +963,9 @@ replace_once(
                 else if (!strcmp(app, "dice") && chipo_fun_) chipo_fun_->OnVoiceText("tira un dado");
                 else if (!strcmp(app, "coin") && chipo_fun_) chipo_fun_->OnVoiceText("tira una moneda");
             };
+            hooks.pause_imu = [this](bool paused) {
+                if (chipo_face_) chipo_face_->SetImuPaused(paused);
+            };
             hooks.fast_sampling = [this](bool on) {
                 // The car mode needs the fast IMU too: closing a tool must not slow it down.
                 if (chipo_face_) chipo_face_->SetFastSampling(on || (chipo_drive_ && chipo_drive_->active()));

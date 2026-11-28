@@ -10,3 +10,7 @@
 - Panel de modos: el paso de página ya no depende del gesto de LVGL (no funcionaba en el panel); se mide el desplazamiento del dedo. Los puntitos también cambian de página al tocarlos. Cuadrícula más pequeña para que no tape los puntos.
 - Bola de gravedad: izquierda/derecha invertido (arriba/abajo ya estaba bien).
 - Pizarra: una pulsación que empieza poco después de soltar y cerca del último punto continúa el trazo (antes salían puntos sueltos). Causa probable: el controlador táctil entrega el dedo en movimiento como soltar+pulsar. No comprobado en la placa.
+
+## 0.7.8
+
+- Pizarra a rayitas: hipótesis nueva. El sensor de movimiento y el táctil comparten el bus I2C; con el IMU leyéndose cada 20-40 ms, algunas lecturas del táctil se pierden y salen huecos. Al abrir la pizarra, el menú o el panel, el IMU deja de leer el bus y se reanuda al cerrar. No comprobado en la placa.

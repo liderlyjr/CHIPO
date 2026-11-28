@@ -402,7 +402,11 @@ void ChipoTools::Open(Tool tool) {
     }
     if (tool_ != Tool::None) {
         if (hooks_.cover_face) hooks_.cover_face(true);
-        if (hooks_.fast_sampling) hooks_.fast_sampling(true);  // 50 samples/s instead of 25: smoother ball and bubble
+        // Drawing and the menus need the touch controller (same I2C bus as the IMU) to answer every read; the sensor
+        // tools want the opposite: 50 samples/s instead of 25 for a smoother ball and bubble.
+        const bool needs_touch = tool_ == Tool::Canvas || tool_ == Tool::Menu || tool_ == Tool::Panel;
+        if (hooks_.pause_imu) hooks_.pause_imu(needs_touch);
+        if (hooks_.fast_sampling) hooks_.fast_sampling(!needs_touch);
         if (timer_) lv_timer_set_period(timer_, kToolTickMs);
     }
 }
@@ -435,6 +439,7 @@ void ChipoTools::Close() {
     pen_down_ = false; tool_ = Tool::None;
     Show(root_, false); Show(lvl_, false); Show(gravity_ball_, false);
     if (hooks_.cover_face) hooks_.cover_face(false);
+    if (hooks_.pause_imu) hooks_.pause_imu(false);
     if (hooks_.fast_sampling) hooks_.fast_sampling(false);
     if (timer_) lv_timer_set_period(timer_, kTickMs);
 }
