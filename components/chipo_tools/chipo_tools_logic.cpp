@@ -56,17 +56,18 @@ LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mi
 
 // ---- Gravitysphere -----------------------------------------------------------------------------------------------
 GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2) {
-    // Match Waveshare Gravitysphere.cpp: x -= accelY * scale; y += accelX * scale.
-    // The AMOLED display axes are rotated relative to the QMI8658 board axes.
-    return {-accel_y_mps2 * 8.0f, accel_x_mps2 * 8.0f};
+    // The display is rotated 90 degrees from the QMI8658 board: screen right = sensor +X, screen up = sensor -Y
+    // (screen normal = sensor -Z). The ball rolls along gravity, which is minus the measured specific force.
+    // Waveshare's own demo (x -= accelY, y += accelX) assumed the unrotated panel; on CHIPO it made a tilt to the left
+    // roll the ball downwards (checked on the board).
+    return {-accel_x_mps2 * 8.0f, -accel_y_mps2 * 8.0f};
 }
 
-// CHIPO stands upright like a small Macintosh and its display is rotated 90 degrees from the QMI8658 board axes
-// (the same mapping Gravity Ball uses: screen vertical = sensor X, screen horizontal = sensor Y, screen normal = sensor Z).
-// Signs are configurable because they have only been inferred from the datasheet convention (+1 g on Z when the screen
-// faces up) and must be confirmed on the board: flip the macro if an axis looks mirrored.
+// Frame of the sensor on the CHIPO board, derived from Waveshare's demo mapping plus the rotated display and confirmed
+// by the gravity ball on the board: screen right = +X, screen up = -Y, out of the screen = -Z (specific force readings).
+// The other signs stay configurable: flip a macro if an axis looks mirrored.
 #ifndef CHIPO_HORIZON_VERT_SIGN
-#define CHIPO_HORIZON_VERT_SIGN 1.0f
+#define CHIPO_HORIZON_VERT_SIGN -1.0f
 #endif
 #ifndef CHIPO_HORIZON_ROLL_SIGN
 #define CHIPO_HORIZON_ROLL_SIGN 1.0f
@@ -78,13 +79,13 @@ GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2) {
 bool HorizonRawAngles(float ax_g, float ay_g, float az_g, float* roll_deg, float* pitch_deg) {
     const float magnitude = std::sqrt(ax_g * ax_g + ay_g * ay_g + az_g * az_g);
     if (magnitude < 0.55f || magnitude > 1.55f) return false;
-    // Tilting the top of the screen backwards (screen facing up) raises Z: the horizon must move down (negative pitch).
+    // Tilting the top of the screen backwards (screen facing up) makes Z more negative on this board: the horizon moves down.
     const float zn = std::clamp(az_g / magnitude, -1.0f, 1.0f);
-    const float pitch = -std::asin(zn) * 57.2957795f * CHIPO_HORIZON_PITCH_SIGN;
+    const float pitch = std::asin(zn) * 57.2957795f * CHIPO_HORIZON_PITCH_SIGN;
     // Roll is the in-plane angle of gravity; undefined when the board lies flat, so it holds 0 instead of jittering.
     const float in_plane = std::sqrt(ax_g * ax_g + ay_g * ay_g);
     const float roll = in_plane < 0.2f ? 0.0f
-        : std::atan2(ay_g, CHIPO_HORIZON_VERT_SIGN * ax_g) * 57.2957795f * CHIPO_HORIZON_ROLL_SIGN;
+        : std::atan2(ax_g, CHIPO_HORIZON_VERT_SIGN * ay_g) * 57.2957795f * CHIPO_HORIZON_ROLL_SIGN;
     if (roll_deg) *roll_deg = roll;
     if (pitch_deg) *pitch_deg = pitch;
     return true;
