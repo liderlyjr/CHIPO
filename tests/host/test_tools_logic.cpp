@@ -117,42 +117,39 @@ int main() {
         CHECK(std::sqrt(r.x * r.x + r.y * r.y) <= 1.0001f, "bubble stays inside the circle");
     }
 
-    // ---- Gravitysphere axis mapping ----
+    // ---- gravity ball: screen right = sensor +X, screen up = sensor -Y (display rotated on the board) ----
     {
-        GravityBallDelta d = GravityBallFromAccel(0.0f, 1.0f);
-        CHECK(std::fabs(d.x + 8.0f) < 1e-5f && std::fabs(d.y) < 1e-5f,
-              "Y sensor tilt must move horizontally (Waveshare mapping), got (%f,%f)", d.x, d.y);
-        d = GravityBallFromAccel(1.0f, 0.0f);
-        CHECK(std::fabs(d.x) < 1e-5f && std::fabs(d.y - 8.0f) < 1e-5f,
-              "X sensor tilt must move vertically (Waveshare mapping), got (%f,%f)", d.x, d.y);
-        d = GravityBallFromAccel(-1.0f, -1.0f);
-        CHECK(std::fabs(d.x - 8.0f) < 1e-5f && std::fabs(d.y + 8.0f) < 1e-5f,
-              "negative axes must preserve direction, got (%f,%f)", d.x, d.y);
+        GravityBallDelta d = GravityBallFromAccel(1.0f, 0.0f);  // tilt to the left raises +X: the ball must go left
+        CHECK(std::fabs(d.x + 8.0f) < 1e-5f && std::fabs(d.y) < 1e-5f, "+X moves the ball left, got (%f,%f)", d.x, d.y);
+        d = GravityBallFromAccel(0.0f, -1.0f);  // upright: the ball rests at the bottom (down on screen)
+        CHECK(std::fabs(d.x) < 1e-5f && std::fabs(d.y - 8.0f) < 1e-5f, "upright pulls the ball down, got (%f,%f)", d.x, d.y);
+        d = GravityBallFromAccel(-1.0f, 1.0f);
+        CHECK(std::fabs(d.x - 8.0f) < 1e-5f && std::fabs(d.y + 8.0f) < 1e-5f, "opposite signs, got (%f,%f)", d.x, d.y);
     }
 
-    // ---- artificial horizon (device upright: gravity along sensor X, screen normal = sensor Z) ----
+    // ---- artificial horizon (device upright: specific force along sensor -Y, screen normal = sensor -Z) ----
     {
-        HorizonReading h = HorizonFromAccel(1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        HorizonReading h = HorizonFromAccel(0.0f, -1.0f, 0.0f, 0.0f, 0.0f);
         CHECK(h.valid && std::fabs(h.roll_deg) < 1e-3f && std::fabs(h.pitch_deg) < 1e-3f, "upright horizon should be zero");
         const float p = 12.0f * 0.0174532925f;
         // Tilting back (screen faces up) must move the horizon down and must NOT roll it.
-        h = HorizonFromAccel(std::cos(p), 0.0f, std::sin(p), 0.0f, 0.0f);
+        h = HorizonFromAccel(0.0f, -std::cos(p), -std::sin(p), 0.0f, 0.0f);
         CHECK(h.valid && std::fabs(h.roll_deg) < 0.1f && std::fabs(h.pitch_deg + 12.0f) < 0.1f,
               "tilt back = pure negative pitch, got roll %f pitch %f", h.roll_deg, h.pitch_deg);
-        h = HorizonFromAccel(std::cos(p), 0.0f, -std::sin(p), 0.0f, 0.0f);
+        h = HorizonFromAccel(0.0f, -std::cos(p), std::sin(p), 0.0f, 0.0f);
         CHECK(h.valid && std::fabs(h.roll_deg) < 0.1f && std::fabs(h.pitch_deg - 12.0f) < 0.1f,
               "tilt forward = pure positive pitch, got roll %f pitch %f", h.roll_deg, h.pitch_deg);
-        h = HorizonFromAccel(std::cos(p), std::sin(p), 0.0f, 0.0f, 0.0f);
+        // Tilting the device to the left (+X) rolls the horizon clockwise on the screen, like an aircraft indicator.
+        h = HorizonFromAccel(std::sin(p), -std::cos(p), 0.0f, 0.0f, 0.0f);
         CHECK(h.valid && std::fabs(h.roll_deg - 12.0f) < 0.1f && std::fabs(h.pitch_deg) < 0.1f,
               "sideways tilt = pure roll, got roll %f pitch %f", h.roll_deg, h.pitch_deg);
-        h = HorizonFromAccel(1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         float r0 = 0, p0 = 0;
-        CHECK(HorizonRawAngles(std::cos(p), 0.0f, std::sin(p), &r0, &p0), "raw angles valid");
-        h = HorizonFromAccel(std::cos(p), 0.0f, std::sin(p), r0, p0);
+        CHECK(HorizonRawAngles(0.0f, -std::cos(p), -std::sin(p), &r0, &p0), "raw angles valid");
+        h = HorizonFromAccel(0.0f, -std::cos(p), -std::sin(p), r0, p0);
         CHECK(std::fabs(h.pitch_deg) < 0.1f, "calibration cancels the captured pose");
         h = HorizonFromAccel(0.0f, 0.0f, 0.1f, 0.0f, 0.0f);
         CHECK(!h.valid, "free-fall / invalid gravity magnitude must be rejected");
-        h = HorizonFromAccel(0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+        h = HorizonFromAccel(0.0f, 0.0f, -1.0f, 0.0f, 0.0f);
         CHECK(h.valid && std::fabs(h.roll_deg) < 1e-3f, "lying flat holds roll at 0 instead of jittering");
     }
 
