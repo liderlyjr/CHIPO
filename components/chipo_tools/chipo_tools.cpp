@@ -20,6 +20,9 @@
 
 namespace {
 constexpr uint32_t kTickMs = 50;
+constexpr int kMenuSwipePx = 50;     // horizontal drag that turns a page of the launcher / panel
+constexpr uint32_t kStrokeJoinMs = 120;  // a press this soon after a release continues the stroke
+constexpr int kStrokeJoinPx = 90;       // ... if it starts within this distance of the last point
 constexpr int kEdgeSwipePx = 40;     // vertical drag from the top strip that opens the control panel
 constexpr uint32_t kToolTickMs = 25;  // while a tool is open the screen is redrawn 40 times per second
 constexpr uint32_t kPrefetchEveryMs = 30u * 60u * 1000u;
@@ -314,7 +317,8 @@ void ChipoTools::Open(Tool tool) {
         lv_obj_set_style_bg_color(root_, lv_color_hex(0x0B1020), 0);
         lv_obj_set_style_bg_opa(root_, LV_OPA_COVER, 0);
         lv_label_set_text(caption_, tool == Tool::Panel ? "MODOS" : "APPS");
-        lv_label_set_text(hint_, tool == Tool::Panel ? "Desliza hacia arriba para cerrar" : "Desliza para ver más · pulsa el botón para salir");
+        lv_label_set_text(hint_, tool == Tool::Panel ? "" : "Desliza para ver más · pulsa el botón para salir");
+        Show(hint_, tool != Tool::Panel);
         BuildMenu();
         MenuSetPage(0);
     } else if (tool == Tool::Level) {
@@ -394,7 +398,7 @@ void ChipoTools::Open(Tool tool) {
         Show(hint_, false);
         canvas_close_ = nullptr;
         canvas_clear_ = nullptr;
-        dots_ = 0; draw_points_count_ = 0; pen_down_ = false;
+        dots_ = 0; draw_points_count_ = 0; pen_down_ = false; pen_last_ms_ = 0;
     }
     if (tool_ != Tool::None) {
         if (hooks_.cover_face) hooks_.cover_face(true);
@@ -717,6 +721,9 @@ void ChipoTools::AddDrawPoint(int x, int y, bool connect_to_previous) {
         --draw_points_count_;
         draw_connect_[0] = false;
     }
+    pen_last_x_ = x;
+    pen_last_y_ = y;
+    pen_last_ms_ = lv_tick_get() | 1u;
     const size_t index = draw_points_count_++;
     draw_points_[index] = lv_point_t{x, y};
     draw_connect_[index] = connect_to_previous && index > 0;
@@ -737,7 +744,13 @@ void ChipoTools::AddDrawPoint(int x, int y, bool connect_to_previous) {
 void ChipoTools::PenDown(int x, int y) {
     if (tool_ != Tool::Canvas) return;
     pen_down_ = true;
-    AddDrawPoint(x, y, false);
+    // The touch controller can report a moving finger as a quick release + press pair (that left separate dots instead
+    // of a line). A new press that starts shortly after the last one ended and close to it continues the same stroke.
+    const uint32_t now = lv_tick_get();
+    const int dx = x - pen_last_x_, dy = y - pen_last_y_;
+    const bool continues = pen_last_ms_ != 0 && draw_points_count_ > 0 &&
+                           now - pen_last_ms_ < kStrokeJoinMs && dx * dx + dy * dy < kStrokeJoinPx * kStrokeJoinPx;
+    AddDrawPoint(x, y, continues);
 }
 
 void ChipoTools::PenMove(int x, int y) {
@@ -748,6 +761,7 @@ void ChipoTools::PenMove(int x, int y) {
 void ChipoTools::PenUp() {
     if (!pen_down_) return;
     pen_down_ = false;
+    pen_last_ms_ = lv_tick_get() | 1u;  // never 0: 0 means "no previous stroke"
 }
 
 // ---- app launcher and control panel ----------------------------------------------------------------------------------
@@ -781,12 +795,13 @@ void ChipoTools::BuildMenu() {
     lv_obj_set_pos(menu_, 0, 0);
     lv_obj_add_flag(menu_, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(menu_, LV_OBJ_FLAG_GESTURE_BUBBLE);
-    lv_obj_add_event_cb(menu_, MenuGestureEvent, LV_EVENT_GESTURE, this);
+    lv_obj_set_user_data(menu_, reinterpret_cast<void*>(static_cast<intptr_t>(-1)));
+    for (lv_event_code_t code : {LV_EVENT_PRESSED, LV_EVENT_PRESSING, LV_EVENT_RELEASED}) lv_obj_add_event_cb(menu_, MenuTileEvent, code, this);
     const int side = std::min(w_, h_);
-    const int gap = side / (panel ? 40 : 24);
-    const int tile = (side - (cols + 2) * gap) / cols;
+    const int gap = side / (panel ? 48 : 24);
+    const int tile = panel ? (side * 78 / 100 - (cols - 1) * gap) / cols : (side - (cols + 2) * gap) / cols;
     const int left = (w_ - (cols * tile + (cols - 1) * gap)) / 2;
-    const int top = (h_ - (cols * tile + (cols - 1) * gap)) / 2;
+    const int top = (h_ - (cols * tile + (cols - 1) * gap)) / 2 + (panel ? side / 40 : 0);
     for (int p = 0; p < menu_pages_ && p < kMenuMaxPages; ++p) {
         menu_page_[p] = Plain(menu_, w_, h_);
         lv_obj_set_pos(menu_page_[p], 0, 0);
@@ -807,7 +822,8 @@ void ChipoTools::BuildMenu() {
             lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
             lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_add_flag(b, LV_OBJ_FLAG_GESTURE_BUBBLE);
-            lv_obj_add_event_cb(b, MenuTileEvent, LV_EVENT_CLICKED, this);
+            for (lv_event_code_t code : {LV_EVENT_PRESSED, LV_EVENT_PRESSING, LV_EVENT_RELEASED, LV_EVENT_CLICKED})
+                lv_obj_add_event_cb(b, MenuTileEvent, code, this);
             lv_obj_set_user_data(b, reinterpret_cast<void*>(static_cast<intptr_t>(idx)));
             // App icon: an alpha-only picture recoloured with the app colour (zoomed to roughly half the tile).
             const char* icon_id = items[idx].id;
@@ -826,8 +842,11 @@ void ChipoTools::BuildMenu() {
         }
     }
     for (int p = 0; p < menu_pages_ && p < kMenuMaxPages; ++p) {
-        menu_dot_[p] = Circle(menu_, 12, kLilac, LV_OPA_COVER, kLilac, 0, LV_OPA_COVER);
-        lv_obj_align(menu_dot_[p], LV_ALIGN_BOTTOM_MID, static_cast<int>((p - (menu_pages_ - 1) / 2.0f) * 28), -std::max(34, side / 14));
+        menu_dot_[p] = Circle(menu_, 16, kLilac, LV_OPA_COVER, kLilac, 0, LV_OPA_COVER);
+        lv_obj_add_flag(menu_dot_[p], LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(menu_dot_[p], 20);
+        lv_obj_add_event_cb(menu_dot_[p], MenuDotEvent, LV_EVENT_CLICKED, this);
+        lv_obj_align(menu_dot_[p], LV_ALIGN_BOTTOM_MID, static_cast<int>((p - (menu_pages_ - 1) / 2.0f) * 28), -std::max(18, side / 28));
     }
     menu_cur_ = 0;
 }
@@ -866,19 +885,39 @@ void ChipoTools::MenuLaunch(int index) {
 void ChipoTools::MenuTileEvent(lv_event_t* e) {
     auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
     if (!self || (self->tool_ != Tool::Menu && self->tool_ != Tool::Panel)) return;
-    const int idx = static_cast<int>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(static_cast<lv_obj_t*>(lv_event_get_target(e)))));
-    self->MenuLaunch(idx);
+    const lv_event_code_t code = lv_event_get_code(e);
+    lv_indev_t* indev = lv_indev_active();
+    if (code == LV_EVENT_PRESSED) {
+        self->menu_dx_ = self->menu_dy_ = 0;
+        self->menu_swiped_ = false;
+    } else if (code == LV_EVENT_PRESSING) {
+        lv_point_t v;
+        if (indev) {
+            lv_indev_get_vect(indev, &v);
+            self->menu_dx_ += v.x;
+            self->menu_dy_ += v.y;
+        }
+    } else if (code == LV_EVENT_RELEASED) {
+        // Own swipe detection from the accumulated finger movement (LVGL's gesture event did not turn the panel pages).
+        const int32_t ax = std::abs(self->menu_dx_), ay = std::abs(self->menu_dy_);
+        if (ax > kMenuSwipePx && ax > ay) {
+            self->menu_swiped_ = true;
+            self->MenuSetPage(self->menu_cur_ + (self->menu_dx_ < 0 ? 1 : -1));
+        } else if (ay > kMenuSwipePx && ay > ax && self->menu_dy_ < 0 && self->tool_ == Tool::Panel) {
+            self->menu_swiped_ = true;
+            self->Close();  // swipe up closes the panel
+        }
+    } else if (code == LV_EVENT_CLICKED) {
+        if (self->menu_swiped_) return;  // the finger moved: it was a swipe, not a tap
+        const intptr_t idx = reinterpret_cast<intptr_t>(lv_obj_get_user_data(static_cast<lv_obj_t*>(lv_event_get_target(e))));
+        if (idx >= 0) self->MenuLaunch(static_cast<int>(idx));
+    }
 }
 
-void ChipoTools::MenuGestureEvent(lv_event_t* e) {
+void ChipoTools::MenuDotEvent(lv_event_t* e) {
     auto* self = static_cast<ChipoTools*>(lv_event_get_user_data(e));
     if (!self || (self->tool_ != Tool::Menu && self->tool_ != Tool::Panel)) return;
-    lv_indev_t* indev = lv_indev_active();
-    if (!indev) return;
-    const lv_dir_t dir = lv_indev_get_gesture_dir(indev);
-    if (dir == LV_DIR_LEFT) self->MenuSetPage(self->menu_cur_ + 1);
-    else if (dir == LV_DIR_RIGHT) self->MenuSetPage(self->menu_cur_ - 1);
-    else if (dir == LV_DIR_TOP && self->tool_ == Tool::Panel) self->Close();  // swipe up closes the panel, like an iPhone
+    self->MenuSetPage((self->menu_cur_ + 1) % std::max(1, self->menu_pages_));  // tapping the dots turns the page
 }
 
 // A strip along the top edge of the face: dragging it down opens the control panel.
