@@ -106,7 +106,7 @@ private:
     static void TimerCallback(lv_timer_t* timer);
     static void RootEvent(lv_event_t* e);
     static void MenuTileEvent(lv_event_t* e);
-    static void MenuGestureEvent(lv_event_t* e);
+    static void MenuDotEvent(lv_event_t* e);
     static void EdgeEvent(lv_event_t* e);
     void BuildMenu();
     void MenuSetPage(int page);
@@ -189,6 +189,8 @@ private:
     // launcher: 2 x 2 apps per page, swipe to change page
     static constexpr int kMenuMaxPages = 3;
     int menu_pages_ = 1, menu_per_page_ = 4;
+    int32_t menu_dx_ = 0, menu_dy_ = 0;
+    bool menu_swiped_ = false;
     lv_obj_t* edge_ = nullptr;
     int32_t edge_dy_ = 0;
     lv_obj_t* menu_ = nullptr;
@@ -229,6 +231,8 @@ private:
     std::array<lv_point_t, 1000> draw_points_{};
     std::array<bool, 1000> draw_connect_{};
     std::size_t draw_points_count_ = 0;
+    int pen_last_x_ = 0, pen_last_y_ = 0;
+    uint32_t pen_last_ms_ = 0;
 
     // subtitles
     lv_obj_t* sub_ = nullptr;
