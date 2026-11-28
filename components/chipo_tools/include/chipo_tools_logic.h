@@ -57,6 +57,8 @@ struct HorizonReading {
     float roll_deg = 0.0f;
     float pitch_deg = 0.0f;
 };
+// Absolute angles (no neutral pose subtracted); used to capture the calibration. False when gravity is implausible.
+bool HorizonRawAngles(float ax_g, float ay_g, float az_g, float* roll_deg, float* pitch_deg);
 HorizonReading HorizonFromAccel(float ax_g, float ay_g, float az_g, float zero_roll_deg, float zero_pitch_deg);
 
 // Draws the artificial horizon into a w x h RGB565 buffer: sky above, earth below, white line, yellow centre mark.

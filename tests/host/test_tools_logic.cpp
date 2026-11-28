@@ -130,21 +130,30 @@ int main() {
               "negative axes must preserve direction, got (%f,%f)", d.x, d.y);
     }
 
-    // ---- artificial horizon ----
+    // ---- artificial horizon (device upright: gravity along sensor X, screen normal = sensor Z) ----
     {
-        HorizonReading h = HorizonFromAccel(0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
-        CHECK(h.valid && std::fabs(h.roll_deg) < 1e-4f && std::fabs(h.pitch_deg) < 1e-4f,
-              "neutral horizon should be zero");
-        const float r = 179.0f * 0.0174532925f;
-        h = HorizonFromAccel(0.0f, std::sin(r), std::cos(r), -179.0f, 0.0f);
-        CHECK(h.valid && std::fabs(h.roll_deg + 2.0f) < 0.1f,
-              "roll crossing +/-180 must wrap to -2 degrees, got %f", h.roll_deg);
+        HorizonReading h = HorizonFromAccel(1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        CHECK(h.valid && std::fabs(h.roll_deg) < 1e-3f && std::fabs(h.pitch_deg) < 1e-3f, "upright horizon should be zero");
+        const float p = 12.0f * 0.0174532925f;
+        // Tilting back (screen faces up) must move the horizon down and must NOT roll it.
+        h = HorizonFromAccel(std::cos(p), 0.0f, std::sin(p), 0.0f, 0.0f);
+        CHECK(h.valid && std::fabs(h.roll_deg) < 0.1f && std::fabs(h.pitch_deg + 12.0f) < 0.1f,
+              "tilt back = pure negative pitch, got roll %f pitch %f", h.roll_deg, h.pitch_deg);
+        h = HorizonFromAccel(std::cos(p), 0.0f, -std::sin(p), 0.0f, 0.0f);
+        CHECK(h.valid && std::fabs(h.roll_deg) < 0.1f && std::fabs(h.pitch_deg - 12.0f) < 0.1f,
+              "tilt forward = pure positive pitch, got roll %f pitch %f", h.roll_deg, h.pitch_deg);
+        h = HorizonFromAccel(std::cos(p), std::sin(p), 0.0f, 0.0f, 0.0f);
+        CHECK(h.valid && std::fabs(h.roll_deg - 12.0f) < 0.1f && std::fabs(h.pitch_deg) < 0.1f,
+              "sideways tilt = pure roll, got roll %f pitch %f", h.roll_deg, h.pitch_deg);
+        h = HorizonFromAccel(1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        float r0 = 0, p0 = 0;
+        CHECK(HorizonRawAngles(std::cos(p), 0.0f, std::sin(p), &r0, &p0), "raw angles valid");
+        h = HorizonFromAccel(std::cos(p), 0.0f, std::sin(p), r0, p0);
+        CHECK(std::fabs(h.pitch_deg) < 0.1f, "calibration cancels the captured pose");
         h = HorizonFromAccel(0.0f, 0.0f, 0.1f, 0.0f, 0.0f);
         CHECK(!h.valid, "free-fall / invalid gravity magnitude must be rejected");
-        const float p = 12.0f * 0.0174532925f;
-        h = HorizonFromAccel(-std::sin(p), 0.0f, std::cos(p), 0.0f, 0.0f);
-        CHECK(h.valid && std::fabs(h.pitch_deg - 12.0f) < 0.1f,
-              "pitch should follow sensor X, got %f", h.pitch_deg);
+        h = HorizonFromAccel(0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
+        CHECK(h.valid && std::fabs(h.roll_deg) < 1e-3f, "lying flat holds roll at 0 instead of jittering");
     }
 
     // ---- horizon renderer: spans must give the same picture as the old per-pixel formula ----

@@ -242,20 +242,39 @@ int main() {
         r.tools.Stop();
     }
 
-    std::printf("== hardware key cycles the tools\n");
+    std::printf("== hardware key opens the launcher\n");
     {
         Rig r;
         r.Start();
+        std::vector<std::string> opened;
         r.tools.OnKey();
-        CHECK(r.tools.tool() == ChipoTools::Tool::Level, "key 1: level");
+        CHECK(r.tools.tool() == ChipoTools::Tool::Menu, "key 1: launcher");
+        r.tools.Close();
+        r.tools.Open(ChipoTools::Tool::Menu);
         r.tools.OnKey();
-        CHECK(r.tools.tool() == ChipoTools::Tool::GravityBall, "key 2: Gravity Ball");
+        CHECK(r.tools.tool() == ChipoTools::Tool::None, "key 2: closed");
+        r.tools.Open(ChipoTools::Tool::Level);
         r.tools.OnKey();
-        CHECK(r.tools.tool() == ChipoTools::Tool::Horizon, "key 3: artificial horizon");
+        CHECK(r.tools.tool() == ChipoTools::Tool::Menu, "key from an app returns to the launcher");
+        r.tools.Open(ChipoTools::Tool::Canvas);
         r.tools.OnKey();
-        CHECK(r.tools.tool() == ChipoTools::Tool::Canvas, "key 4: DrawPanel");
+        r.tools.Open(ChipoTools::Tool::Level);
+        CHECK(r.tools.tool() == ChipoTools::Tool::Level, "apps still open after the canvas");
+        r.tools.Stop();
+    }
+
+    std::printf("== control panel (swipe down from the top edge)\n");
+    {
+        Rig r;
+        r.Start();
+        r.tools.Open(ChipoTools::Tool::Panel);
+        CHECK(r.tools.tool() == ChipoTools::Tool::Panel, "panel opens");
         r.tools.OnKey();
-        CHECK(r.tools.tool() == ChipoTools::Tool::None, "key 5: closed");
+        CHECK(r.tools.tool() == ChipoTools::Tool::None, "button closes the panel");
+        r.tools.Open(ChipoTools::Tool::Panel);
+        r.tools.Close();
+        r.tools.Open(ChipoTools::Tool::Menu);
+        r.tools.Close();
         r.tools.Stop();
     }
 
