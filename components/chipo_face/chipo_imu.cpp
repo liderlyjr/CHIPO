@@ -195,6 +195,14 @@ void ChipoImu::Run() {
     while (running_.load()) {
         // Accelerometer X..Z are followed by gyroscope X..Z in the register map.
         uint8_t raw[12];
+        if (paused_.load()) {
+            // Drawing or navigating menus needs the touch controller to answer every read: leave the bus alone.
+            last_wake += pdMS_TO_TICKS(100);
+            const TickType_t pause_wait = last_wake - xTaskGetTickCount();
+            if (static_cast<int32_t>(pause_wait) > 0) xSemaphoreTake(wake_, pause_wait);
+            else last_wake = xTaskGetTickCount();
+            continue;
+        }
         if (ReadRegs(kRegAccelX_L, raw, gyro_ok_ ? 12 : 6)) {
             consecutive_errors = 0;
             ImuSample sample;

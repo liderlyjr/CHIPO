@@ -47,6 +47,8 @@ public:
 
     // 50 Hz readout instead of 25 Hz (CHIPO DRIVE needs short jolts). Thread safe.
     void SetFastSampling(bool fast) { fast_.store(fast); }
+    // Paused: the task stops touching the shared I2C bus (the touch controller sits on it) until resumed.
+    void SetPaused(bool paused) { paused_.store(paused); }
 
 private:
     static void TaskEntry(void* arg);
@@ -64,6 +66,7 @@ private:
     std::atomic<uint32_t> head_{0};      // samples written so far
     uint32_t tail_ = 0;                  // samples read so far (UI task only)
     std::atomic<bool> fast_{false};
+    std::atomic<bool> paused_{false};
     bool gyro_ok_ = false;  // set in Start() before the task starts, then read-only
 };
 

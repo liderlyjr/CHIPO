@@ -562,6 +562,14 @@ void ChipoFace::SetFastSampling(bool fast) {
 #endif
 }
 
+void ChipoFace::SetImuPaused(bool paused) {
+#ifdef ESP_PLATFORM
+    if (imu_) imu_->SetPaused(paused);
+#else
+    (void)paused;
+#endif
+}
+
 void ChipoFace::SetState(State state) {
     if (state_ == state) return;
     state_ = state;
