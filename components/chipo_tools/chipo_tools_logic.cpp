@@ -57,10 +57,11 @@ LevelReading LevelFromAccel(float ax, float ay, float az, bool mirror_x, bool mi
 // ---- Gravitysphere -----------------------------------------------------------------------------------------------
 GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2) {
     // The display is rotated 90 degrees from the QMI8658 board: screen right = sensor +X, screen up = sensor -Y
-    // (screen normal = sensor -Z). The ball rolls along gravity, which is minus the measured specific force.
+    // (screen normal = sensor -Z). On the board 0.7.4 (both signs negated) rolled the ball away from the tilt on both axes,
+    // so the ball now follows the measured specific force directly: it goes where the device is tilted.
     // Waveshare's own demo (x -= accelY, y += accelX) assumed the unrotated panel; on CHIPO it made a tilt to the left
     // roll the ball downwards (checked on the board).
-    return {-accel_x_mps2 * 8.0f, -accel_y_mps2 * 8.0f};
+    return {accel_x_mps2 * 8.0f, accel_y_mps2 * 8.0f};
 }
 
 // Frame of the sensor on the CHIPO board, derived from Waveshare's demo mapping plus the rotated display and confirmed
@@ -70,7 +71,7 @@ GravityBallDelta GravityBallFromAccel(float accel_x_mps2, float accel_y_mps2) {
 #define CHIPO_HORIZON_VERT_SIGN -1.0f
 #endif
 #ifndef CHIPO_HORIZON_ROLL_SIGN
-#define CHIPO_HORIZON_ROLL_SIGN 1.0f
+#define CHIPO_HORIZON_ROLL_SIGN -1.0f
 #endif
 #ifndef CHIPO_HORIZON_PITCH_SIGN
 #define CHIPO_HORIZON_PITCH_SIGN 1.0f
