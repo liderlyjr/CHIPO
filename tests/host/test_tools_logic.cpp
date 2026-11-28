@@ -119,12 +119,12 @@ int main() {
 
     // ---- gravity ball: screen right = sensor +X, screen up = sensor -Y (display rotated on the board) ----
     {
-        GravityBallDelta d = GravityBallFromAccel(1.0f, 0.0f);  // tilt to the left raises +X: the ball must go left
-        CHECK(std::fabs(d.x + 8.0f) < 1e-5f && std::fabs(d.y) < 1e-5f, "+X moves the ball left, got (%f,%f)", d.x, d.y);
-        d = GravityBallFromAccel(0.0f, -1.0f);  // upright: the ball rests at the bottom (down on screen)
-        CHECK(std::fabs(d.x) < 1e-5f && std::fabs(d.y - 8.0f) < 1e-5f, "upright pulls the ball down, got (%f,%f)", d.x, d.y);
+        GravityBallDelta d = GravityBallFromAccel(1.0f, 0.0f);  // confirmed on the board: the ball follows the tilt
+        CHECK(std::fabs(d.x - 8.0f) < 1e-5f && std::fabs(d.y) < 1e-5f, "+X moves the ball along +X, got (%f,%f)", d.x, d.y);
+        d = GravityBallFromAccel(0.0f, -1.0f);
+        CHECK(std::fabs(d.x) < 1e-5f && std::fabs(d.y + 8.0f) < 1e-5f, "-Y moves the ball along -Y, got (%f,%f)", d.x, d.y);
         d = GravityBallFromAccel(-1.0f, 1.0f);
-        CHECK(std::fabs(d.x - 8.0f) < 1e-5f && std::fabs(d.y + 8.0f) < 1e-5f, "opposite signs, got (%f,%f)", d.x, d.y);
+        CHECK(std::fabs(d.x + 8.0f) < 1e-5f && std::fabs(d.y - 8.0f) < 1e-5f, "opposite signs, got (%f,%f)", d.x, d.y);
     }
 
     // ---- artificial horizon (device upright: specific force along sensor -Y, screen normal = sensor -Z) ----
@@ -139,9 +139,9 @@ int main() {
         h = HorizonFromAccel(0.0f, -std::cos(p), std::sin(p), 0.0f, 0.0f);
         CHECK(h.valid && std::fabs(h.roll_deg) < 0.1f && std::fabs(h.pitch_deg - 12.0f) < 0.1f,
               "tilt forward = pure positive pitch, got roll %f pitch %f", h.roll_deg, h.pitch_deg);
-        // Tilting the device to the left (+X) rolls the horizon clockwise on the screen, like an aircraft indicator.
+        // Checked on the board: tilting left must turn the horizon the same way (counter-clockwise, negative roll).
         h = HorizonFromAccel(std::sin(p), -std::cos(p), 0.0f, 0.0f, 0.0f);
-        CHECK(h.valid && std::fabs(h.roll_deg - 12.0f) < 0.1f && std::fabs(h.pitch_deg) < 0.1f,
+        CHECK(h.valid && std::fabs(h.roll_deg + 12.0f) < 0.1f && std::fabs(h.pitch_deg) < 0.1f,
               "sideways tilt = pure roll, got roll %f pitch %f", h.roll_deg, h.pitch_deg);
         float r0 = 0, p0 = 0;
         CHECK(HorizonRawAngles(0.0f, -std::cos(p), -std::sin(p), &r0, &p0), "raw angles valid");
